@@ -96,7 +96,8 @@ describe('the notation of a move', () => {
     const board = boardWith({
       Ab1: [PieceType.Knight, W],
       Ad1: [PieceType.Knight, B],
-      Aa2: [PieceType.Unicorn, W],
+      // (a rook that reaches Ac3 along the rank)
+      Ac1: [PieceType.Rook, W],
     });
     expect(notate(board, move('Ab1', 'Ac3')).from).toBeNull();
   });

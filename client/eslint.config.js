@@ -31,8 +31,8 @@ const NO_R3F_STATE = [
 ];
 
 // CLAUDE.md "Gotchas": focus the page moves by itself goes through lib/focus.ts,
-// so its ring shows only for a player on the keyboard (the scene's and the
-// canvases' blocks below drop it: they move no DOM focus)
+// so its ring shows only for a player on the keyboard (kept, like
+// NO_R3F_STATE, in each block that sets no-restricted-syntax)
 const FOCUS_FROM_CODE =
   'Focus the page moves goes through lib/focus.ts (autoFocusRef, focusFromCode).';
 const NO_BARE_FOCUS = [
@@ -149,6 +149,7 @@ export default defineConfig(
       'no-restricted-syntax': [
         'error',
         ...NO_R3F_STATE,
+        ...NO_BARE_FOCUS,
         {
           selector: "NewExpression[callee.name='Date']",
           message: 'Animate on r3f’s clock, not the wall clock.',
@@ -166,6 +167,7 @@ export default defineConfig(
       'no-restricted-syntax': [
         'error',
         ...NO_R3F_STATE,
+        ...NO_BARE_FOCUS,
         {
           selector: "NewExpression[callee.name='Date']",
           message: 'Animate on r3f’s clock, not the wall clock.',
@@ -191,6 +193,7 @@ export default defineConfig(
     rules: {
       'no-restricted-syntax': [
         'error',
+        ...NO_BARE_FOCUS,
         {
           selector: "NewExpression[callee.name='Date']",
           message: 'Animate on r3f’s clock, not the wall clock.',

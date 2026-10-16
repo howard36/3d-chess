@@ -87,11 +87,14 @@ describe('reviewLine', () => {
 
   it('leaves out a record past one the replay could not play', () => {
     // Black's second move is from an empty square
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const history = deriveHistory([
       snapshot(recordsOf(['Bb1-Cb1', 'Dd5-Cd5', 'Cb1-Db1', 'Cc3-Bc3'])),
     ]);
     expect(history.replayFailedAt).toBe(3);
     expect(reviewLine(history).positions).toHaveLength(4);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
 

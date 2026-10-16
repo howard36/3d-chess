@@ -148,14 +148,19 @@ describe('a turning rim', () => {
     let reads = 0;
     const el = document.createElement('button');
     Object.defineProperty(el, 'offsetWidth', { get: () => (reads++, 165) });
-    Object.defineProperty(el, 'offsetHeight', { value: 116 });
+    Object.defineProperty(el, 'offsetHeight', { get: () => (reads++, 116) });
     el.style.borderRadius = '14px';
     document.body.append(el);
+    // Its style too, which a layout brings up to date as much as a size does
+    const style = vi.spyOn(window, 'getComputedStyle');
     glassRim(() => false)(el);
     expect(reads).toBe(0);
+    expect(style).not.toHaveBeenCalled();
     expect(rim(el)).toBe('');
     layout();
-    expect(reads).toBe(1);
+    expect(reads).toBe(2);
+    expect(style).toHaveBeenCalledTimes(1);
+    style.mockRestore();
     expect(rim(el)).toMatch(/^conic-gradient\(/);
     // Without an observer it measures at once
     vi.stubGlobal('ResizeObserver', undefined);

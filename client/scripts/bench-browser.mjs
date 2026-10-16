@@ -530,8 +530,10 @@ const BENCH_INIT = () => {
       !f.joinButton &&
       !f.turnIndicator &&
       (buttonNamed('Join game') || buttonNamed('Join Game'))
-    )
+    ) {
       f.joinButton = t;
+      performance.mark('join-shown');
+    }
     if (!f.sideChoice && document.querySelector('[aria-label="Choose your side"] button')) {
       f.sideChoice = t;
     }
@@ -759,6 +761,8 @@ async function settle(page, { quietMs = 300, timeout = 15000 } = {}) {
     );
     return true;
   } catch {
+    // Said in the findings: the next timed action met a canvas still drawing
+    raw.unrested = (raw.unrested ?? 0) + 1;
     return false;
   }
 }
@@ -1478,8 +1482,22 @@ async function joinViaUI(browser, scope) {
   const { gameId } = white.last.game_created;
   const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
   const page = await ctx.newPage();
-  await page.goto(`${BASE}/game/${gameId}`);
-  await page.getByRole('button', { name: /^Join game\b/i }).click();
+  // BENCH_TRACE_JOIN=<dir>: a Chrome trace of each join's page from the
+  // link to the click, its "Join game" marked (join-shown), into <dir>
+  const traceDir = process.env.BENCH_TRACE_JOIN;
+  if (traceDir) {
+    fs.mkdirSync(traceDir, { recursive: true });
+    await browser.startTracing(page, {
+      categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute'],
+    });
+  }
+  try {
+    await page.goto(`${BASE}/game/${gameId}`);
+    await page.getByRole('button', { name: /^Join game\b/i }).click();
+  } finally {
+    if (traceDir)
+      fs.writeFileSync(path.join(traceDir, `join-${Date.now()}.json`), await browser.stopTracing());
+  }
   await waitFirstFrame(page);
   const b = await snap(page);
   const click = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
@@ -1500,6 +1518,9 @@ async function joinViaUI(browser, scope) {
       .map(([t, n, d]) => [Math.round(t - first[0]), n, Math.round(d)]),
     // Where the joiner's wait goes: what happened from the click to its first frame
     joinTrace: {
+      // The click, from the page's time origin (the Join button's own row
+      // starts there), so the long tasks below line up with it
+      clickAt: Math.round(click - b.timeOrigin),
       stages: b.stage
         .filter(([t]) => t >= click - 1 && t <= frame + 1)
         .map(([t, ...rest]) => [Math.round(t - click), ...rest]),
@@ -2449,10 +2470,18 @@ async function reviewSection(browser) {
           // card is closed and the list's “Analyse” clicked, as the bench did
           // then (its span leaves out closing the card), so a --base against
           // it still measures the review
-          const via = await page.evaluate(() =>
-            ['review', 'analyse'].find((id) => document.querySelector(`[data-testid="${id}"]`)),
-          );
-          if (!via) throw new Error('no Review on this page (a commit before #143?)');
+          // (waited for: the card may come a frame after the board)
+          const via = await page
+            .waitForFunction(
+              () =>
+                ['review', 'analyse'].find((id) => document.querySelector(`[data-testid="${id}"]`)),
+              null,
+              { timeout: 10000 },
+            )
+            .then((h) => h.jsonValue())
+            .catch(() => {
+              throw new Error('neither Review nor Analyse showed on the finished game in 10 s');
+            });
           if (via === 'analyse')
             await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
           await quietMain(page);
@@ -3093,6 +3122,10 @@ function findings() {
   };
   const pct = (x) => `${Math.round(x)}%`;
   const med = (rows, k) => median(rows.map((r) => r[k]));
+  if (raw.unrested)
+    f.push(
+      `The canvas did not come to rest within its wait ${raw.unrested} time(s): the action timed after it met a GPU still drawing.`,
+    );
   tryAdd(() => {
     const d = raw.cold.desktop;
     const t = raw.cold['phone-cpu4-4g'];

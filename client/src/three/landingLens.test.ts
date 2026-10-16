@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { FIT_SOFTNESS, elevationOf, fitView, ringBounds } from './cameraFit';
@@ -15,6 +17,7 @@ import { COMMON_WINDOWS } from './landingWindows';
 import { landingFrameRings, landingViewDirection } from './landingView';
 import { LANDING_BANDS, landingLayoutOf } from '../screens/landingLayout';
 import type { LandingLayout } from '../screens/landingLayout';
+import type { PictureDensity } from './landingLens';
 
 const opening = elevationOf(new Vector3(...landingViewDirection), new Vector3());
 const fitWindow = (width: number, height: number, fov = 36): FitWindow => ({
@@ -121,6 +124,28 @@ describe('the pictures', () => {
     expect(pictureSourceSet('phone', 'avif')).toBe(
       '/landing/phone.avif 1x, /landing/phone@2x.avif 2x',
     );
+  });
+
+  // A lens baked anew without the pictures rendered again (scripts/
+  // landing-pictures.mjs) shows as a jump where the preview takes over
+  it('are the files in public/landing, at the sizes baked here', () => {
+    const size = (file: string): [number, number] => {
+      const b = readFileSync(join(process.cwd(), 'public', file));
+      if (file.endsWith('.webp')) {
+        // A lossy WebP (VP8): 14-bit width and height, little-endian
+        expect(b.toString('latin1', 12, 16)).toBe('VP8 ');
+        return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+      }
+      // AVIF's image size box: version and flags, then width and height
+      const ispe = b.indexOf('ispe');
+      return [b.readUInt32BE(ispe + 8), b.readUInt32BE(ispe + 12)];
+    };
+    for (const [layout, picture] of Object.entries(LANDING_PICTURES))
+      for (const [density, pixels] of Object.entries(picture.pixels))
+        for (const type of ['avif', 'webp'] as const) {
+          const file = pictureSource(layout as LandingLayout, type, density as PictureDensity);
+          expect([file, size(file)]).toEqual([file, pixels]);
+        }
   });
 
   it('are placed by the window’s lens: a tangent of the view lands where the camera puts it', () => {
