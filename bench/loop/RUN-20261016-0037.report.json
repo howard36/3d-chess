@@ -1,0 +1,138 @@
+{
+ "title": "Perf run 20261016-0037",
+ "eyebrow": "3D chess · perf-iteration · run 20261016-0037",
+ "heading": "The start page is ready sooner on desktop again, and the loop's records are tidy",
+ "meta": "<p>A change made two PRs ago, the turning rainbow rims on the start page's buttons, had made the start page slower. Each rim measured its button while React was still building the page, which forced the browser to lay out the page early. The rims now measure a moment later, after the browser's own layout. On the final commit, “Start page usable” is 28% sooner on desktop (89.8 → 64.3 ms) and 9.6% sooner on the slowed phone (726 → 655 ms), both called better. No headline row is called worse. One row, the opponent's move appearing, leans slower without being called; it is under Needs from me. The rest of the run is checks and record-keeping: a lint rule, a stricter coverage gate, two bench fixes and a tidy ledger. Everything is in the PR.</p><p class=\"small\">Run 2026-10-16, 00:37–04:45 UTC. Main at <code>1a04c29</code>, branch <code>improve/20261016-0037</code> (pushed as <code>claude/perf-orchestrator-agent-fsf3mk</code>). Measured in headless Chromium with SwiftShader (WebGL drawn on the CPU) on 4 CPUs. Every comparison is an A/B: the bench runs main and the branch back to back several times, and each back-to-back run is a <em>pair</em>. A change is <em>called</em> only when every pair moves the same way, by more than 5% and by more than the pairs disagree with each other.</p>",
+ "needs": {
+  "items": [
+   {
+    "title": "“The opponent's move appears” leans slower: accept it as noise?",
+    "body": "<p>On the final commit against main, this headline row was 19% slower at the median (204 → 257 ms, pairs 1.29 1.34 0.98 1.18), and 15% slower in a 6-pair re-check (217 → 258 ms, pairs 0.98 1.06 1.37 1.21 1.01 1.37). Neither run called it. The run's rule puts any headline row more than 3% worse at the median here.</p><p>I don't think the branch causes it. No code this run changed runs during a game: the rims live only on the start page, the side choice and the result card, and the focus change acts only when the move list holds the focus, which it does not in the bench. Two more A/Bs point the same way. Comparing the final commit with itself (one copy built the way the bench builds main) gave the row +3.8% (pairs 1.13 0.96 1.03 1.16 0.93 1.04), so the bench's own spread on this row is several percent. Comparing it with 171e1d8, the commit before the only change that touches the game page, gave −4.6%. “The player's move appears” moved −6.0%, then +6.8%, in the same runs.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "verify: e02a235 vs 1a04c29 (primary, 4 pairs)",
+       "only": "Move latency · (Player’s|Opponent’s) move: picture (handed to|drawn by) the GPU"
+      },
+      "caption": "Final commit e02a235 against main 1a04c29, 4 pairs."
+     },
+     {
+      "rows": {
+       "change": "verify recheck: e02a235 vs 1a04c29 (move-latency, select, computer; 6 pairs)",
+       "only": "Move latency · (Player’s|Opponent’s) move: picture (handed to|drawn by) the GPU"
+      },
+      "caption": "The same comparison again, 6 pairs."
+     },
+     {
+      "rows": {
+       "change": "A/A: e02a235 vs itself built in a worktree (move-latency, 6 pairs)",
+       "only": "Move latency · (Player’s|Opponent’s) move: picture (handed to|drawn by) the GPU"
+      },
+      "caption": "The final commit against itself, 6 pairs: the bench's own noise on these rows."
+     }
+    ],
+    "recommend": "Merge. The next run measures the move rows with more pairs before reading anything into them (ledger 1016:MV1)."
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Against main, the final commit is 1.072 times as fast over all 14 (identical code compared with itself gives about 1.004). Two are called better: “Start page usable” on desktop (−28%) and on the slowed phone (−9.6%). None is called worse. The page's memory did not grow: JavaScript memory on a reopened long game +0.0%, and geometries and textures grown over 16 moves are the same on both sides.</p><p>Against the first recorded run (92ce041), the final commit is 2.48 times as fast over the 11 headline rows both can measure; the target is 1.2. Moves and picking up a piece take about a tenth of the time they did. Two rows are called worse than the first run, both already known: “Start page usable” on desktop (+23%) and on the slowed phone (+13%). The start page has grown since then: the computer player, the tutorial and the picture. JavaScript memory on a reopened long game is 35% higher than the first run, also known.</p>",
+  "items": [
+   {
+    "title": "The branch against main",
+    "charts": [
+     {
+      "rows": {
+       "change": "verify: e02a235 vs 1a04c29 (primary, 4 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "Final commit e02a235 against main 1a04c29, 4 pairs (ab-20261016-0037-verify.md)."
+     }
+    ]
+   },
+   {
+    "title": "The branch against the first recorded run",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "Final commit e02a235 against the first recorded run's base 92ce041, 3 pairs (ab-20261016-0037-vs-first-run.md). The base has no computer player or review."
+     }
+    ]
+   },
+   {
+    "title": "Main against the last run's base",
+    "body": "<p>Before changing anything, I compared main (1a04c29) with the last run's base (9f2d524) to find what had regressed in between. The phone's start page showed its board in half the time (the last run's fix). Three start-page rows had become slower on desktop: the first click (+59%, called), “usable” (+19%, worse in every pair) and the board appearing (+14%). A bisect of the six PRs in between put the cause on #145, the turning rims.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: 1a04c29 vs 9f2d524, the last run's base (primary, 4 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "Main 1a04c29 against the last run's base 9f2d524, 4 pairs (ab-20261016-0037-regress.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "items": [
+   {
+    "title": "The rims no longer force a layout as their buttons appear (25dbdc9)",
+    "body": "<p>Each rimmed button (the start page's two, the side choice's three, the lobby's pill) read its own size as React attached it. Reading a size in the middle of React's work makes the browser lay out the page at once, for each button. The rims now take their first size from a ResizeObserver, which reports after the browser's own layout and before the first paint, so the first frame still shows each rim at rest. The look does not change. A new unit test counts the layout reads at attach and fails if they come back.</p><p>Measured on the change alone against main (cold load, 4 pairs): the desktop's board appears 26% sooner (176 → 138 ms) and its page is usable 17% sooner (79.2 → 66.5 ms), both called. On the final commit the first click is also back: desktop −28% (pairs 0.70 0.61 0.86 0.75) and the slowed phone −45% (pairs 0.40 0.62 0.84 0.43), every pair better but not called because the pairs spread widely.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "verify: e02a235 vs 1a04c29 (primary, 4 pairs)",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|first click: side choice shown)"
+      },
+      "caption": "Start page rows, final commit against main, 4 pairs."
+     }
+    ]
+   },
+   {
+    "title": "Checks that now run instead of rules that only remind",
+    "body": "<ul><li><strong>Focus lint (026a7b2).</strong> ESLint now refuses <code>autoFocus</code> and a bare <code>.focus()</code> under <code>src/</code>, outside <code>lib/focus.ts</code> and tests, which is the CLAUDE.md rule about focus the page moves by itself. Three calls moved to <code>focusFromCode</code>. The scene's and canvases' lint blocks do not carry the rule yet (ledger 1016:FL1).</li><li><strong>Coverage per file (bcfeaad).</strong> The 90% gates on <code>engine/</code>, <code>ai/</code> and <code>game/</code> now hold for each file, not for each folder's total. Lowest today: <code>ai/computer.ts</code> 91.7% of branches, <code>engine/board.ts</code> 92.4%.</li><li><strong>A rimmed button's frames stop when it goes (171e1d8).</strong> The test's frame stub now cancels by id, so a cleanup that cancels the wrong frame fails.</li><li><strong>bench/loop/ keeps only the loop state (32912a5).</strong> A <code>.gitignore</code> allow-list, so built pages, images and raw JSON cannot be committed there again.</li></ul>"
+   },
+   {
+    "title": "The bench measures what it says",
+    "body": "<ul><li><strong>Review against older bases (1dfd8cd).</strong> Since #148 the bench's review section clicked a button that older pages lack, so any comparison with a commit before #148 lost its review rows. It now uses the older “Analyse” button when there is no “Review”. Against 9f2d524 the review row is 6.35 → 2.97 s, the last run's parallel review.</li><li><strong>The start page's board row says what it timed (0924ced).</strong> Two count rows per cold load: loads whose board first appeared as its picture, and pictures that failed to decode. A picture that fails to decode is no longer timed as shown.</li></ul>"
+   },
+   {
+    "title": "The loop's records",
+    "body": "<p>bench/loop/ held 163 files. 54 were built pages, charts, screenshots, traces, raw JSON and probe notes, which the loop does not keep; they are gone (still in git history). The old SCOREBOARD.md became 814 rows of <code>scoreboard.jsonl</code>. The ledger is now two tables, Open and Rejected, with every id named by its run, as the skill asks.</p>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>Against main, outside bench/loop/, the branch adds 149 lines and removes 25 in 8 files. The app's code grows by 4 lines (the rim's measure and one import). Tests grow by 77 lines, the bench by 26, and lint and test config by 17. In bench/loop/, 54 files and SCOREBOARD.md were removed; the ledger shrank from 489 lines to about 290 by dropping kept ideas and merging repeats.</p>"
+ },
+ "rejected": {
+  "items": [
+   {
+    "title": "Focusing the side choice's first tile without scrolling (RG2b)",
+    "body": "<p>After the rim fix, the side choice's first focus still lays out the page as it appears. Passing <code>preventScroll</code> to that focus did not move the first click: desktop +1.8% (pairs 0.94 0.96 1.38 0.86), slowed phone +18% (pairs 1.09 1.22 0.98 1.50). Reverted; it was two lines, so no patch is kept.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "RG2b",
+       "only": "Cold load of the start screen · (desktop|phone, 4× CPU, Fast 4G) · (“Play a friend” enabled|board on screen.*|first click: side choice shown)"
+      },
+      "caption": "preventScroll against the commit before it, 4 pairs (ab-20261016-0037-rg2b.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>I fixed the rims by moving their measure, not by changing how they turn. A rim still repaints on every frame while it turns (under the pointer on the start page, always on the lobby's pill). A cheaper turn would change what a player sees, so I did not try one.</li><li>The opponent's move row stays in the PR, with the evidence above, rather than holding the PR (see Needs from me).</li><li>The focus lint makes the move list's focus quiet after a pointer click, so a player who clicked a move and then presses Tab sees the ring first instead of moving on. This is how <code>focusFromCode</code> works everywhere else; the ledger keeps it as 1016:FT1 in case the move list should differ.</li><li>The ledger tidy parked every open idea from run 20261012-1644 and earlier (three runs passed them over), and dropped every kept idea. The old ledger is in git history at 1a04c29.</li><li>The scoreboard rows measured on uncommitted code now carry <code>+wip</code> after their head commit, and V16's two count rows are filed under V16 instead of the rejected RG2b.</li></ul>"
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>Whether the opponent's move row is noise. Three A/Bs say probably; none settles it.</li><li>Which commit won back #145's cost on “Start page usable, phone”. #147 and #148 were bisected only on reopening a game.</li><li>The rims' first frame in a real browser. Unit tests run under jsdom, which has no real ResizeObserver; the e2e suite passed, but no e2e test looks at the rim in the first frame (ledger 1016:RF1).</li><li>Whether any open idea from before run 20261014-0357 still matches the code. The tidy parked them without reading each one.</li></ul>"
+ },
+ "next": {
+  "intro": "<ol><li>Measure the move rows with 8 or more pairs, to settle the opponent's move (1016:MV1).</li><li>An A/A of the cold-load section, 6 or more pairs, since one A/B this run showed the head slower before any script ran (1016:AA1).</li><li>Count the first click's two modes (about 7 or 14 ms) instead of timing a median, then re-bisect #141–#146 against 9f2d524 (1016:FC1).</li><li>Spread the focus lint into the scene's and canvases' lint blocks (1016:FL1).</li><li>Run on-page searches one at a time when a worker fails to load (1015:RV17).</li><li>A year's cache for <code>/assets/*</code>, with a warm-load case in the bench to measure it (1016:P2′).</li></ol>"
+ }
+}
