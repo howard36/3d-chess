@@ -25,6 +25,11 @@ vi.mock('./choose', async (importOriginal) => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+// A search that never reached the mock leaves no flag for the next test
+beforeEach(() => {
+  searches.runs.length = 0;
+  searches.fail = false;
+});
 
 /** A stand-in Worker: answers each request with a fixed move, or fails to load. */
 class FakeWorker {
