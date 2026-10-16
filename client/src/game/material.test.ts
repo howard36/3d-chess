@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Board } from '../engine';
 import { PieceType } from '../engine/pieces';
 import { fromZXY } from '../engine/coords';
@@ -49,6 +49,7 @@ describe('the pieces each side has taken', () => {
   });
 
   it('keep their count through a frozen record, up to the move that could not be played', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const h = deriveHistory([
       {
         type: 'game_state',
@@ -62,6 +63,8 @@ describe('the pieces each side has taken', () => {
     ]);
     expect(h.replayFailedAt).toBe(1);
     expect(h.captured).toEqual({ white: [Pawn], black: [] });
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 
   it('count a promoted piece as what it became, and the lead counts the promotion', () => {

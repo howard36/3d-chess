@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { deriveHistory } from './history';
 import type { Turn } from './history';
 import { PieceType } from '../engine';
@@ -180,12 +181,14 @@ describe('deriveHistory: identity', () => {
       expect.objectContaining({ from: 'Cc3', to: 'Dc3' }),
       expect.any(Error),
     );
-    warn.mockRestore();
     log.push(moveMade('white', 'Ca1', 'Da1'));
     const next = deriveHistory(log, first);
     expect(next.replayFailedAt).toBe(1);
     expect(next.appliedMoveCount).toBe(1);
     expect(next.board.getPiece(fromZXY('Da1'))).toBeNull();
+    // Said once: the later derive stops at the same record without saying it again
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 
   it('ignores a previous history built from a different record', () => {
@@ -222,6 +225,17 @@ describe('deriveHistory: game over', () => {
 });
 
 describe('deriveHistory: unplayable records', () => {
+  // Each says why in the console, once
+  let warn: MockInstance<typeof console.warn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    const said = warn.mock.calls.length;
+    warn.mockRestore();
+    expect(said).toBe(1);
+  });
+
   it('freezes at the first record that cannot be applied', () => {
     const h = deriveHistory([
       snapshot([
@@ -339,9 +353,12 @@ describe('deriveHistory: the notation', () => {
     }
     expect(h.notation).toEqual(deriveHistory([snapshot(records)]).notation);
     // An empty square to move from: the record stops there
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const broken = deriveHistory([snapshot([...records, { by: 'black', from: 'Cc3', to: 'Cc2' }])]);
     expect(broken.replayFailedAt).toBe(3);
     expect(broken.notation).toHaveLength(3);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
 
