@@ -79,4 +79,20 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
   await page.locator('.hud-now').click();
   await expect(page.locator('[data-ply="2"] .hud-mark')).toBeVisible();
   await expect(page.getByTestId('best-move')).toBeVisible();
+  // Every mark as large as its move's words, its "?" and "!" as tall as their capitals
+  const sizes = await page.evaluate(() =>
+    [...document.querySelectorAll('.hud-ply .hud-mark, .hud-now .hud-mark')].map((mark) => [
+      getComputedStyle(mark).fontSize,
+      getComputedStyle(mark.parentElement!).fontSize,
+    ]),
+  );
+  expect(sizes.length).toBeGreaterThan(1);
+  for (const [mark, words] of sizes) expect(mark).toBe(words);
+  // The move shown reads the same at the latest move as at an earlier one:
+  // only the steps that go nowhere are dimmed
+  const shown = page.locator('.hud-now');
+  const earlier = await shown.evaluate((el) => getComputedStyle(el).color);
+  await page.keyboard.press('End');
+  await expect(history).not.toHaveAttribute('data-review');
+  expect(await shown.evaluate((el) => getComputedStyle(el).color)).toBe(earlier);
 });
