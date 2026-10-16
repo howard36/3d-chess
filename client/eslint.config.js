@@ -24,7 +24,12 @@ const NO_R3F_STATE = [
       'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
   },
   {
-    selector: "Literal[value='__r3fState']",
+    selector: 'Literal[value=/__r3fState/]',
+    message:
+      'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
+  },
+  {
+    selector: 'TemplateElement[value.raw=/__r3fState/]',
     message:
       'Only the game canvas (GameCanvas.tsx) publishes __r3fState: e2e projects clicks through it.',
   },
@@ -48,6 +53,15 @@ const ON_DEMAND = {
     "JSXOpeningElement[name.name='Canvas']:not(:has(JSXAttribute[name.name='frameloop'][value.value='demand']))",
   message: 'An app canvas renders on demand: frameloop="demand".',
 };
+
+// The wall clock, read through any object too (globalThis.Date.now(),
+// window.performance.now(), new globalThis.Date()): no-restricted-properties
+// sees only a bare Date or performance
+const WALL_CLOCK = [
+  "NewExpression[callee.name='Date']",
+  "NewExpression[callee.property.name='Date']",
+  "MemberExpression[property.name='now'][object.property.name=/^(Date|performance)$/]",
+].map((selector) => ({ selector, message: 'Animate on r3f’s clock, not the wall clock.' }));
 
 /** A timer or a frame of the browser's own, on any object (window, globalThis, self). */
 const TIMERS = ['setTimeout', 'setInterval', 'requestAnimationFrame', 'requestIdleCallback'];
@@ -150,10 +164,7 @@ export default defineConfig(
         'error',
         ...NO_R3F_STATE,
         ...NO_BARE_FOCUS,
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: 'Animate on r3f’s clock, not the wall clock.',
-        },
+        ...WALL_CLOCK,
         ON_DEMAND,
       ],
     },
@@ -168,10 +179,7 @@ export default defineConfig(
         'error',
         ...NO_R3F_STATE,
         ...NO_BARE_FOCUS,
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: 'Animate on r3f’s clock, not the wall clock.',
-        },
+        ...WALL_CLOCK,
         {
           selector: 'JSXAttribute[name.name=/^on(Click|DoubleClick|ContextMenu|Wheel|Pointer)/]',
           message:
@@ -191,15 +199,7 @@ export default defineConfig(
   {
     files: ['src/screens/GameCanvas.tsx'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...NO_BARE_FOCUS,
-        {
-          selector: "NewExpression[callee.name='Date']",
-          message: 'Animate on r3f’s clock, not the wall clock.',
-        },
-        ON_DEMAND,
-      ],
+      'no-restricted-syntax': ['error', ...NO_BARE_FOCUS, ...WALL_CLOCK, ON_DEMAND],
     },
   },
 );
