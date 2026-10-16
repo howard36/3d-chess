@@ -851,7 +851,9 @@ body {
    it, at its column still (pushed to the row's end, as wide as its column),
    rather than either being cut off */
 .hud-moves li {
-  --num: 26px;
+  /* The number's column: a digit wider from move 100 (MoveHistory's
+     data-digits), so a longer number keeps its gap before the move */
+  --num: calc(26px + var(--num-extra, 0px));
   --lead: 4px;
   --col: calc((100% - var(--num) - 2 * 2px) / 2);
   display: flex;
@@ -866,6 +868,12 @@ body {
   content-visibility: auto;
   contain-intrinsic-size: auto 24px;
   font-size: 12.5px;
+}
+.hud-moves[data-digits='3'] li {
+  --num-extra: 1ch;
+}
+.hud-moves[data-digits='4'] li {
+  --num-extra: 2ch;
 }
 .hud-num {
   flex: none;
@@ -1325,7 +1333,7 @@ body {
   /* Reviewed, a move and its mark share the narrower panel's column: the
      number's column and the move's type give up a little room */
   .hud-history[data-analysis] .hud-moves li {
-    --num: 22px;
+    --num: calc(22px + var(--num-extra, 0px));
     --lead: 0px;
     font-size: 11.5px;
   }
