@@ -333,8 +333,9 @@ Key decisions:
   `GameHistory.notation`; `screens/MoveText.tsx` draws it): the icon (a pawn's too: a letter
   would read as a level, B for both bishop and level B), "x" for a capture, the destination,
   "=" and the icon of what a pawn became, and "+" for check or "#" for mate (♘xBb3+,
-  ♙Ed5=♕, ♕Ee5#); each icon is cut to its ink and stands on the baseline exactly as tall
-  as the capitals, as a letter would, and the squares keep the font's own figures (a
+  ♙Ed5=♕, ♕Ee5#); each icon is cut to its ink and stands on the baseline as tall as the
+  capitals, as a letter would, a piece whose top is thinner than the letters' stem (the
+  queen's pearl, the unicorn's horn) up to a tenth taller so that it looks as tall, and the squares keep the font's own figures (a
   tabular "1" stands alone in a digit's width), the moves' numbers alone tabular so
   they line up. Where another piece of the same kind and side could make the same move
   (a pinned one does not count), the whole starting square comes first, joined by "x" or,
@@ -345,7 +346,11 @@ Key decisions:
   Where the window leaves room beside the tower it is a
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
-  height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
+  height to fit (the list scrolls, the move shown kept in view, the latest as moves land),
+  wider once the game is over in a window over 480 px tall (240 px, so a reviewed move that
+  names its starting square, takes, checks and is marked fits its column). A move longer
+  than its column takes the room it needs and Black's goes under it, never cut off
+  (`e2e/hudFit.spec.ts` checks every move whole); in a window no wider than 13:9 only the steps show,
   in a row: under the tower behind the result card, and once it is put away in the pill's
   place at the top (the HUD's band, which the fitted board stays below, so the steps never
   cover the tower and never stand over the rematch), the move shown between them

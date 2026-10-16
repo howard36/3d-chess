@@ -237,6 +237,14 @@ async function problemsAt(page: Page, width: number, height: number) {
         problems.push(`the move history meets the ${h.what}`);
       }
   }
+  // Every move in the record whole: a long one takes the room it needs
+  // (Black's under it), never cut off at its column's edge
+  const cut = await page.evaluate(() =>
+    [...document.querySelectorAll('.hud-moves:not(.sr-only) .hud-ply-word')]
+      .filter((word) => word.scrollWidth > word.clientWidth + 0.5)
+      .map((word) => word.textContent),
+  );
+  for (const move of cut) problems.push(`the record cuts off ${move}`);
   return problems.map((p) => `${width}x${height}: ${p}`);
 }
 

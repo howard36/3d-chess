@@ -91,8 +91,8 @@ describe('the move list', () => {
         ? 'text'
         : `${node.nodeName.toLowerCase()}(${[...node.childNodes].map(shape).join()})`;
     const row = (li: Element) => [...li.childNodes].map(shape);
-    expect(row(full)).toEqual(['text', 'button(span(text))', 'button(text,span(text))']);
-    expect(row(half)).toEqual(['text', 'button(span(text))']);
+    expect(row(full)).toEqual(['span(text)', 'button(span(text))', 'button(text,span(text))']);
+    expect(row(half)).toEqual(['span(text)', 'button(span(text))']);
     // Read as written; the space before Black's move is not in its name
     const [w, b] = record(2);
     expect(full.textContent).toBe(`1. ${w.from}–${w.to} ${b.from}–${b.to}`);
