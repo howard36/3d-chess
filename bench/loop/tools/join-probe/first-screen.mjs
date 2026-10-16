@@ -4,7 +4,8 @@
 // Chrome trace of the renderer's main thread is cut at the moment "Join game"
 // enters the DOM (a MutationObserver, as the bench stamps it). Prints the
 // median time to the button (COLD=1: a new browser per run, as the bench's
-// first join is the browser's first page) and the median main-thread time per trace event
+// first join is the browser's first page; PRIME=1: /new opened for
+// 4 s in a context of its own before each run, warming the browser) and the median main-thread time per trace event
 // before it (each event's own time, its children's taken out).
 //   WEB=http://127.0.0.1:4173 WS=ws://127.0.0.1:8000/ws RUNS=10 node first-screen.mjs
 import { chromium } from '@playwright/test';

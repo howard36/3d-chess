@@ -1485,14 +1485,19 @@ async function joinViaUI(browser, scope) {
   // BENCH_TRACE_JOIN=<dir>: a Chrome trace of each join's page from the
   // link to the click, its "Join game" marked (join-shown), into <dir>
   const traceDir = process.env.BENCH_TRACE_JOIN;
-  if (traceDir)
+  if (traceDir) {
+    fs.mkdirSync(traceDir, { recursive: true });
     await browser.startTracing(page, {
       categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute'],
     });
-  await page.goto(`${BASE}/game/${gameId}`);
-  await page.getByRole('button', { name: /^Join game\b/i }).click();
-  if (traceDir)
-    fs.writeFileSync(path.join(traceDir, `join-${Date.now()}.json`), await browser.stopTracing());
+  }
+  try {
+    await page.goto(`${BASE}/game/${gameId}`);
+    await page.getByRole('button', { name: /^Join game\b/i }).click();
+  } finally {
+    if (traceDir)
+      fs.writeFileSync(path.join(traceDir, `join-${Date.now()}.json`), await browser.stopTracing());
+  }
   await waitFirstFrame(page);
   const b = await snap(page);
   const click = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
