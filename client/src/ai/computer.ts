@@ -56,28 +56,34 @@ type Answer = ComputerMove | null | number | PositionAnalysis;
 /** The searches run on the page, every computer's, one after another. */
 let onPage: Promise<unknown> = Promise.resolve();
 
+/** What a search left in the queue by a computer since disposed comes to: nothing. */
+const DROPPED = Symbol('dropped');
+
 /**
  * Runs the search on the page's own thread, after any other computer's
  * (a review's several, whose worker failed, would otherwise take the thread
- * in turn with no frame between them).
+ * in turn with no frame between them). A search whose computer was disposed
+ * while it waited (a review left) never runs, and is never answered.
  */
-const inline = (request: ThinkRequest): Promise<Answer> => {
+const inline = (request: ThinkRequest, wanted: () => boolean): Promise<Answer> => {
   const run = onPage.then(async () => {
     const { analysePosition, assessPosition, chooseMove } = await import('./choose');
     // Let the page draw the move just made before the thread is taken
     await new Promise((resolve) => setTimeout(resolve, 30));
+    if (!wanted()) return DROPPED;
     if (request.analyse) return analysePosition(request.records);
     return request.assess
       ? assessPosition(request.records)
       : chooseMove(request.records, request.difficulty, request.seed);
   });
   onPage = run.catch(() => {});
-  return run;
+  return run.then((answer) => (answer === DROPPED ? new Promise<Answer>(() => {}) : answer));
 };
 
 export function createComputer(): Computer {
   let worker: Worker | null = null;
   let disposed = false;
+  const wanted = () => !disposed;
   let nextId = 1;
   const pending = new Map<
     number,
@@ -89,7 +95,7 @@ export function createComputer(): Computer {
     worker = null;
     for (const [id, p] of pending) {
       pending.delete(id);
-      inline(p.request).then(p.resolve, p.reject);
+      inline(p.request, wanted).then(p.resolve, p.reject);
     }
   };
 
@@ -127,7 +133,7 @@ export function createComputer(): Computer {
     };
     if (kind === 'assess') request.assess = true;
     if (kind === 'analyse') request.analyse = true;
-    if (!worker) return inline(request);
+    if (!worker) return inline(request, wanted);
     return new Promise<Answer>((resolve, reject) => {
       pending.set(request.id, { request, resolve, reject });
       worker!.postMessage(request);
