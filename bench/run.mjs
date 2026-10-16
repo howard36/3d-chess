@@ -681,6 +681,34 @@ const HARNESS = [
   'server/bench',
 ];
 
+/** The machine as a run begins (Linux; blank where /proc says nothing). */
+function machineState(lastEnd) {
+  const read = (file) => {
+    try {
+      return readFileSync(file, 'utf8');
+    } catch {
+      return '';
+    }
+  };
+  const avg10 = (file) => Number(/some avg10=([\d.]+)/.exec(read(file))?.[1]);
+  let left = 0;
+  try {
+    left = execFileSync('pgrep', ['-c', '-f', 'headless_shell|vite(\\.js)? preview|uvicorn'], {
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    // pgrep exits 1 when it finds none
+  }
+  return {
+    gap: lastEnd === null ? NaN : (Date.now() - lastEnd) / 1000,
+    load: os.loadavg()[0],
+    cpu: avg10('/proc/pressure/cpu'),
+    io: avg10('/proc/pressure/io'),
+    memGiB: Number(/MemAvailable:\s+(\d+)/.exec(read('/proc/meminfo'))?.[1]) / 2 ** 20,
+    left: Number(left),
+  };
+}
+
 /** A worktree of `ref` with this checkout's harness and installed dependencies. */
 function baseWorktree(ref) {
   const sha = sh('git', ['rev-parse', '--verify', `${ref}^{commit}`]);
@@ -847,6 +875,10 @@ function abMain() {
   const headSha = sh('git', ['rev-parse', 'HEAD']);
   const dirty = sh('git', ['status', '--porcelain', '--', '.', ':!bench/out']) !== '';
   const runs = { base: [], head: [] };
+  // What the machine was doing as each run began (1016:AA1: the run that
+  // goes first in its pair differs from the second by ~10%, unexplained)
+  const machine = [];
+  let lastEnd = null;
   const failures = [];
   let cleaned = false;
   const clean = () => {
@@ -869,6 +901,7 @@ function abMain() {
         rmSync(ctx.out, { recursive: true, force: true });
         mkdirSync(ctx.out, { recursive: true });
         log(`pair ${pair + 1} of ${PAIRS}: ${side}`);
+        machine.push({ pair: pair + 1, side, ...machineState(lastEnd) });
         const results = {};
         if (tiers.includes('client')) results.client = runClient(ctx);
         if (tiers.includes('server')) results.server = runServer(ctx);
@@ -877,6 +910,7 @@ function abMain() {
           if (!r.ok) failures.push({ side, pair: pair + 1, tier, tail: r.tail });
         }
         runs[side].push(flatten(results));
+        lastEnd = Date.now();
       }
     }
   } finally {
@@ -1085,6 +1119,39 @@ function abMain() {
       }),
     );
   }
+  md.push('## The machine at each run');
+  md.push(
+    'As each run began: seconds since the run before it ended, the load average over a minute, ' +
+      'the share of the last 10 s that tasks waited on the CPU and on I/O (Linux pressure), ' +
+      'memory available, and processes a run leaves behind (Chromium, `vite preview`, uvicorn) ' +
+      'still alive. For reading an order gap between the pairs (*Base first*, *Head first*).',
+  );
+  const f1 = (v) => (Number.isFinite(v) ? v.toFixed(1) : '');
+  md.push(
+    table({
+      columns: [
+        'Pair',
+        'Side',
+        'Gap (s)',
+        'Load',
+        'CPU wait %',
+        'I/O wait %',
+        'Memory (GiB)',
+        'Left',
+      ],
+      align: ['r', 'l', 'r', 'r', 'r', 'r', 'r', 'r'],
+      rows: machine.map((m) => [
+        String(m.pair),
+        m.side,
+        f1(m.gap),
+        m.load.toFixed(2),
+        f1(m.cpu),
+        f1(m.io),
+        f1(m.memGiB),
+        String(m.left),
+      ]),
+    }),
+  );
   const report = resolve(option('--out', join(OUT_DIR, 'AB.md')));
   mkdirSync(dirname(report), { recursive: true });
   writeFileSync(report, md.join('\n\n') + '\n');
