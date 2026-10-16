@@ -53,11 +53,13 @@ import { useRetireOnUnmount } from './programs';
 //   band with eight points. It strikes when check arrives (it lands a little
 //   large, flashes and sends one strong wave out), then breathes slowly,
 //   one faint ripple leaving it with each breath. Round him stand dark, keen
-//   blades with red edges (blades.tsx). From each piece giving check a thin
-//   red line runs to him, drawn in from the checker as the check strikes, so
+//   blades with red edges (blades.tsx). From each piece giving check a thin,
+//   dim red line runs to him, drawn in from the checker as the check strikes,
+//   a soft glow of bright red travelling along it towards him, so
 //   a check from another level, or one uncovered by the piece that moved
 //   (a double check), shows where it comes from. At mate it all settles as
-//   the king falls, the lines staying to show what mated him.
+//   the king falls, the lines staying (without their glow) to show what
+//   mated him.
 //
 // Every flat mark is one quad shaded by a signed distance, crisp at any
 // angle, and drawn over every level (LAYER), so a mark three levels down
@@ -620,12 +622,13 @@ const LINE_STRENGTH = 0.7;
 const LINE_LIFT = 0.02;
 const LINE_DRAW_MS = 380;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
+const SHIMMER_WHITE = '#f4fff9';
 
 export const shimmerMaterial = () =>
   overlayMaterial({
     blending: AdditiveBlending,
     uniforms: {
-      uColor: { value: new Color('#f4fff9') },
+      uColor: { value: new Color(SHIMMER_WHITE) },
       uTime: { value: 0 },
       uFade: { value: 0 },
       uSpeed: { value: SHIMMER.speed },
@@ -664,16 +667,25 @@ const Shimmer = ({
   to,
   radius,
   delayMs,
+  color = SHIMMER_WHITE,
+  peak = SHIMMER.peak,
+  lift = LINE_LIFT,
 }: {
   from: Vec3;
   to: Vec3;
   radius: number;
   delayMs: number;
+  /** Its light (white on the last move's line). */
+  color?: string;
+  /** How bright it is at its height, 0–1. */
+  peak?: number;
+  /** How high it rides, with its line. */
+  lift?: number;
 }) => {
   const invalidate = useThree((s) => s.invalidate);
-  const key = JSON.stringify([from, to, radius]);
+  const key = JSON.stringify([from, to, radius, lift]);
   const geometry = useMemo(() => {
-    return tubeGeometry(tracePath(from, to, { lift: LINE_LIFT }), {
+    return tubeGeometry(tracePath(from, to, { lift }), {
       radius: radius * 2.4,
       radialSegments: 8,
       capSegments: 2,
@@ -683,6 +695,8 @@ const Shimmer = ({
   useEffect(() => () => geometry.dispose(), [geometry]);
   const material = useMemo(shimmerMaterial, []);
   useRetireOnUnmount(material);
+  (material.uniforms.uColor.value as Color).set(color);
+  material.uniforms.uPeak.value = peak;
   const since = useRef(-delayMs / 1000);
   const still = prefersReducedMotion();
   useEffect(() => invalidate(), [invalidate]);
@@ -708,17 +722,23 @@ const Shimmer = ({
 
 // --- Check --------------------------------------------------------------------------------
 
-/** How bright and thick a line of check is: plainer than the last move's, having no shimmer. */
-const CHECK_LINE = { opacity: 0.9, radius: 0.014 };
+/**
+ * How bright and thick a line of check is: a dim red, so the shimmer of the
+ * check's own bright red travelling along it, from the checker to the king,
+ * is what catches the eye (and how bright that shimmer is).
+ */
+const CHECK_LINE = { opacity: 0.5, radius: 0.014, shimmer: 0.6 };
+const CHECK_LINE_LIFT = LINE_LIFT + 0.004;
 /** How long a line of check takes to draw in from its checker, as the check strikes. */
 const CHECK_LINE_DRAW_MS = 320;
 
 /**
  * Check: a crown of red light lying round the king in place of his ring; it
  * strikes when check arrives, then breathes slowly. Dark blades stand round
- * him (blades.tsx), and a red line runs to him from each of `checkers`, the
- * floors of the pieces giving check, drawn in as the check strikes. At mate
- * it all settles as the king falls; the lines stay.
+ * him (blades.tsx), and a dim red line runs to him from each of `checkers`,
+ * the floors of the pieces giving check, drawn in as the check strikes, with
+ * a glow of bright red travelling along it to him. At mate it all settles as
+ * the king falls; the lines stay, their glow gone.
  */
 export const Check = ({
   floor,
@@ -730,17 +750,30 @@ export const Check = ({
   return (
     <>
       {checkers.map((checker) => (
-        <LastMoveLine
-          key={checker.floor.join(',')}
-          from={checker.floor}
-          to={floor}
-          color={PALETTE.check}
-          radius={CHECK_LINE.radius}
-          // Just above the last move's line, which often shares its first square
-          lift={LINE_LIFT + 0.004}
-          opacity={CHECK_LINE.opacity}
-          drawInMs={drawMs}
-        />
+        <group key={checker.floor.join(',')}>
+          <LastMoveLine
+            from={checker.floor}
+            to={floor}
+            color={PALETTE.check}
+            radius={CHECK_LINE.radius}
+            // Just above the last move's line, which often shares its first square
+            lift={CHECK_LINE_LIFT}
+            opacity={CHECK_LINE.opacity}
+            drawInMs={drawMs}
+          />
+          {/* (Still at mate, as the crown settles) */}
+          {!mated && (
+            <Shimmer
+              from={checker.floor}
+              to={floor}
+              radius={CHECK_LINE.radius}
+              delayMs={drawMs}
+              color={PALETTE.check}
+              peak={CHECK_LINE.shimmer}
+              lift={CHECK_LINE_LIFT}
+            />
+          )}
+        </group>
       ))}
       <Mark
         floor={floor}
