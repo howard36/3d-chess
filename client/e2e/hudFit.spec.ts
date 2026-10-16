@@ -239,11 +239,23 @@ async function problemsAt(page: Page, width: number, height: number) {
   }
   // Every move in the record whole: a long one takes the room it needs
   // (Black's under it), never cut off at its column's edge
-  const cut = await page.evaluate(() =>
-    [...document.querySelectorAll('.hud-moves:not(.sr-only) .hud-ply-word')]
-      .filter((word) => word.scrollWidth > word.clientWidth + 0.5)
-      .map((word) => word.textContent),
-  );
+  const { open, shown, cut } = await page.evaluate(() => {
+    const seen = (el: Element) => el.getClientRects().length > 0;
+    const all = [...document.querySelectorAll('.hud-moves:not(.sr-only)')];
+    const words = [...document.querySelectorAll('.hud-moves:not(.sr-only) .hud-ply-word')].filter(
+      seen,
+    );
+    return {
+      open: all.filter(seen).length,
+      shown: words.length,
+      cut: words
+        .filter((word) => word.scrollWidth > word.clientWidth + 0.5)
+        .map((word) => word.textContent),
+    };
+  });
+  // Measured at all: a record on screen whose moves this cannot see (a
+  // renamed class, another wrapper) would pass with nothing to cut
+  if (open && !shown) problems.push('no move measured in the record');
   for (const move of cut) problems.push(`the record cuts off ${move}`);
   return problems.map((p) => `${width}x${height}: ${p}`);
 }
