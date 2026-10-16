@@ -39,7 +39,7 @@ import { useRetireOnUnmount } from './programs';
 //   its one idea is four arcs of one radius and length turning slowly and
 //   evenly round the victim. Hover as above.
 // - the last move: a thin continuous line of deep mint light, a soft glow
-//   of white travelling calmly along it, from a small circle where the piece
+//   of the line's own mint travelling calmly along it, from a small circle where the piece
 //   started to the same circle, larger, round the piece where it landed,
 //   running from the centre of one square to the centre of the other (pieces
 //   hide the line wherever it passes behind them, and the piece that moved
@@ -615,20 +615,21 @@ const BETTER_RADIUS = 0.011;
 /** How bright and thick the last-move line is, 0–1. */
 const LINE_STRENGTH = 0.7;
 
-// The shimmer on the last-move line: a soft glow of white light, a little
-// wider than the line, travelling along it from where the move started to
-// where it ended, one at a time, added to the line's light so it shows
+// The shimmer on the last-move line: a soft glow of the line's own mint at
+// full strength (the line is drawn darker, TRACE_LINE), a little wider than
+// the line, travelling along it from where the move started to where it
+// ended, one every SHIMMER.spacing, added to the line's light so it shows
 // while the line itself stays faint.
 const LINE_LIFT = 0.02;
 const LINE_DRAW_MS = 380;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
-const SHIMMER_WHITE = '#f4fff9';
+const SHIMMER_MINT = PALETTE.trace;
 
 export const shimmerMaterial = () =>
   overlayMaterial({
     blending: AdditiveBlending,
     uniforms: {
-      uColor: { value: new Color(SHIMMER_WHITE) },
+      uColor: { value: new Color(SHIMMER_MINT) },
       uTime: { value: 0 },
       uFade: { value: 0 },
       uSpeed: { value: SHIMMER.speed },
@@ -667,7 +668,7 @@ const Shimmer = ({
   to,
   radius,
   delayMs,
-  color = SHIMMER_WHITE,
+  color = SHIMMER_MINT,
   peak = SHIMMER.peak,
   lift = LINE_LIFT,
 }: {
@@ -675,7 +676,7 @@ const Shimmer = ({
   to: Vec3;
   radius: number;
   delayMs: number;
-  /** Its light (white on the last move's line). */
+  /** Its light (the line's own mint on the last move's). */
   color?: string;
   /** How bright it is at its height, 0–1. */
   peak?: number;
