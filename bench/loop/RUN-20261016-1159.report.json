@@ -29,7 +29,10 @@
         "title": "The final code against the base",
         "charts": [
           {
-            "rows": { "change": "final: 864989e vs e65577d (primary, 8 pairs)", "only": "PRIMARY" },
+            "rows": {
+              "change": "final: 864989e vs e65577d (primary, 8 pairs)",
+              "only": "PRIMARY"
+            },
             "caption": "Headline rows, 864989e against e65577d, 8 pairs (ab-20261016-1159-final.md)."
           }
         ]
@@ -38,7 +41,10 @@
         "title": "The base against the last run's base, at the start of this run",
         "charts": [
           {
-            "rows": { "change": "regress: e65577d vs b455e10 (primary, 4 pairs)", "only": "PRIMARY" },
+            "rows": {
+              "change": "regress: e65577d vs b455e10 (primary, 4 pairs)",
+              "only": "PRIMARY"
+            },
             "caption": "Headline rows, e65577d against b455e10, 4 pairs (ab-20261016-1159-regress.md)."
           }
         ]
@@ -48,7 +54,10 @@
         "body": "<p>Both sides ran <code>7a6bb32</code>'s app, each from its own temporary copy of the repo. No row is called. The shared game's page is still 0.93 when the base runs first and 1.22 when the head does: the order of the runs in a pair still moves the cold-load and setup rows.</p>",
         "charts": [
           {
-            "rows": { "change": "AA1 A/A: 7a6bb32 vs itself, both sides in temp worktrees (cold load, setup; 8 pairs)", "only": "PRIMARY" },
+            "rows": {
+              "change": "AA1 A/A: 7a6bb32 vs itself, both sides in temp worktrees (cold load, setup; 8 pairs)",
+              "only": "PRIMARY"
+            },
             "caption": "Identical app code, 8 pairs (ab-20261016-1159-aa-sym.md)."
           }
         ]
@@ -57,7 +66,10 @@
         "title": "Against the first recorded run (an earlier run's measurement)",
         "charts": [
           {
-            "rows": { "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)", "only": "PRIMARY" },
+            "rows": {
+              "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)",
+              "only": "PRIMARY"
+            },
             "caption": "Headline rows, e02a235 against 92ce041, 3 pairs, measured in run 20261016-0037."
           }
         ]
@@ -81,7 +93,7 @@
       },
       {
         "title": "A dropped connection comes back as soon as the network does (P3, 581e17f)",
-        "body": "<p>After a dropped connection, the game retried after a wait that grows to 8 s. Now a waiting retry runs at once when the browser reports it is back online, or when the player returns to the tab. It never runs beside an open connection, and never after another tab took the seat. A test shows the retry within 200 ms, inside the first 500 ms wait. The bench has no network-drop scenario, so this is not benched.</p>"
+        "body": "<p>After a dropped connection, the game retried after a wait that grows to 8 s. Now a waiting retry runs at once when the browser reports it is back online, or when the player returns to the tab. It never runs beside an open connection, and never after another tab took the seat. A test shows the retry within 200 ms, inside the first 500 ms wait. I kept it as a fix to what a player sees, not as a speed gain: the page sat at “reconnecting” for up to 8 s with the network already back. Its gain is not measured. The bench has no network-drop scenario, so it is an exception to the rule that app code grows only for a measured gain, listed under Choices made alone.</p>"
       },
       {
         "title": "Smaller fixes a player or screen reader meets",
@@ -110,7 +122,7 @@
     "intro": "<p>SP4 is not rejected. It waits on you, under Needs from me.</p>"
   },
   "choices": {
-    "intro": "<ul><li>I parked SP4 rather than keeping or rejecting it, because it trades one player moment against another.</li><li>I kept AA1 on one identical-code comparison, without measuring the old layout again in the same session. The side difference is removed by construction.</li><li>I made the level colours a test, not CSS custom properties. The copies are needed before any script runs, and <code>color-mix()</code> would add the kind of browser-support risk CF1 removed.</li><li>I did not re-measure the opponent's move after the regression check (+5.3% at 4 pairs, pairs split both ways): nothing that changed runs on a move.</li><li>Corrected after review: the commit messages of e940709, e02bf17, 54f17c0 and 5ce187a carry counts the review found wrong or unbacked. The run record and the PR description give the corrected ones (AA1's side estimate is a hand count, ≈×0.95, not printed by any report; 13 files call <code>vi.unstubAllGlobals()</code>, not 12; D3 removed 12 lines net, not 7; CF1's sizes come from a probe that was not kept).</li><li>The five headline rows over 3% at the median pair on the final code are listed under Needs from me, with no action recommended, because each lean follows the pair order.</li></ul>"
+    "intro": "<ul><li>I parked SP4 rather than keeping or rejecting it, because it trades one player moment against another.</li><li>I kept AA1 on one identical-code comparison, without measuring the old layout again in the same session. The side difference is removed by construction.</li><li>I made the level colours a test, not CSS custom properties. The copies are needed before any script runs, and <code>color-mix()</code> would add the kind of browser-support risk CF1 removed.</li><li>I did not re-measure the opponent's move after the regression check (+5.3% at 4 pairs, pairs split both ways): nothing that changed runs on a move.</li><li>Corrected after review: the commit messages of e940709, e02bf17, 54f17c0 and 5ce187a carry counts the review found wrong or unbacked. The run record and the PR description give the corrected ones (AA1's side estimate is a hand count, ≈×0.95, not printed by any report; 13 files call <code>vi.unstubAllGlobals()</code>, not 12; D3 removed 12 lines net, not 7; CF1's sizes come from a probe that was not kept).</li><li>The five headline rows over 3% at the median pair on the final code are listed under Needs from me, with no action recommended, because each lean follows the pair order.</li><li>I kept the reconnect (P3, 581e17f, +19 app lines) without measuring its gain, as a fix to behaviour a player sees: the page showed “reconnecting” for up to 8 s with the network back. The bench has no network-drop scenario, so this is an unmeasured exception to the rule that app code grows only for a measured gain. To overrule it, revert 581e17f on its own.</li></ul>"
   },
   "notConfirmed": {
     "intro": "<ul><li>Why the order of runs in a pair moves the cold-load and setup rows (AA1). Identical code reads 0.93 on the shared page when the base runs first and 1.22 when the head does.</li><li>The reconnect on a real phone. iOS Safari may leave a background tab's connection half-open, and no event reveals it (ledger P4).</li><li>CF1's fallbacks in a real old browser (Chrome 120, Safari 16). They were checked by arithmetic and by a stylesheet test only (ledger CF2).</li></ul>"
