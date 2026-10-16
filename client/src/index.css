@@ -1533,7 +1533,6 @@ body {
   .landing-mode,
   .landing-mode:hover,
   .landing-mode::before {
-    animation: none !important;
     transition: none;
   }
 }
