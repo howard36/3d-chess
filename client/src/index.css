@@ -910,14 +910,30 @@ body {
 /* A piece's icon in the record (screens/MoveText.tsx): its silhouette, in
    the text's colour, cut to its ink and standing on the line as a capital
    does, its ground on the baseline and its top on the capitals' (rounded
-   as .caps rounds them, so a row's icons and words share their pixels) */
+   as .caps rounds them), or as far over them as a thin top needs to look
+   level with them (--lift, at most a tenth). The ink is that tall, and as
+   wide as its proportions (--aspect) make it; where the browser can say
+   so its box is a whole number of pixels tall (below), the ink standing at
+   the box's foot (preserveAspectRatio), since the browser paints a box
+   rounded to the pixel and carries the drawing with it: a knight's 9.53 px
+   drew its ground half a pixel over the baseline, its edge a blur */
 .hud-icon {
   display: inline-block;
-  width: auto;
-  height: var(--caps);
+  width: calc(var(--caps) * var(--lift, 1) * var(--aspect, 1));
+  height: calc(var(--caps) * var(--lift, 1));
   margin: 0 0.2em 0 0;
   vertical-align: baseline;
   fill: currentColor;
+  /* Its ink reaches its box's every edge, and the browser paints the box
+     rounded to the pixel (a rook 6.45 px wide drawn 6 px, its right
+     prong cut thinner than its left): an SVG clips what overflows it, so
+     this one may not */
+  overflow: visible;
+}
+@supports (width: round(1cap, 1px)) and (width: mod(3px, 2px)) {
+  .hud-icon {
+    height: round(up, calc(var(--caps) * var(--lift, 1)), 1px);
+  }
 }
 /* A move's words and their light: trimmed to their capitals (a block, as
    the trim needs), so the light stands 5 px over and under them and 8 px

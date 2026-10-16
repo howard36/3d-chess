@@ -155,7 +155,8 @@ test("on a phone the steps take the pill's place once the game is over, the list
     });
     const word = document.querySelector('.hud-ply[aria-current] .hud-ply-word')!;
     const style = getComputedStyle(word);
-    // Each move's icon on the baseline and no taller than the capitals
+    // Each move's icon on the baseline, its top on the capitals or, for a
+    // thin top, as much as a tenth over them (MoveText.tsx)
     const icons = [...document.querySelectorAll('.hud-moves .hud-icon')].map((icon) => {
       const probe = document.createElement('span');
       probe.style.cssText = 'display: inline-block; width: 0; height: 1cap';
@@ -163,7 +164,7 @@ test("on a phone the steps take the pill's place once the game is over, the list
       const box = icon.getBoundingClientRect();
       const cap = probe.getBoundingClientRect();
       probe.remove();
-      return { over: cap.top - box.top, foot: box.bottom - cap.bottom };
+      return { over: (cap.top - box.top) / cap.height, foot: box.bottom - cap.bottom };
     });
     return {
       counts,
@@ -177,7 +178,7 @@ test("on a phone the steps take the pill's place once the game is over, the list
   expect(Math.abs(offsets.light)).toBeLessThanOrEqual(0.5);
   expect(offsets.icons).toHaveLength(2);
   for (const { over, foot } of offsets.icons) {
-    expect(over).toBeLessThanOrEqual(0.5);
+    expect(over).toBeLessThanOrEqual(0.15);
     expect(Math.abs(foot)).toBeLessThanOrEqual(0.5);
   }
   // A move's figures the font's own: a tabular "1" stands in a digit's width
