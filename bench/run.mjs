@@ -68,6 +68,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -691,13 +692,16 @@ function machineState(lastEnd) {
     }
   };
   const avg10 = (file) => Number(/some avg10=([\d.]+)/.exec(read(file))?.[1]);
-  let left = 0;
-  try {
-    left = execFileSync('pgrep', ['-c', '-f', 'headless_shell|vite(\\.js)? preview|uvicorn'], {
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    // pgrep exits 1 when it finds none
+  // Processes earlier runs left behind, by their own executable (a shell
+  // whose command line names them is not one)
+  const left = { chromium: 0, preview: 0, uvicorn: 0 };
+  for (const pid of readdirSync('/proc').filter((d) => /^\d+$/.test(d))) {
+    const argv = read(`/proc/${pid}/cmdline`).split('\0');
+    const exe = argv[0].split('/').pop();
+    if (exe === 'headless_shell' || exe === 'chrome') left.chromium++;
+    else if (exe === 'node' && argv.includes('preview') && argv.some((a) => /vite(\.js)?$/.test(a)))
+      left.preview++;
+    else if (/^python/.test(exe) && argv.includes('uvicorn')) left.uvicorn++;
   }
   return {
     gap: lastEnd === null ? NaN : (Date.now() - lastEnd) / 1000,
@@ -705,7 +709,7 @@ function machineState(lastEnd) {
     cpu: avg10('/proc/pressure/cpu'),
     io: avg10('/proc/pressure/io'),
     memGiB: Number(/MemAvailable:\s+(\d+)/.exec(read('/proc/meminfo'))?.[1]) / 2 ** 20,
-    left: Number(left),
+    left: `${left.chromium} / ${left.preview} / ${left.uvicorn}`,
   };
 }
 
@@ -1123,8 +1127,8 @@ function abMain() {
   md.push(
     'As each run began: seconds since the run before it ended, the load average over a minute, ' +
       'the share of the last 10 s that tasks waited on the CPU and on I/O (Linux pressure), ' +
-      'memory available, and processes a run leaves behind (Chromium, `vite preview`, uvicorn) ' +
-      'still alive. For reading an order gap between the pairs (*Base first*, *Head first*).',
+      'memory available, and the processes earlier runs left alive (Chromium, `vite preview`, ' +
+      'uvicorn). For reading an order gap between the pairs (*Base first*, *Head first*).',
   );
   const f1 = (v) => (Number.isFinite(v) ? v.toFixed(1) : '');
   md.push(
@@ -1137,7 +1141,7 @@ function abMain() {
         'CPU wait %',
         'I/O wait %',
         'Memory (GiB)',
-        'Left',
+        'Left: Chromium / preview / uvicorn',
       ],
       align: ['r', 'l', 'r', 'r', 'r', 'r', 'r', 'r'],
       rows: machine.map((m) => [
@@ -1148,7 +1152,7 @@ function abMain() {
         f1(m.cpu),
         f1(m.io),
         f1(m.memGiB),
-        String(m.left),
+        m.left,
       ]),
     }),
   );
