@@ -64,12 +64,22 @@ test('cap, round() and mod() are read only where @supports says the browser has 
   const sheets = sources(SRC).filter((f) => f.endsWith('.css'));
   const all = sheets.map((f) => readFileSync(f, 'utf8')).join('\n');
   expect(all).toMatch(/var\(--caps-odd\)/);
-  const found = sheets.flatMap((f) =>
-    [...outside(readFileSync(f, 'utf8')).matchAll(/\b(?:mod|round)\(|\d(?:\.\d+)?cap\b/g)].map(
-      (m) => `${f}: ${m[0]}`,
-    ),
+  const rest = sheets.map((f) => [f, outside(readFileSync(f, 'utf8'))] as const);
+  const found = rest.flatMap(([f, css]) =>
+    [...css.matchAll(/\b(?:mod|round)\(|\d(?:\.\d+)?cap\b/g)].map((m) => `${f}: ${m[0]}`),
   );
   expect(found).toEqual([]);
+  // And what is set inside one but read outside it stands at a plain value
+  // outside too (the :root before index.css's first)
+  const inside = new Set(
+    all.match(/@supports[^{]*\{[\s\S]*?\n\}/g)!.flatMap((b) => b.match(/--[\w-]+(?=\s*:)/g) ?? []),
+  );
+  const plain = new Set(rest.flatMap(([, css]) => css.match(/--[\w-]+(?=\s*:)/g) ?? []));
+  const readOutside = new Set(
+    rest.flatMap(([, css]) => css.match(/(?<=var\(\s*)--[\w-]+(?=\s*\))/g) ?? []),
+  );
+  expect(inside.has('--caps-odd')).toBe(true);
+  expect([...inside].filter((name) => readOutside.has(name) && !plain.has(name))).toEqual([]);
 });
 
 // A control focused by the page itself, for a player on a pointer, carries
