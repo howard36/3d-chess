@@ -55,10 +55,19 @@ const fmt = (v, unit) => {
   return `${Number(v.toPrecision(3))}${unit ? ` ${unit}` : ''}`;
 };
 
-// A row per measure: its head/base ratio on a log axis from 0.5× to 2×, the
-// median as a bar from 1×, each pair as a dot. Left of 1× is faster for
+// A row per measure: its head/base ratio on a log axis from 0.5× to 2×, as a
+// bar from 1×, each pair as a dot. The bar and its percentage are the A/B
+// report's "Change" (bench/verdict.mjs: the geometric mean of the pairs'
+// ratios), so the chart says what the words quoting that report say; a row
+// with fewer than two pairs (a build's bytes) falls back to head ÷ base. Left of 1× is faster for
 // times; for a throughput (fps, /s) right is better, and the colour (the A/B's
 // verdict) says which way it went.
+const changeOf = (r) => {
+  const ratios = (r.pairs ?? []).filter((p) => Number.isFinite(p) && p > 0);
+  if (ratios.length < 2) return r.headValue / r.baseValue;
+  return Math.exp(ratios.reduce((s, p) => s + Math.log(p), 0) / ratios.length);
+};
+
 const chart = (f, caption) => {
   const rows = pick(f);
   const W = 640;
@@ -77,7 +86,7 @@ const chart = (f, caption) => {
   }
   rows.forEach((r, i) => {
     const y = top + i * rowH;
-    const ratio = r.headValue / r.baseValue;
+    const ratio = changeOf(r);
     const cls = r.verdict === 'better' ? 'good' : r.verdict === 'worse' ? 'bad' : 'flat';
     const label = r.scenario.length > 44 ? `${r.scenario.slice(0, 43)}…` : r.scenario;
     svg += `<text x="0" y="${y + 13}" class="lab">${esc(label)}</text>`;
@@ -93,7 +102,7 @@ const chart = (f, caption) => {
   const sources = [...new Set(rows.map((r) => r.source))].join(', ');
   const how = rows.every((r) => r.tier === 'build')
     ? 'Head ÷ base, log axis; one build each (bytes do not vary).'
-    : 'Head ÷ base, log axis; bar = median of interleaved pairs, dots = each pair.';
+    : 'Head ÷ base, log axis; bar = the A/B report\'s change (geometric mean of the interleaved pairs\' ratios), dots = each pair.';
   return `<figure class="chart"><div class="scroll">${svg}</div><figcaption>${esc(caption)} ${how} Data: <code>bench/loop/scoreboard.jsonl</code> from <code>${esc(sources)}</code>.</figcaption></figure>`;
 };
 
