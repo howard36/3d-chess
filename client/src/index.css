@@ -161,7 +161,6 @@ body {
   width: auto;
   min-width: 300px;
   max-width: 100%;
-  height: 40px;
   height: calc(40px + mod(40px - var(--caps), 2px));
   border-radius: 20px;
   font-size: 14.5px;
@@ -194,15 +193,12 @@ body {
 .hud-rule {
   flex: none;
   width: 1px;
-  height: 18px;
   height: calc(18px + mod(18px - var(--caps), 2px));
   background: var(--hud-hair-strong);
 }
 /* The stones a pixel larger where that centres them on the words (.caps) */
 .hud-pill .hud-stone {
-  width: 16px;
   width: calc(16px + mod(16px - var(--caps), 2px));
-  height: 16px;
   height: calc(16px + mod(16px - var(--caps), 2px));
 }
 .hud-result {
@@ -231,9 +227,7 @@ body {
 }
 .hud-dot {
   flex: none;
-  width: 6px;
   width: calc(6px + mod(var(--caps) - 6px, 2px));
-  height: 6px;
   height: calc(6px + mod(var(--caps) - 6px, 2px));
   border-radius: 50%;
   background: var(--hud-light);
@@ -290,8 +284,9 @@ body {
  * so does an icon beside it: the browser rounds boxes and baselines to the
  * pixel each on its own, and a centring that lands on a half rounds them
  * apart. (The difference is always taken positive: Chrome's mod() gives
- * 2px, not 0, for an even negative one.) Where cap, round(), mod() or
- * text-box are unknown, the plain size given first holds.
+ * 2px, not 0, for an even negative one.) No plain size goes before such a
+ * rule: a declaration with var() is kept whatever else it holds, so a
+ * browser without cap, round() or mod() would drop the plain one anyway.
  */
 :root {
   --caps: round(1cap, 1px);
@@ -306,7 +301,6 @@ body {
 .caps-arrow {
   flex: none;
   width: auto;
-  height: 0.75em;
   height: var(--caps);
   aspect-ratio: 1;
 }
@@ -325,7 +319,6 @@ body {
   justify-content: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 44px;
   height: calc(44px + mod(44px - var(--caps), 2px));
   padding: 0 20px;
   border: 1px solid rgba(236, 241, 255, 0.3);
@@ -350,7 +343,6 @@ body {
   outline-offset: 3px;
 }
 .button-small {
-  height: 32px;
   height: calc(32px + mod(32px - var(--caps), 2px));
   padding: 0 14px;
   font-size: 13.5px;
@@ -360,7 +352,6 @@ body {
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 32px;
   height: calc(32px + mod(32px - var(--caps), 2px));
   padding: 0 10px;
   border: 0;
@@ -529,7 +520,6 @@ body {
 /* A touch screen: the pill at least 44 px tall */
 @media (pointer: coarse) {
   .hud-pill {
-    height: 44px;
     height: calc(44px + mod(44px - var(--caps), 2px));
     border-radius: 22px;
   }
@@ -1475,7 +1465,6 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  height: 52px;
   height: calc(52px + mod(52px - var(--caps), 2px));
   min-width: 240px;
   padding: 0 30px 0 24px;
@@ -1550,7 +1539,6 @@ body {
   .landing-play {
     width: 100%;
     min-width: 0;
-    height: 48px;
     height: calc(48px + mod(48px - var(--caps), 2px));
     padding: 0 16px;
     font-size: 16px;
@@ -1741,7 +1729,6 @@ body {
   box-sizing: border-box;
   min-width: clamp(92px, calc(var(--king) * 0.62), 200px);
   --choice-height: round(clamp(46px, calc(var(--king) * 0.185), 60px), 1px);
-  height: clamp(46px, calc(var(--king) * 0.185), 60px);
   height: calc(var(--choice-height) + mod(var(--choice-height) - var(--caps), 2px));
   padding: 0 1em;
   white-space: nowrap;
@@ -2145,7 +2132,6 @@ body {
   margin-top: 16px;
 }
 .lobby-go {
-  height: 48px;
   height: calc(48px + mod(48px - var(--caps), 2px));
   min-width: 200px;
   padding: 0 26px;
@@ -2180,7 +2166,6 @@ body {
   width: fit-content;
   max-width: 100%;
   margin: 14px auto 0;
-  padding: 10px 18px;
   /* Trimmed to its capitals (.caps), the fraction over them: as tall as
      its line's box made it before */
   padding: calc(15px + var(--caps) - 1cap) 18px 15px;
@@ -2280,9 +2265,7 @@ body {
   .hud-home {
     top: 14px;
     justify-content: center;
-    width: 36px;
     width: calc(36px + mod(36px - var(--caps), 2px));
-    height: 36px;
     height: calc(36px + mod(36px - var(--caps), 2px));
     padding: 0;
     border: 1px solid rgba(236, 241, 255, 0.22);
@@ -2294,9 +2277,7 @@ body {
 }
 @media ((max-width: 719px) or (max-height: 480px)) and (pointer: coarse) {
   .hud-home {
-    width: 40px;
     width: calc(40px + mod(40px - var(--caps), 2px));
-    height: 40px;
     height: calc(40px + mod(40px - var(--caps), 2px));
   }
 }
@@ -2317,9 +2298,7 @@ body {
   .hud-learn {
     top: 14px;
     justify-content: center;
-    width: 36px;
     width: calc(36px + mod(36px - var(--caps), 2px));
-    height: 36px;
     height: calc(36px + mod(36px - var(--caps), 2px));
     padding: 0;
     border: 1px solid rgba(236, 241, 255, 0.22);
@@ -2336,9 +2315,7 @@ body {
 @media (max-width: 719px) and (pointer: coarse) {
   .hud-learn {
     top: 14px;
-    width: 40px;
     width: calc(40px + mod(40px - var(--caps), 2px));
-    height: 40px;
     height: calc(40px + mod(40px - var(--caps), 2px));
   }
 }
@@ -2412,7 +2389,6 @@ body {
 .hud-menu-item {
   display: flex;
   align-items: center;
-  height: 32px;
   height: calc(32px + mod(32px - var(--caps), 2px));
   padding: 0 12px;
   border: 0;
@@ -2462,7 +2438,6 @@ body {
   gap: 2px;
 }
 .hud-offer .hud-menu-item {
-  height: 30px;
   height: calc(30px + mod(30px - var(--caps), 2px));
   border-radius: 15px;
   font-size: 13px;
@@ -2478,7 +2453,6 @@ body {
 }
 @media (pointer: coarse) {
   .hud-offer .hud-menu-item {
-    height: 36px;
     height: calc(36px + mod(36px - var(--caps), 2px));
     border-radius: 18px;
   }
@@ -2664,7 +2638,6 @@ body {
     height: 24px;
   }
   .landing-learn {
-    height: 38px;
     height: calc(38px + mod(38px - var(--caps), 2px));
     margin-top: 10px;
     font-size: 14px;
