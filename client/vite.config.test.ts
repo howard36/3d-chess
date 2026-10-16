@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { expect, test } from 'vitest';
-import {
+import type { UserConfig } from 'vite';
+import { expect, test, vi } from 'vitest';
+import { picturePlacement } from './src/three/landingLens';
+import config, {
   parseHeaders,
   placeLandingPictureEarly,
   preloadLandingPictureOnStartPage,
@@ -29,7 +31,43 @@ test('the built page places the start page’s picture right after #root, self-c
   const script = built.match(/<div id="root"><\/div>\s*<script>([\s\S]*?)<\/script>/)?.[1];
   expect(script).toBeTruthy();
   expect(script).not.toMatch(/\bimport\b/);
-  expect(script).toContain('landing-early');
+  // Every start page carries it: a few KB at most (2,380 bytes when written)
+  expect(script!.length).toBeLessThan(3200);
+  // Run as the built page runs it, on its own: on `/` it places the picture
+  // the page's own would show, before #root; anywhere else nothing
+  try {
+    for (const [path, width, height] of [
+      ['/', 390, 844],
+      ['/', 1440, 900],
+      ['/new', 390, 844],
+    ] as const) {
+      vi.stubGlobal('innerWidth', width);
+      vi.stubGlobal('innerHeight', height);
+      window.history.replaceState(null, '', path);
+      document.body.innerHTML = '<div id="root"></div>';
+      new Function(script!)();
+      const img = document.querySelector<HTMLImageElement>('#landing-early img');
+      if (path !== '/') expect(img).toBeNull();
+      else {
+        const place = picturePlacement(width, height);
+        expect(document.getElementById('landing-early')!.nextElementSibling?.id).toBe('root');
+        expect(img!.getAttribute('src')).toBe(`/landing/${place.layout}.webp`);
+        expect(img!.style.width).toBe(`${place.width}px`);
+      }
+    }
+  } finally {
+    document.body.innerHTML = '';
+    window.history.replaceState(null, '', '/');
+    vi.unstubAllGlobals();
+  }
+});
+
+test('the build runs the start page’s scripts', () => {
+  const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
+  const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
+  expect(names).toEqual(
+    expect.arrayContaining(['preload-landing-picture', 'place-landing-picture-early']),
+  );
 });
 
 test('vite preview sends the host’s headers (public/_headers), read as Pages reads them', () => {

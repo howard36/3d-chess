@@ -444,5 +444,13 @@ def test_the_docs_name_every_store_operation_and_nothing_else():
     for doc in ("CLAUDE.md", "ARCHITECTURE.md"):
         text = " ".join((root / doc).read_text(encoding="utf-8").split())
         listed = re.search(r"the store operations (?:in `modal_app\.py` )?\(([^)]*)\)", text)
-        assert listed, f"{doc}: no list of the store operations"
-        assert set(re.findall(r"`(\w+)`", listed.group(1))) == names, doc
+        assert listed, (
+            f"{doc}: no list of the store operations; the test reads the phrase "
+            "'the store operations (`op`, `op`, ...)', optionally 'in `modal_app.py`' "
+            "before the parenthesis, naming every STORE_OPERATIONS function"
+        )
+        written = set(re.findall(r"`(\w+)`", listed.group(1)))
+        assert written == names, (
+            f"{doc}: the store operations listed differ from STORE_OPERATIONS: "
+            f"missing {sorted(names - written)}, extra {sorted(written - names)}"
+        )
