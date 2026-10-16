@@ -120,6 +120,25 @@ it('thinks on the page when the worker cannot load, or there is none', async () 
   expect((await noWorker.think([], 'easy'))?.move).toBeTruthy();
 });
 
+it('runs every computer’s searches on the page one at a time, a frame between each', async () => {
+  FakeWorker.mode = 'fail-load';
+  vi.stubGlobal('Worker', FakeWorker);
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  // A review's computers, each asked while its worker fails
+  const answered: number[] = [];
+  await Promise.all(
+    [0, 1, 2].map(() =>
+      createComputer()
+        .think([], 'easy')
+        .then(() => answered.push(performance.now())),
+    ),
+  );
+  warn.mockRestore();
+  expect(answered).toHaveLength(3);
+  // Each waits for the page to draw after the one before
+  for (let i = 1; i < 3; i++) expect(answered[i] - answered[i - 1]).toBeGreaterThanOrEqual(25);
+});
+
 it('never answers once disposed', async () => {
   vi.stubGlobal('Worker', undefined);
   const computer = createComputer();
