@@ -65,7 +65,7 @@ test('the move history waits out the game, then steps back through it', async ({
   // nothing to see or press, and the arrows step nowhere
   await expect(history(white)).toHaveAttribute('data-hidden', 'true');
   await expect(history(white)).toHaveAttribute('data-viewing-ply', '3');
-  await expect(white.getByTestId('move-list')).toContainText('Cb1–Db1');
+  await expect(white.getByTestId('move-list')).toContainText('Pawn to Db1');
   await expect(white.locator('[data-ply], .hud-step')).toHaveCount(0);
   await white.keyboard.press('ArrowLeft');
   await white.keyboard.press('Home');
