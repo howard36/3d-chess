@@ -35,7 +35,9 @@ const Icon = ({ type }: { type: PieceType }) => {
     <svg
       className="hud-icon"
       viewBox={`${left} ${top} ${width} ${height}`}
-      style={{ aspectRatio: `${width} / ${height}`, '--lift': lift } as CSSProperties}
+      // Drawn at its box's foot: the box may be up to a pixel taller (index.css)
+      preserveAspectRatio="xMidYMax meet"
+      style={{ '--aspect': +(width / height).toFixed(4), '--lift': lift } as CSSProperties}
       data-piece={type}
       aria-hidden
     >

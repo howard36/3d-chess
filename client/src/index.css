@@ -895,10 +895,15 @@ body {
    the text's colour, cut to its ink and standing on the line as a capital
    does, its ground on the baseline and its top on the capitals' (rounded
    as .caps rounds them), or as far over them as a thin top needs to look
-   level with them (--lift, at most a tenth) */
+   level with them (--lift, at most a tenth). The ink is that tall, and as
+   wide as its proportions (--aspect) make it; where the browser can say
+   so its box is a whole number of pixels tall (below), the ink standing at
+   the box's foot (preserveAspectRatio), since the browser paints a box
+   rounded to the pixel and carries the drawing with it: a knight's 9.53 px
+   drew its ground half a pixel over the baseline, its edge a blur */
 .hud-icon {
   display: inline-block;
-  width: auto;
+  width: calc(var(--caps) * var(--lift, 1) * var(--aspect, 1));
   height: calc(var(--caps) * var(--lift, 1));
   margin: 0 0.2em 0 0;
   vertical-align: baseline;
@@ -908,6 +913,11 @@ body {
      prong cut thinner than its left): an SVG clips what overflows it, so
      this one may not */
   overflow: visible;
+}
+@supports (width: round(up, 1.5px, 1px)) {
+  .hud-icon {
+    height: round(up, calc(var(--caps) * var(--lift, 1)), 1px);
+  }
 }
 /* A move's words and their light: trimmed to their capitals (a block, as
    the trim needs), so the light stands 5 px over and under them and 8 px
