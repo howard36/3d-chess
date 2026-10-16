@@ -10,6 +10,8 @@ import { Board, PieceType } from '../engine';
 import type { Move, Piece } from '../engine';
 import { FIFTY_MOVE_PLIES, REPETITIONS, hashAfter, positionHash } from '../engine/draws';
 import { moveFromMessage } from '../engine/protocol';
+import { notateMove } from './notation';
+import type { MoveNotation } from './notation';
 import { otherSide, turnAfter } from './sides';
 import type { GameState, MoveMade, MoveRecord, WebSocketMessage } from '../types/messages';
 
@@ -53,6 +55,11 @@ export interface GameHistory {
    * applied move's destination (a promoted piece counts as what it became).
    */
   captured: Record<Turn, PieceType[]>;
+  /**
+   * How the record writes each applied move (game/notation.ts), move `n` at
+   * `n - 1`: worked out as each move is replayed, from the position before it.
+   */
+  notation: readonly MoveNotation[];
   /**
    * Index of the first record this client could not replay, or null. The
    * server records any shape-valid, turn-correct move without checking
@@ -149,6 +156,7 @@ export function deriveHistory(
   const captured: Record<Turn, PieceType[]> = extending
     ? { white: [...prev.captured.white], black: [...prev.captured.black] }
     : { white: [], black: [] };
+  const notation: MoveNotation[] = extending ? [...prev.notation] : [];
   let replayFailedAt: number | null = null;
   let appliedMoveCount = extending ? prev.appliedMoveCount : 0;
   const positions = extending
@@ -163,11 +171,13 @@ export function deriveHistory(
       next.findKing('white');
       next.findKing('black');
       const taken = board.getPiece(move.to);
+      const note = notateMove(board, move, next);
       if (taken) captured[turnAfter(i)].push(taken.type);
       // A capture or a pawn move can't be undone: no earlier position can stand again
       const hash = hashAfter(positions[positions.length - 1], board, next, move);
       if (taken || board.getPiece(move.from)?.type === PieceType.Pawn) positions.length = 0;
       positions.push(hash);
+      notation.push(note);
       board = next;
       appliedMoveCount = i + 1;
       lastMove = { move, moveCount: appliedMoveCount, capturedPiece: taken };
@@ -179,6 +189,10 @@ export function deriveHistory(
 
   const gameOver =
     replayFailedAt === null ? gameOverAt(board, turnAfter(appliedMoveCount), positions) : null;
+  // The move that mates is written so ("#" for its "+")
+  if (gameOver?.result === 'checkmate' && notation.length > 0) {
+    notation[notation.length - 1] = { ...notation[notation.length - 1], check: '#' };
+  }
 
   return {
     snapshot,
@@ -188,6 +202,7 @@ export function deriveHistory(
     currentTurn: turnAfter(appliedMoveCount),
     lastMove,
     captured,
+    notation,
     replayFailedAt,
     sinceIrreversible: positions,
     gameOver,

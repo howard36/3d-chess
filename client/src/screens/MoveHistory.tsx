@@ -1,6 +1,8 @@
 import React from 'react';
 import type { MoveRecord } from '../types/messages';
-import { formatMove, plyLabel, STEP_KEY, stepOfKey, stepTo } from '../game/review';
+import { formatMove, plyNumber, STEP_KEY, stepOfKey, stepTo } from '../game/review';
+import { notationWords } from '../game/notation';
+import type { MoveNotation } from '../game/notation';
 import type { ReviewStep } from '../game/review';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { sideName } from '../game/sides';
@@ -9,6 +11,7 @@ import type { Grade, GradeCounts } from '../game/analysis';
 import type { Turn } from '../game/history';
 import { focusFromCode } from '../lib/focus';
 import { Stone } from './TurnPill';
+import { MoveText } from './MoveText';
 
 /** The game's review, once the game is over (screens/useAnalysis.ts). */
 export interface HistoryAnalysis {
@@ -25,6 +28,8 @@ export interface HistoryAnalysis {
   counts: GradeCounts;
   /** The best move where the move shown was played, when the move shown is marked. */
   best: Pick<MoveRecord, 'from' | 'to' | 'promotion'> | null;
+  /** How the record writes it (game/notation.ts), with `best`. */
+  bestNotation: MoveNotation | null;
   /** Goes on with a review that stopped short, from the positions it has. */
   onRetry: () => void;
 }
@@ -34,6 +39,8 @@ export interface MoveHistoryProps {
   moves: MoveRecord[];
   /** How many of them can be shown (all but a record past one the replay could not play). */
   applied: number;
+  /** How the record writes each move shown (GameHistory.notation), move `n` at `n - 1`. */
+  notation: readonly MoveNotation[];
   /** The ply the board shows: `applied` at the live position. */
   shown: number;
   /** Shows the position after `ply` moves (`applied`: the live position). */
@@ -75,6 +82,7 @@ const inField = (target: EventTarget | null) =>
 
 interface BlockProps {
   moves: MoveRecord[];
+  notation: readonly MoveNotation[];
   start: number;
   applied: number;
   /** The ply shown, if it is one of this block's moves (else -1). */
@@ -90,6 +98,13 @@ interface BlockProps {
 
 const NO_GRADES: readonly (Grade | null | undefined)[] = [];
 
+/**
+ * A move in words for a screen reader (notationWords), or as the wire writes
+ * it where the replay stopped short of it.
+ */
+const moveWords = (moves: MoveRecord[], notation: readonly MoveNotation[], i: number) =>
+  notation[i] ? notationWords(notation[i]) : formatMove(moves[i]);
+
 /** A move's mark after it: the glyph, its grade in words for a screen reader. */
 const Mark = ({ grade }: { grade: Grade }) => (
   <>
@@ -102,19 +117,21 @@ const Mark = ({ grade }: { grade: Grade }) => (
 
 /** The rows of moves `start` to `start + BLOCK` (as many as there are), each move a button. */
 const MoveBlock = React.memo(
-  ({ moves, start, applied, shown, open, words, grades, onShow }: BlockProps) => {
+  ({ moves, notation, start, applied, shown, open, words, grades, onShow }: BlockProps) => {
     const ply = (i: number) => {
       const n = i + 1;
-      // As words: one text node, Black's starting with the space between the two
-      if (words)
-        return <span>{n % 2 === 0 ? ` ${formatMove(moves[i])}` : formatMove(moves[i])}</span>;
+      const said = moveWords(moves, notation, i);
+      if (words) return <span>{n % 2 === 0 ? `, ${said}` : said}</span>;
       const grade = grades[i];
+      const note = notation[i];
       return (
         <button
           type="button"
           className="hud-ply"
           data-ply={n}
           data-grade={grade ?? undefined}
+          // The icons are drawn only: the move is named in words
+          aria-label={grade ? `${said}, ${grade}` : said}
           aria-current={n === shown ? 'step' : undefined}
           // One stop in the list for Tab, the shown move (← → step on)
           tabIndex={open && n === shown ? 0 : -1}
@@ -124,10 +141,11 @@ const MoveBlock = React.memo(
         >
           {/* Black's starts with the space between the two (not drawn: the
               button lays out only its words); the words are lit on their
-              own, trimmed to their capitals (index.css) */}
+              own, trimmed to their capitals (index.css); a move with no
+              notation is written as the wire writes it */}
           {n % 2 === 0 ? ' ' : null}
           <span className="hud-ply-word">
-            {formatMove(moves[i])}
+            {note ? <MoveText notation={note} /> : said}
             {grade && <Mark grade={grade} />}
           </span>
         </button>
@@ -138,7 +156,7 @@ const MoveBlock = React.memo(
       // Three nodes a row (the number, then the moves, each a button round
       // its words), nothing else: a reopened game of thousands of moves
       // mounts its whole record, a render after the blocks in view
-      // (`whole`, below). It reads "1. Bb1–Cb1 Dd5–Cd5".
+      // (`whole`, below). It reads "1. ♙Cb1 ♙Cd5".
       rows.push(
         <li key={i / 2 + 1}>
           {`${i / 2 + 1}. `}
@@ -161,6 +179,7 @@ const MoveBlock = React.memo(
     if (Math.min(a.moves.length, end) !== Math.min(b.moves.length, end)) return false;
     for (let i = a.start; i < Math.min(a.moves.length, end); i++) {
       if (a.moves[i] !== b.moves[i] || a.grades[i] !== b.grades[i]) return false;
+      if (a.notation[i] !== b.notation[i]) return false;
     }
     return true;
   },
@@ -204,6 +223,7 @@ const keyName = (s: ReviewStep) => GLYPHS[STEP_KEY[s]] ?? STEP_KEY[s];
 const MoveHistory: React.FC<MoveHistoryProps> = ({
   moves,
   applied,
+  notation,
   shown,
   onShow,
   enabled,
@@ -331,6 +351,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       <MoveBlock
         key={start}
         moves={moves}
+        notation={notation}
         start={start}
         applied={applied}
         shown={shown > start && shown <= start + BLOCK ? shown : -1}
@@ -360,9 +381,11 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       </nav>
     );
   }
-  const label = plyLabel(moves, shown);
+  const shownWords = shown > 0 ? moveWords(moves, notation, shown - 1) : '';
+  const shownNote = shown > 0 ? notation[shown - 1] : undefined;
   const shownGrade = (shown > 0 && analysis?.grades[shown - 1]) || null;
   const best = analysis?.best ?? null;
+  const bestNotation = analysis?.bestNotation ?? null;
   const stepButton = (s: ReviewStep, off: boolean) => (
     <button
       type="button"
@@ -392,8 +415,18 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         aria-controls="move-list"
         onClick={() => setAsked(!open)}
       >
-        <span className="sr-only">Move list, at </span>
-        {label}
+        <span className="sr-only">Move list, at</span> {plyNumber(shown)}
+        {shownNote ? (
+          <>
+            {' '}
+            <span aria-hidden>
+              <MoveText notation={shownNote} />
+            </span>
+            <span className="sr-only">{shownWords}</span>
+          </>
+        ) : (
+          shown > 0 && ` ${shownWords}`
+        )}
         {shownGrade && <Mark grade={shownGrade} />}
       </button>
       {stepButton('next', !reviewing)}
@@ -435,7 +468,17 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       {open && best && (
         <p className="hud-best" data-testid="best-move">
           <span className="hud-best-line" aria-hidden />
-          Best {formatMove(best as MoveRecord)}
+          Best{' '}
+          {bestNotation ? (
+            <>
+              <span aria-hidden>
+                <MoveText notation={bestNotation} />
+              </span>
+              <span className="sr-only">{notationWords(bestNotation)}</span>
+            </>
+          ) : (
+            formatMove(best as MoveRecord)
+          )}
         </p>
       )}
       {!stepsFirst && steps}
@@ -447,9 +490,11 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
             : ''
           : shown === 0
             ? 'Starting position.'
-            : `Move ${shown} of ${applied}: ${formatMove(moves[shown - 1])}${
-                shownGrade ? `, ${shownGrade}` : ''
-              }.${best ? ` Best ${formatMove(best as MoveRecord)}.` : ''}`}
+            : `Move ${shown} of ${applied}: ${shownWords}${shownGrade ? `, ${shownGrade}` : ''}.${
+                best
+                  ? ` Best ${bestNotation ? notationWords(bestNotation) : formatMove(best as MoveRecord)}.`
+                  : ''
+              }`}
       </div>
     </nav>
   );

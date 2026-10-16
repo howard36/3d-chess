@@ -21,9 +21,11 @@ import MoveHistory from './MoveHistory';
 import { useReview } from './useReview';
 import { useAnalysis } from './useAnalysis';
 import { betterMove } from '../game/analysis';
+import { notateCandidate } from '../game/notation';
 import { moveFromMessage } from '../engine/protocol';
 import MoveAnnouncer from './MoveAnnouncer';
 import GameActions from './GameActions';
+import { Arrow } from './Arrow';
 import type { GameActionsProps } from './GameActions';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
@@ -232,6 +234,13 @@ const GameView: React.FC<GameViewProps> = ({
     () => (better ? moveFromMessage({ by: 'white', ...better }) : null),
     [better],
   );
+  // How the record writes it: played from the position before the move shown
+  const betterNotation = React.useMemo(() => {
+    const last = shown.lastMove;
+    if (!betterOnBoard || !last) return null;
+    const before = shown.board.unapplyMove(last.move, last.capturedPiece);
+    return before ? notateCandidate(before, betterOnBoard) : null;
+  }, [betterOnBoard, shown.board, shown.lastMove]);
   return (
     // game-screen (index.css): no text selection, callout or double-tap
     // zoom on a touch screen, except in the move box and the move list
@@ -330,6 +339,7 @@ const GameView: React.FC<GameViewProps> = ({
             <MoveHistory
               moves={moveRecords}
               applied={history.appliedMoveCount}
+              notation={history.notation}
               shown={shown.ply}
               onShow={showPly}
               // Not behind a dialog, nor while the entrance plays
@@ -346,6 +356,7 @@ const GameView: React.FC<GameViewProps> = ({
                       grades: analysis.grades,
                       counts: analysis.counts,
                       best: better,
+                      bestNotation: betterNotation,
                       onRetry: startAnalysis,
                     }
                   : undefined
@@ -363,7 +374,7 @@ const GameView: React.FC<GameViewProps> = ({
                   <>
                     Couldn't load the board
                     <button className="button-secondary button-small" onClick={retryBoard}>
-                      Retry
+                      <span className="caps">Retry</span>
                     </button>
                   </>
                 )}
@@ -449,8 +460,8 @@ function HomeLink() {
       title="Home"
       onClick={() => navigate('/')}
     >
-      <span aria-hidden>←</span>
-      <span className="hud-home-word" aria-hidden>
+      <Arrow to="left" />
+      <span className="hud-home-word caps" aria-hidden>
         Home
       </span>
     </button>
@@ -477,10 +488,10 @@ function HowToPlay() {
       onPointerEnter={learnScreen.preload}
       onFocus={learnScreen.preload}
     >
-      <span className="hud-learn-word" aria-hidden>
+      <span className="hud-learn-word caps" aria-hidden>
         How to play
       </span>
-      <span className="hud-learn-mark" aria-hidden>
+      <span className="hud-learn-mark caps" aria-hidden>
         ?
       </span>
     </button>

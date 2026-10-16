@@ -48,7 +48,7 @@ vi.mock('../three/Board', () => ({
 // best move and score, the start first
 const REVIEW = vi.hoisted(() => [
   { best: { from: 'Bb1', to: 'Cb1' }, score: 30 },
-  { best: { from: 'Ed5', to: 'Ee4' }, score: 0 },
+  { best: { from: 'Ed5', to: 'Cc5' }, score: 0 },
   { best: { from: 'Cb1', to: 'Db1' }, score: 400 },
   { best: { from: 'Ee5', to: 'Ed4' }, score: -420 },
 ]);
@@ -103,7 +103,7 @@ describe('while the game is on', () => {
     await vi.waitFor(() => expect(board().disabled).toBe(false));
     expect(nav()).toHaveAttribute('data-hidden');
     // Read by a screen reader, but nothing to press
-    expect(screen.getByTestId('move-list')).toHaveTextContent('Cb1–Db1');
+    expect(screen.getByTestId('move-list')).toHaveTextContent('Pawn to Db1');
     expect(document.querySelector('[data-ply]')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
     for (const key of ['ArrowLeft', 'Home']) fireEvent.keyDown(document.body, { key });
@@ -261,8 +261,11 @@ describe('the review of a finished game', () => {
     // At the end, an unmarked move: nothing more on the board
     expect(board().betterMove).toBeNull();
     await userEvent.click(document.querySelector<HTMLElement>('[data-ply="2"]')!);
-    expect(board().betterMove).toEqual({ from: fromZXY('Ed5'), to: fromZXY('Ee4') });
-    expect(screen.getByTestId('best-move')).toHaveTextContent('Best Ed5–Ee4');
+    expect(board().betterMove).toEqual({ from: fromZXY('Ed5'), to: fromZXY('Cc5') });
+    // Named as the record writes it: the knight's icon, then (the other
+    // knight could go there too) its starting square, a dash and its square
+    expect(screen.getByTestId('best-move')).toHaveTextContent('Best Ed5–Cc5Knight Ed5 to Cc5');
+    expect(screen.getByTestId('best-move').querySelector('[data-piece="Knight"]')).not.toBeNull();
     await userEvent.click(document.querySelector<HTMLElement>('[data-ply="1"]')!);
     expect(board().betterMove).toBeNull();
     expect(screen.queryByTestId('best-move')).toBeNull();

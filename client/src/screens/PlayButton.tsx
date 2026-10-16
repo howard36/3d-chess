@@ -22,7 +22,23 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   rim?: boolean;
 };
 
-export const PlayButton: React.FC<Props> = ({ ref, className, rim = false, ...props }) => {
+/**
+ * Words are set in a block trimmed to their capitals (index.css, .caps), so
+ * the label is centred as it looks in any font; anything else (a dot) as
+ * it is.
+ */
+const label = (children: React.ReactNode) =>
+  React.Children.map(children, (c) =>
+    typeof c === 'string' || typeof c === 'number' ? <span className="caps">{c}</span> : c,
+  );
+
+export const PlayButton: React.FC<Props> = ({
+  ref,
+  className,
+  rim = false,
+  children,
+  ...props
+}) => {
   const own = React.useRef<HTMLButtonElement | null>(null);
   React.useImperativeHandle(ref, () => own.current!, []);
   const attach = React.useCallback(
@@ -38,6 +54,8 @@ export const PlayButton: React.FC<Props> = ({ ref, className, rim = false, ...pr
       className={className ? `landing-play lobby-go ${className}` : 'landing-play lobby-go'}
       data-rim={rim || undefined}
       {...props}
-    />
+    >
+      {label(children)}
+    </button>
   );
 };

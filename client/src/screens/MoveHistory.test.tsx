@@ -14,6 +14,7 @@ vi.mock('../game/review', async (actual) => {
 const formatted = vi.mocked(review.formatMove);
 import type { HistoryAnalysis, MoveHistoryProps } from './MoveHistory';
 import type { Grade } from '../game/analysis';
+import { deriveHistory } from '../game/history';
 
 const SHUFFLE: MoveRecord[] = [
   { by: 'white', from: 'Ab1', to: 'Aa3' },
@@ -27,6 +28,8 @@ const record = (n: number) =>
 const history = (props: Partial<MoveHistoryProps> & { moves: MoveRecord[] }) => {
   const all: MoveHistoryProps = {
     applied: props.moves.length,
+    // No notation: each move as the wire writes it (as for a record past the replay)
+    notation: [],
     shown: props.moves.length,
     onShow: () => {},
     enabled: true,
@@ -130,9 +133,10 @@ describe('the move list', () => {
     // An earlier block's text nodes were not touched
     expect(after[0].querySelector('button')!.firstChild).toBe(firstText);
     // ...nor rendered again: the landing listed the last block's moves only
+    // (and the move shown's words, between the steps)
     formatted.mockClear();
     rerender(history({ moves: [...moves, ...record(2)] }));
-    expect(formatted.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(formatted.mock.calls.length).toBeLessThanOrEqual(4);
     // A record replaced (a reconnect's snapshot) lists anew
     rerender(history({ moves: record(129).map((m) => ({ ...m, promotion: undefined })) }));
     expect(rows()).toHaveLength(65);
@@ -248,7 +252,7 @@ describe('while the game is on', () => {
     expect(nav).toHaveAttribute('data-hidden');
     expect(nav).toHaveAttribute('data-viewing-ply', '5');
     // A screen reader still reads the record, but finds nothing to press
-    expect(rows()).toEqual(['1. Ab1–Aa3 Ed5–Ee3', '2. Aa3–Ab1 Ee3–Ed5', '3. Ab1–Aa3']);
+    expect(rows()).toEqual(['1. Ab1–Aa3, Ed5–Ee3', '2. Aa3–Ab1, Ee3–Ed5', '3. Ab1–Aa3']);
     expect(screen.queryAllByRole('button')).toEqual([]);
     for (const key of ['ArrowLeft', 'Home', 'End']) fireEvent.keyDown(window, { key });
     expect(onShow).not.toHaveBeenCalled();
@@ -405,6 +409,7 @@ describe('the review', () => {
     grades: [],
     counts: counts([0, 0, 0], [0, 0, 0]),
     best: null,
+    bestNotation: null,
     onRetry: () => {},
     ...over,
   });
@@ -540,5 +545,40 @@ describe('the review', () => {
     );
     expect(screen.queryByTestId('analysis-counts')).toBeNull();
     expect(document.querySelector('.hud-mark')).toBeNull();
+  });
+});
+
+describe('the notation', () => {
+  // Black's knight could go to Cc5 from Eb5 too: its starting square is written
+  const MOVES: MoveRecord[] = [
+    { by: 'white', from: 'Bb1', to: 'Cb1' },
+    { by: 'black', from: 'Ed5', to: 'Cc5' },
+  ];
+  const notation = deriveHistory([
+    { type: 'game_state', color: 'white', started: true, moves: MOVES },
+  ]).notation;
+
+  it('draws each move with its piece’s icon and names it in words', () => {
+    render(history({ moves: MOVES, notation }));
+    const [pawn, knight] = screen.getAllByRole('button', { name: /to/ });
+    expect(pawn).toHaveAccessibleName('Pawn to Cb1');
+    expect(pawn.querySelector('svg')).toHaveAttribute('data-piece', 'Pawn');
+    expect(pawn).toHaveTextContent(/^Cb1$/);
+    expect(knight).toHaveAccessibleName('Knight Ed5 to Cc5');
+    expect(knight.querySelector('svg')).toHaveAttribute('data-piece', 'Knight');
+    expect(rows()).toEqual(['1. Cb1 Ed5–Cc5']);
+  });
+
+  it('writes the move shown between the steps the same way', () => {
+    windowNarrow(true);
+    render(history({ moves: MOVES, notation, shown: 1 }));
+    const toggle = screen.getByRole('button', { name: /Move list/ });
+    expect(toggle).toHaveAccessibleName('Move list, at 1. Pawn to Cb1');
+    expect(toggle.querySelector('svg')).toHaveAttribute('data-piece', 'Pawn');
+  });
+
+  it('keeps the record as words while the game is on', () => {
+    render(history({ moves: MOVES, notation, hidden: true }));
+    expect(rows()).toEqual(['1. Pawn to Cb1, Knight Ed5 to Cc5']);
   });
 });

@@ -296,7 +296,7 @@ test('GameScreen freezes before a recorded king capture instead of crashing', ()
   expect(screen.getByTestId('move-list')).toHaveTextContent('Ac2–Ec5');
 });
 
-test('GameScreen lists played moves in wire notation', () => {
+test('GameScreen lists played moves in the notation of the record', () => {
   setStoredRole('abc123', 'white');
   renderGameScreen(
     'abc123',
@@ -313,9 +313,8 @@ test('GameScreen lists played moves in wire notation', () => {
     ]),
   );
   const list = screen.getByTestId('move-list');
-  expect(list).toHaveTextContent('1.');
-  expect(list).toHaveTextContent('Bb1–Cb1');
-  expect(list).toHaveTextContent('Dd5–Cd5');
+  // In words while the game is on (the record is read, not shown)
+  expect(list).toHaveTextContent('1. Pawn to Cb1, Pawn to Cd5');
 });
 
 test('GameScreen does not double-count moves that predate a reconnect snapshot', () => {
@@ -875,7 +874,7 @@ test('GameScreen shows the real position when a re-sent join is answered with a 
   ];
   rerender(gameScreenAt(fakeSocket(answered, send, { sessionId: 2 })));
   expect(screen.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
-  expect(screen.getByTestId('move-list')).toHaveTextContent('Bb1–Cb1');
+  expect(screen.getByTestId('move-list')).toHaveTextContent('Pawn to Cb1');
   expect(screen.getByTestId('board')).toBeEnabled();
   expect(getStoredRole('abc123')).toBe('black');
 });

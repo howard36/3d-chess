@@ -325,16 +325,28 @@ Key decisions:
   words for a screen reader (visually hidden, nothing to press), and ← → Home End step
   nowhere. It comes into sight with the result card (after a mate's fall, as the card
   does), and from then on is the record in
-  numbered pairs ("1. Bb1–Cb1 Dd5–Cd5"), every move a button that shows the board as it
+  numbered pairs ("1. ♙Cb1 ♙Cd5"), every move a button that shows the board as it
   stood after it, over four steps: the start (move 0), back, on and the latest, and ← → Home
-  End while focus is not in a field. Where the window leaves room beside the tower it is a
+  End while focus is not in a field.
+  The record writes a move as chess does, with the piece's icon for its letter
+  (`game/notation.ts`, worked out by the replay from the position before each move,
+  `GameHistory.notation`; `screens/MoveText.tsx` draws it): the icon (a pawn's too: a letter
+  would read as a level, B for both bishop and level B), "x" for a capture, the destination,
+  "=" and the icon of what a pawn became, and "+" for check or "#" for mate (♘xBb3+,
+  ♙Ed5=♕, ♕Ee5#). Where another piece of the same kind and side could make the same move
+  (a pinned one does not count), the whole starting square comes first, joined by "x" or,
+  for a move that takes nothing, "–" (♙Cd2xCc3, ♙Cc2–Cc3): never a part of the square,
+  which beside a level-file-rank square reads as one. A screen reader hears the move in
+  words ("Pawn Cd2 takes Cc3, check"); a record past one the replay could not play keeps
+  the wire's form (`Bb1–Cb1`), and the move box takes only the wire's form (`Bb1-Cb1`).
+  Where the window leaves room beside the tower it is a
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land); in a window no wider than 13:9 only the steps show,
   in a row: under the tower behind the result card, and once it is put away in the pill's
   place at the top (the HUD's band, which the fitted board stays below, so the steps never
   cover the tower and never stand over the rematch), the move shown between them
-  ("7… Ed4–Ba1"), which opens the list under them, four rows of moves tall and each side's
+  ("7… ♗xBa1+"), which opens the list under them, four rows of moves tall and each side's
   marks on one line, so it covers little of the tower. Beside the tower, the card put
   away, the panel moves up into the corner the way to the tutorial leaves. Closed, the list is
   visually hidden, never `display: none`: it is how a screen reader reads the record, and
@@ -365,7 +377,7 @@ Key decisions:
   top shows each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
   thin bar under them filling as the review goes. Where the move shown is marked, the board
   draws the better move beside it (see The board) and the panel names it under the list
-  ("Best Bc1–Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
+  ("Best ♙Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
   more. In a window no wider than 13:9 the mark stands beside the move shown between the
   steps, and the review's top and the better move's name come with the list. The review
   lasts for the page's life; leaving the page, or another record, stops the work
@@ -471,6 +483,21 @@ Key decisions:
   `screens/NotFound.tsx`: "Nothing here" in the lobby's heading type in the middle of the
   page's night, and a Home button under it, with no card round the two. It is in the entry
   and loads no scene.
+- **Words centred by their capitals.** A label in a box (a button, the turn pill, a menu
+  item, the offer's words, the share link) is centred as it looks, whatever font draws it
+  (`.caps` in `index.css`): it is a block trimmed to its capitals (`text-box: trim-both cap
+  alphabetic`, which applies to blocks only, so a button's words are a span of their own),
+  the capitals' fraction of a pixel set over them, so it stands `round(1cap, 1px)` tall with
+  its baseline on a whole pixel. A box that centres one grows a pixel where its height and
+  the capitals' differ in parity (`calc(H + mod(H - var(--caps), 2px))`, the difference
+  always positive: Chrome's `mod()` gives 2px for an even negative one), and so does an icon
+  beside it (the pill's stones, the waiting dot): the browser rounds boxes and baselines to
+  the pixel each on its own, and a centring that lands on a half rounds them apart. An arrow
+  beside words is `screens/Arrow.tsx`, as tall as their capitals with its ink centred on
+  them (a text arrow sits at the font's own height, lower); the start page's tiles centre
+  theirs on the badge. A count beside a piece's glyph stands on the glyph's ground (y = 21
+  of its 24), as the captured pieces' and the tutorial's do. `e2e/review.spec.ts` measures
+  the review's counts and highlight this way.
 - **Buttons.** Every button is one of a few kinds, each with one style wherever it stands
   (`index.css`; a context's class only places it): a choice among several is a glass tile
   in its rim (`.landing-mode`, `.lobby-glass`: the ways to play, the sides, the levels);
