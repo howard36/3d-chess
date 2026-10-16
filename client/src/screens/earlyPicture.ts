@@ -6,7 +6,9 @@ import { picturePlacement, pictureSource, pictureSourceSet } from '../three/land
  * network the picture arrives well before the entry, and the browser paints
  * it at once instead of after React's first render. LandingPicture takes the
  * very element in as its own in its first commit, before that commit is
- * painted, so nothing is fetched, decoded or swapped twice.
+ * painted, so nothing is fetched, decoded or swapped twice. On the phone
+ * layout alone: a phone's board shows sooner for a page usable a little later,
+ * a trade taken on purpose; on a desktop it measured a slower first click.
  */
 export const EARLY_PICTURE_ID = 'landing-early';
 
@@ -15,6 +17,7 @@ export function placeEarlyPicture(): void {
   const [width, height] = [innerWidth, innerHeight];
   if (location.pathname !== '/' || !root || !(width > 0 && height > 0)) return;
   const place = picturePlacement(width, height);
+  if (place.layout !== 'phone') return;
   const picture = document.createElement('div');
   picture.id = EARLY_PICTURE_ID;
   picture.className = 'landing-picture';

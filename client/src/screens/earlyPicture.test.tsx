@@ -20,8 +20,8 @@ const attributes = (el: Element) =>
 
 test.each([
   [390, 844],
-  [820, 1180],
-  [1440, 900],
+  [360, 640],
+  [430, 932],
 ])(
   'at %ix%i the built page places, under the page, the very picture the page shows',
   (width, height) => {
@@ -41,6 +41,18 @@ test.each([
     );
   },
 );
+
+test.each([
+  [820, 1180],
+  [1440, 900],
+  [844, 390],
+])('a %ix%i window, not the phone layout, places none', (width, height) => {
+  vi.stubGlobal('innerWidth', width);
+  vi.stubGlobal('innerHeight', height);
+  document.body.innerHTML = '<div id="root"></div>';
+  placeEarlyPicture();
+  expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
+});
 
 test('any other page places none', () => {
   document.body.innerHTML = '<div id="root"></div>';

@@ -33,8 +33,9 @@ test('the built page places the start page’s picture right after #root, self-c
   expect(script).not.toMatch(/\bimport\b/);
   // Every start page carries it: a few KB at most (2,380 bytes when written)
   expect(script!.length).toBeLessThan(3200);
-  // Run as the built page runs it, on its own: on `/` it places the picture
-  // the page's own would show, before #root; anywhere else nothing
+  // Run as the built page runs it, on its own: on `/` in a phone's window it
+  // places the picture the page's own would show, before #root; anywhere else
+  // (another page, a wider window) nothing
   try {
     for (const [path, width, height] of [
       ['/', 390, 844],
@@ -47,7 +48,7 @@ test('the built page places the start page’s picture right after #root, self-c
       document.body.innerHTML = '<div id="root"></div>';
       new Function(script!)();
       const img = document.querySelector<HTMLImageElement>('#landing-early img');
-      if (path !== '/') expect(img).toBeNull();
+      if (path !== '/' || width > height) expect(img).toBeNull();
       else {
         const place = picturePlacement(width, height);
         expect(document.getElementById('landing-early')!.nextElementSibling?.id).toBe('root');

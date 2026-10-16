@@ -448,8 +448,9 @@ Key decisions:
   the AVIF downloading before the entry has run (`preloadLandingPicture`, on `/` alone; written
   in after `<meta name="viewport">`, since before it a phone's window reads 980 px wide and the
   script would fetch the tablet's picture: `vite.config.test.ts`). The built page also places
-  the picture from an inline script after `#root` (`screens/earlyPicture.ts`), so a phone
-  paints it as it arrives, before the entry; `LandingPicture` takes that very element in as
+  the picture from an inline script after `#root` (`screens/earlyPicture.ts`; the phone
+  layout alone, as a desktop's first click measured slower), so a phone paints it as it
+  arrives, before the entry; `LandingPicture` takes that very element in as
   its own in its first commit (while its layout's file fits the window), and
   `earlyPicture.test.tsx` holds the two markups equal.
   Each layout's picture comes at two densities, picked by the screen's (`srcset`): 1x, and
