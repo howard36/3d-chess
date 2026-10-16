@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { rimColour } from './screens/rim';
+import { LEVEL_COLORS } from './three/scene/palette';
 
 // (vitest runs from client/)
 const SRC = join(process.cwd(), 'src');
@@ -110,4 +112,39 @@ test('every focus ring a stylesheet draws leaves out the quiet focus', () => {
   }
   expect(rings.length).toBeGreaterThan(5);
   expect(unquiet).toEqual([]);
+});
+
+// The five level colours are the board's (palette.ts: LEVEL_COLORS, from its
+// ramp), copied by hand where the start page needs them before any script
+// runs: the stylesheets' gradients, swatches and glows, and the rims (rim.ts)
+test('the stylesheets and the rims use exactly the board’s level colours', () => {
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const levels = LEVEL_COLORS.map(rgb);
+  const near = (c: number[]) =>
+    levels.some((l) => l.reduce((t, v, i) => t + Math.abs(v - c[i]), 0) < 40);
+  const exact = (c: number[]) => levels.some((l) => l.every((v, i) => v === c[i]));
+  const sheets = sources(SRC)
+    .filter((f) => f.endsWith('.css'))
+    .map((f) => readFileSync(f, 'utf8'));
+  const colours = sheets.flatMap((css) => [
+    ...[...css.matchAll(/#([0-9a-f]{6})\b/gi)].map((m) => rgb(m[0])),
+    ...[...css.matchAll(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/g)].map((m) =>
+      m.slice(1, 4).map(Number),
+    ),
+  ]);
+  const level = colours.filter(near);
+  expect(level.length).toBeGreaterThan(20);
+  expect(level.filter((c) => !exact(c)).map((c) => `rgb(${c})`)).toEqual([]);
+  // Every gradient through the five runs sky to rose
+  const ramps = sheets.flatMap((css) =>
+    [...css.matchAll(/gradient\(([^;]*?#47bbec[^;]*)\)/gi)].map((m) =>
+      [...m[1].matchAll(/#[0-9a-f]{6}/gi)].map((h) => h[0].toLowerCase()),
+    ),
+  );
+  expect(ramps.length).toBeGreaterThan(2);
+  for (const ramp of ramps) expect(ramp).toEqual([...LEVEL_COLORS].reverse());
+  // And so do the rims, from their first stop (sky) to their last (rose)
+  expect([0, 0.29, 0.5, 0.71, 1].map(rimColour)).toEqual(
+    [...levels].reverse().map((c) => `rgb(${c.join(',')})`),
+  );
 });
