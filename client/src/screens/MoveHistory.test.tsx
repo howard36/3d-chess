@@ -15,6 +15,7 @@ const formatted = vi.mocked(review.formatMove);
 import type { HistoryAnalysis, MoveHistoryProps } from './MoveHistory';
 import type { Grade } from '../game/analysis';
 import { deriveHistory } from '../game/history';
+import { PieceType } from '../engine/pieces';
 
 const SHUFFLE: MoveRecord[] = [
   { by: 'white', from: 'Ab1', to: 'Aa3' },
@@ -585,6 +586,26 @@ describe('the notation', () => {
     expect(knight).toHaveAccessibleName('Knight Ed5 to Cc5');
     expect(knight.querySelector('svg')).toHaveAttribute('data-piece', 'Knight');
     expect(rows()).toEqual(['1. Cb1 Ed5–Cc5']);
+  });
+
+  it('sets what a pawn became among the signs, with none of the moving piece’s gap', () => {
+    const promoted = [{ by: 'white' as const, from: 'Ed4', to: 'Ed5', promotion: 'Q' as const }];
+    const note = {
+      piece: PieceType.Pawn,
+      from: null,
+      capture: false,
+      to: 'Ed5',
+      promotion: PieceType.Queen,
+      check: '+' as const,
+    };
+    render(history({ moves: promoted, notation: [note] }));
+    const move = document.querySelector('[data-ply="1"]')!;
+    expect(move).toHaveAccessibleName('Pawn to Ed5, promotes to queen, check');
+    const [piece, became] = move.querySelectorAll('svg');
+    expect(piece).not.toHaveAttribute('data-promotion');
+    expect(became).toHaveAttribute('data-piece', 'Queen');
+    expect(became).toHaveAttribute('data-promotion');
+    expect(move).toHaveTextContent(/^Ed5=\+$/);
   });
 
   it('writes the move shown between the steps the same way', () => {

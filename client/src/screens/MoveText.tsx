@@ -26,8 +26,12 @@ const INK: Record<PieceType, readonly [left: number, top: number, right: number,
   [PieceType.Pawn]: [8, 6.6, 16, 1.01],
 };
 
-/** A piece's icon in the record: its silhouette, one path in the text's colour. */
-const Icon = ({ type }: { type: PieceType }) => {
+/**
+ * A piece's icon in the record: its silhouette, one path in the text's
+ * colour. What a pawn became stands among the signs as a letter does, with
+ * none of the gap the moving piece's leaves before its squares (index.css).
+ */
+const Icon = ({ type, promotion }: { type: PieceType; promotion?: boolean }) => {
   const [left, top, right, lift] = INK[type];
   const width = +(right - left).toFixed(2);
   const height = +(21 - top).toFixed(2);
@@ -39,6 +43,7 @@ const Icon = ({ type }: { type: PieceType }) => {
       preserveAspectRatio="xMidYMax meet"
       style={{ '--aspect': +(width / height).toFixed(4), '--lift': lift } as CSSProperties}
       data-piece={type}
+      data-promotion={promotion || undefined}
       aria-hidden
     >
       <path d={GLYPHS[type]} />
@@ -57,7 +62,7 @@ export const MoveText = ({ notation }: { notation: MoveNotation }) => (
     {notationSquares(notation)}
     {notation.promotion && (
       <>
-        =<Icon type={notation.promotion} />
+        =<Icon type={notation.promotion} promotion />
       </>
     )}
     {notation.check}
