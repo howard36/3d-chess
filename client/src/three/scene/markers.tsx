@@ -607,12 +607,12 @@ const BETTER_STRENGTH = 0.95;
 const BETTER_RADIUS = 0.011;
 
 /**
- * The last-move line: its circles' mint, see-through, so it weighs less and
- * the shimmer of that mint at full strength travelling along it shows, as
- * the check's line under its glow; as thick as the better move's, thinner
- * than the check's.
+ * The last-move line: its circles' mint at half strength, so it weighs less
+ * and the shimmer of that mint at full strength travelling along it shows,
+ * as the check's line (also at half strength) under its glow; as thick as
+ * the better move's, thinner than the check's.
  */
-const TRACE_LINE = { opacity: 0.6, radius: BETTER_RADIUS };
+const TRACE_LINE = { opacity: 0.5, radius: BETTER_RADIUS };
 
 // The shimmer on the last-move line: a soft glow of the line's own mint at
 // full strength, a little wider than the line, travelling along it from where the move started to where it
