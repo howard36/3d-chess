@@ -891,11 +891,12 @@ body {
 /* A piece's icon in the record (screens/MoveText.tsx): its silhouette, in
    the text's colour, cut to its ink and standing on the line as a capital
    does, its ground on the baseline and its top on the capitals' (rounded
-   as .caps rounds them, so a row's icons and words share their pixels) */
+   as .caps rounds them), or as far over them as a thin top needs to look
+   level with them (--lift, at most a tenth) */
 .hud-icon {
   display: inline-block;
   width: auto;
-  height: var(--caps);
+  height: calc(var(--caps) * var(--lift, 1));
   margin: 0 0.2em 0 0;
   vertical-align: baseline;
   fill: currentColor;
