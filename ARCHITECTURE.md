@@ -1437,7 +1437,8 @@ preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 a frame, browsers must not guess file types, and a link the player follows sends only the
 site's name. The built files under `/assets/`, whose names carry their hash, are kept a
 year; anything else a returning browser asks for again (Pages' default). The bench's `vite preview` sends the same headers
-(`client/bench/preview.config.ts`), so its returning visit is cached as a player's is.
+(`client/bench/preview.config.ts`), so its returning visit is cached as a player's is, and
+serves a game's address the invitation's page, as `public/_redirects` has the host do.
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),

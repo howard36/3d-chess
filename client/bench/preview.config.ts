@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
@@ -62,7 +62,56 @@ export const hostHeaders = (file: string): Plugin => ({
   },
 });
 
+/** One rule of the host's `_redirects` file that serves another file at an address. */
+export interface Rewrite {
+  path: RegExp;
+  to: string;
+}
+
+/**
+ * Cloudflare Pages' `_redirects` format, as far as the app uses it: `from to
+ * 200`, a rewrite (`*` matches anything). A redirect or a placeholder throws,
+ * naming the line, rather than being served as something else.
+ */
+export function parseRedirects(text: string): Rewrite[] {
+  const rules: Rewrite[] = [];
+  text.split('\n').forEach((line, i) => {
+    if (!line.trim() || line.trim().startsWith('#')) return;
+    const [from, to, status, ...rest] = line.trim().split(/\s+/);
+    if (status !== '200' || rest.length || !/^[/A-Za-z0-9._*~-]+$/.test(from) || !to)
+      throw new Error(
+        `_redirects line ${i + 1} (${line.trim()}): not a rewrite this reader handles`,
+      );
+    const parts = from.split('*').map((p) => p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
+    rules.push({ path: new RegExp(`^${parts.join('.*')}$`), to });
+  });
+  return rules;
+}
+
+/**
+ * Serves a rewritten address's file as Pages does (`/game/*` is the
+ * invitation's page, invite.html), where the build being served has it.
+ */
+export const hostRedirects = (file: string): Plugin => ({
+  name: 'host-redirects',
+  configurePreviewServer(server) {
+    const rules = existsSync(file) ? parseRedirects(readFileSync(file, 'utf8')) : [];
+    const outDir = resolve(server.config.root, server.config.build.outDir);
+    server.middlewares.use((req, _res, next) => {
+      const [path, query] = (req.url ?? '/').split(/\?(.*)/s);
+      const rule = rules.find((r) => r.path.test(path));
+      // Pages serves /invite from invite.html
+      const to = rule && (existsSync(resolve(outDir, `.${rule.to}`)) ? rule.to : `${rule.to}.html`);
+      if (to && existsSync(resolve(outDir, `.${to}`))) req.url = query ? `${to}?${query}` : to;
+      next();
+    });
+  },
+});
+
 // Run from the side's client/ (the bench starts the server there)
 export default defineConfig({
-  plugins: [hostHeaders(resolve(process.cwd(), 'public/_headers'))],
+  plugins: [
+    hostHeaders(resolve(process.cwd(), 'public/_headers')),
+    hostRedirects(resolve(process.cwd(), 'public/_redirects')),
+  ],
 });

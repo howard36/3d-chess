@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import type { PreviewServer } from 'vite';
 import { expect, test, vi } from 'vitest';
-import config, { hostHeaders, parseHeaders } from './preview.config';
+import config, { hostHeaders, hostRedirects, parseHeaders, parseRedirects } from './preview.config';
 
 test('the bench serves the host’s headers (public/_headers), read as Pages reads them', () => {
   const rules = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8'));
@@ -47,7 +48,7 @@ test('the preview server sends every matching rule’s headers, query aside', ()
   expect(next).toHaveBeenCalledOnce();
   // The bench starts `vite preview --config` this file: it must carry the plugin
   const plugins = (config as { plugins: { name: string }[] }).plugins.map((p) => p.name);
-  expect(plugins).toEqual(['host-headers']);
+  expect(plugins).toEqual(['host-headers', 'host-redirects']);
 });
 
 test('the host keeps the built files a year, and only those, whose names carry their hash', () => {
@@ -62,4 +63,32 @@ test('the host keeps the built files a year, and only those, whose names carry t
     expect(cache(path)).toBeUndefined();
   // Nothing from public/ lands among them under a name without a hash
   expect(existsSync(resolve(process.cwd(), 'public/assets'))).toBe(false);
+});
+
+test('the bench serves a game’s address the invitation’s page, as the host does (public/_redirects)', () => {
+  const rules = parseRedirects(readFileSync(resolve(process.cwd(), 'public/_redirects'), 'utf8'));
+  expect(rules.find((r) => r.path.test('/game/ABC123'))?.to).toBe('/invite');
+  expect(rules.some((r) => r.path.test('/new') || r.path.test('/'))).toBe(false);
+  expect(() => parseRedirects('/old /new 301\n')).toThrow(/line 1/);
+  expect(() => parseRedirects('/game/:id /invite 200\n')).toThrow(/line 1/);
+  // In the preview server: /game/... becomes invite.html, where the build has one
+  const dir = mkdtempSync(join(tmpdir(), 'preview-'));
+  writeFileSync(join(dir, 'invite.html'), '');
+  writeFileSync(join(dir, '_redirects'), '/game/* /invite 200\n');
+  let middleware: (req: { url?: string }, res: unknown, next: () => void) => void = () => {};
+  const server = {
+    config: { root: dir, build: { outDir: '.' } },
+    middlewares: { use: (fn: typeof middleware) => (middleware = fn) },
+  } as unknown as PreviewServer;
+  (hostRedirects(join(dir, '_redirects')).configurePreviewServer as (s: PreviewServer) => void)(
+    server,
+  );
+  const served = (url: string) => {
+    const req = { url };
+    middleware(req, {}, () => {});
+    return req.url;
+  };
+  expect(served('/game/ABC123?x=1')).toBe('/invite.html?x=1');
+  expect(served('/new')).toBe('/new');
+  rmSync(dir, { recursive: true });
 });
