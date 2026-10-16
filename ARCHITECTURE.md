@@ -1369,8 +1369,9 @@ cd server && uv run --extra deploy modal app stop 3d-chess-backend-staging -y
 CI (GitHub Actions) runs the server's lint (ruff check and format) and tests, the client's
 lint (ESLint + Prettier check), build and unit tests with coverage, both generated-protocol-type
 checks (`messages.py`, `schema.ts` against `schema.json`), and the E2E suite on every push/PR
-to `main`; the E2E suite is split over three parallel jobs (`E2E_GROUP`: `games` and
-`session`, named in `client/playwright.config.ts`, and `rest`, every spec they don't name),
+to `main`; the E2E suite is split over six parallel jobs (`E2E_GROUP`: `games`, `session`,
+`framing`, `offers` and `learn`, named in `client/playwright.config.ts` and balanced by
+their measured time, and `rest`, every spec they don't name),
 and on a failure each job uploads its Playwright HTML report and trace as a workflow
 artifact. On a push to `main`, and only once the server, client and every E2E job pass, it
 also deploys the backend to Modal. The deploy bakes the
