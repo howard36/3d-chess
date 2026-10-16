@@ -181,7 +181,9 @@ export function deriveHistory(
       board = next;
       appliedMoveCount = i + 1;
       lastMove = { move, moveCount: appliedMoveCount, capturedPiece: taken };
-    } catch {
+    } catch (error) {
+      // The page says only that the record can't be replayed: the console says why
+      console.warn(`Move ${i + 1} of the record can't be replayed:`, moveRecords[i], error);
       replayFailedAt = i;
       break;
     }

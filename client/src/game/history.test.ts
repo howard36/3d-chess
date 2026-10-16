@@ -171,8 +171,16 @@ describe('deriveHistory: identity', () => {
       moveMade('white', 'Ba1', 'Ca1'),
       moveMade('black', 'Cc3', 'Dc3'), // Cc3 is empty
     ];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const first = deriveHistory(log);
     expect(first.replayFailedAt).toBe(1);
+    // Why, in the console: the move and the rules' own error
+    expect(warn).toHaveBeenCalledWith(
+      "Move 2 of the record can't be replayed:",
+      expect.objectContaining({ from: 'Cc3', to: 'Dc3' }),
+      expect.any(Error),
+    );
+    warn.mockRestore();
     log.push(moveMade('white', 'Ca1', 'Da1'));
     const next = deriveHistory(log, first);
     expect(next.replayFailedAt).toBe(1);
