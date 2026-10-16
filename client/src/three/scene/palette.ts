@@ -19,7 +19,7 @@ import { towerFrame, towerLayout } from '../layout';
 // Hue plan: the scene is white light on black; the five levels are the only
 // colours, a spectral run from rose at the base to sky at the top. Every marker is white light
 // carrying its level's colour, but for capture and check, which are red
-// (kept clear of the rose), and the last move, pure white.
+// (kept clear of the rose), and the last move, mint.
 
 export const PALETTE = {
   // The night, blue-black, a breath of mist at the horizon
@@ -64,8 +64,11 @@ export const PALETTE = {
    * ring (its level shows as the tint of its fill).
    */
   move: '#f8c970',
-  /** The last move's line and circles: a pale mint, a hue of its own past the sky of level E. */
-  trace: '#acefd1',
+  /**
+   * The last move's line, its glow and circles: a mint green, a hue of its own
+   * well past the sky of level E, coloured enough to read as green on a thin line.
+   */
+  trace: '#8eecb0',
   /**
    * The better move a finished game's review shows where a marked move was
    * played: a warm amber, clear of the mint of the move played and the red of
