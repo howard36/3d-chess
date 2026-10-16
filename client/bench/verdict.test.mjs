@@ -16,6 +16,45 @@ describe('verdict', () => {
     expect(v.improved).toBe(true);
   });
 
+  it('never calls a row that is a choice, not a cost, but still gives its change', () => {
+    const placed = verdict(
+      [
+        [0, 5],
+        [0, 5],
+        [0, 5],
+      ],
+      'none',
+      'count',
+    );
+    expect(placed.real).toBe(false);
+    expect(placed.change).toBe(5);
+    const v = verdict(
+      [
+        [5, 3],
+        [5, 3],
+        [5, 3],
+      ],
+      'none',
+      'count',
+    );
+    expect([v.real, Math.round(v.change)]).toEqual([false, -40]);
+    // The same pairs judged 'higher' are a loss
+    expect(
+      verdict(
+        [
+          [5, 3],
+          [5, 3],
+          [5, 3],
+        ],
+        'higher',
+        'count',
+      ),
+    ).toMatchObject({
+      real: true,
+      improved: false,
+    });
+  });
+
   it('leaves alone pairs that disagree, or agree within 5%', () => {
     const split = [
       [100, 80],

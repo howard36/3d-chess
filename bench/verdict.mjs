@@ -12,6 +12,7 @@ export const median = (xs) => {
  * every pair agrees on its direction and it exceeds both 5% and the pairs'
  * own disagreement (their ratios' range). A value at 0 on a side is judged
  * by the pairs' differences instead (`diffs`, the change their median).
+ * A row whose `better` is 'none' (a choice, not a cost) is never called.
  */
 export function verdict(pairs, better, unit) {
   // A value at 0 on a side has no ratio: its change is the difference,
@@ -25,7 +26,7 @@ export function verdict(pairs, better, unit) {
   if (pairs.length >= 2 && zero && (unit === 'count' || ratioPairs.length < 2)) {
     const diffs = pairs.map(([b, h]) => h - b);
     const change = median(diffs);
-    const real = diffs.every((d) => d > 0) || diffs.every((d) => d < 0);
+    const real = better !== 'none' && (diffs.every((d) => d > 0) || diffs.every((d) => d < 0));
     const improved = better === 'higher' ? change > 0 : change < 0;
     return { ratios: [], diffs, change, spread: 0, real, improved };
   }
@@ -37,7 +38,7 @@ export function verdict(pairs, better, unit) {
   // Every pair, a pair with a 0 included (it has no ratio, but a direction)
   const ways = pairs.map(([b, h]) => Math.sign(h - b));
   const agree = ways.every((w) => w > 0) || ways.every((w) => w < 0);
-  const real = agree && Math.abs(change) > Math.max(5, spread);
+  const real = better !== 'none' && agree && Math.abs(change) > Math.max(5, spread);
   const improved = better === 'higher' ? change > 0 : change < 0;
   return { ratios, change, spread, real, improved };
 }

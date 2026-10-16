@@ -456,14 +456,14 @@ const changes = [];
 
 /**
  * A metric's change against the baseline, judged in the direction that
- * matters (`better`: 'lower' for times, 'higher' for rates). Within `band`
- * percent it is shown but not called better or worse.
+ * matters (`better`: 'lower' for times, 'higher' for rates, 'none' never
+ * called). Within `band` percent it is shown but not called better or worse.
  */
 function compareMetric(now, then, better, band) {
   if (!Number.isFinite(now) || !Number.isFinite(then) || then === 0) return null;
   const change = ((now - then) / Math.abs(then)) * 100;
   const improved = better === 'higher' ? change > 0 : change < 0;
-  const significant = Math.abs(change) > band;
+  const significant = better !== 'none' && Math.abs(change) > band;
   const pct = `${change > 0 ? '+' : '−'}${Math.abs(change).toFixed(Math.abs(change) >= 10 ? 0 : 1)}%`;
   return {
     change,
