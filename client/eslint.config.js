@@ -30,6 +30,16 @@ const NO_R3F_STATE = [
   },
 ];
 
+// CLAUDE.md "Gotchas": focus the page moves by itself goes through lib/focus.ts,
+// so its ring shows only for a player on the keyboard (the scene's and the
+// canvases' blocks below drop it: they move no DOM focus)
+const FOCUS_FROM_CODE =
+  'Focus the page moves goes through lib/focus.ts (autoFocusRef, focusFromCode).';
+const NO_BARE_FOCUS = [
+  { selector: "JSXAttribute[name.name='autoFocus']", message: FOCUS_FROM_CODE },
+  { selector: "CallExpression[callee.property.name='focus']", message: FOCUS_FROM_CODE },
+];
+
 // The app's canvases draw on demand: the garden's copy, the frame pacer and
 // the "no frame for a render that changes nothing" counts all depend on it
 // (CLAUDE.md "The board", "Performance")
@@ -89,7 +99,7 @@ export default defineConfig(
           ],
         },
       ],
-      'no-restricted-syntax': ['error', ...NO_R3F_STATE],
+      'no-restricted-syntax': ['error', ...NO_R3F_STATE, ...NO_BARE_FOCUS],
       'no-restricted-properties': ['error', NO_SET_PIECE],
     },
   },
@@ -99,6 +109,10 @@ export default defineConfig(
     rules: { 'no-restricted-properties': 'off' },
   },
   { files: ['src/types/messages.ts'], rules: { 'no-restricted-imports': 'off' } },
+  {
+    files: ['src/lib/focus.ts', '**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-syntax': ['error', ...NO_R3F_STATE] },
+  },
   {
     // Animations run on r3f's clock, which the showcase's virtual clock drives;
     // a timer, a frame of the browser's own or the wall clock escapes it

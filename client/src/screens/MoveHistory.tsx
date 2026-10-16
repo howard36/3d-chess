@@ -238,7 +238,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
     const escape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       if (inField(e.target)) return;
-      if (nav.current?.contains(document.activeElement)) toggle.current?.focus();
+      if (nav.current?.contains(document.activeElement)) focusFromCode(toggle.current);
       setAsked(false);
     };
     document.addEventListener('pointerdown', away);
@@ -305,7 +305,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       focusAsked.current = false;
       focusFromCode(button, { preventScroll: true });
     } else if (ol.contains(document.activeElement) && document.activeElement !== button) {
-      button.focus();
+      focusFromCode(button);
     }
   }, [shown, moves.length, open, whole, reviewAsked]);
 
