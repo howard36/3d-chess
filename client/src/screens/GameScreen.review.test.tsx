@@ -132,6 +132,23 @@ describe('while the game is on', () => {
 });
 
 describe('stepping back through a finished game', () => {
+  it('leaves the board, the record and the rematch once the card is put away', async () => {
+    render(gameScreenAt(fakeSocket([resigned])));
+    await boardMounted();
+    const pill = screen.getByTestId('turn-indicator');
+    const bar = pill.closest('.hud-bar');
+    expect(bar).not.toHaveClass('sr-only');
+    expect(nav()).not.toHaveAttribute('data-ended');
+    await closeResult();
+    // The pill and the pieces taken out of sight, still read; no way to the tutorial
+    expect(bar).toHaveClass('sr-only');
+    expect(pill).toHaveAttribute('data-result', 'resignation');
+    expect(screen.queryByRole('button', { name: 'How to play' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
+    expect(nav()).toHaveAttribute('data-ended');
+    expect(screen.getByTestId('rematch')).toHaveAttribute('data-bar');
+  });
+
   it('shows the position after a move clicked, and takes no move there', async () => {
     const send = vi.fn(() => true);
     render(gameScreenAt(fakeSocket([resigned], send)));
