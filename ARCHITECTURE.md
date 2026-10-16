@@ -492,8 +492,9 @@ Key decisions:
   alphabetic`, which applies to blocks only, so a button's words are a span of their own),
   the capitals' fraction of a pixel set over them, so it stands `round(1cap, 1px)` tall with
   its baseline on a whole pixel. A box that centres one grows a pixel where its height and
-  the capitals' differ in parity (`calc(H + mod(H - var(--caps), 2px))`, the difference
-  always positive: Chrome's `mod()` gives 2px for an even negative one), and so does an icon
+  the capitals' differ in parity (`calc(H + var(--caps-odd))`, every H even; a browser
+  without `cap`, `round()` or `mod()` gets plain values for the three variables under
+  `@supports`, not boxes shrunk to their words), and so does an icon
   beside it (the pill's stones, the waiting dot): the browser rounds boxes and baselines to
   the pixel each on its own, and a centring that lands on a half rounds them apart. An arrow
   beside words is `screens/Arrow.tsx`, as tall as their capitals with its ink centred on

@@ -34,3 +34,38 @@ test('every custom property the stylesheets read without a fallback is set somew
   );
   expect(unset).toEqual([]);
 });
+
+// A browser inside the build's target without the cap unit, round() or mod()
+// (Safari before 17.2, Chrome before 125) drops a declaration that reads one
+// at parse time, or, behind a var(), finds it invalid where it is used and
+// falls back to the property's initial value: a pill or a button shrunk to
+// its words. So they stand only inside an @supports that tests them
+// (index.css: --caps, --caps-odd, --caps-lift)
+test('cap, round() and mod() are read only where @supports says the browser has them', () => {
+  const outside = (css: string): string => {
+    let s = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (let at = s.indexOf('@supports'); at >= 0; at = s.indexOf('@supports')) {
+      const open = s.indexOf('{', at);
+      const condition = s.slice(at, open);
+      expect(condition).toMatch(/round\(1cap, 1px\)/);
+      expect(condition).toMatch(/mod\(/);
+      let depth = 0;
+      let end = open;
+      for (; end < s.length; end++) {
+        if (s[end] === '{') depth++;
+        else if (s[end] === '}' && --depth === 0) break;
+      }
+      s = s.slice(0, at) + s.slice(end + 1);
+    }
+    return s;
+  };
+  const sheets = sources(SRC).filter((f) => f.endsWith('.css'));
+  const all = sheets.map((f) => readFileSync(f, 'utf8')).join('\n');
+  expect(all).toMatch(/var\(--caps-odd\)/);
+  const found = sheets.flatMap((f) =>
+    [...outside(readFileSync(f, 'utf8')).matchAll(/\b(?:mod|round)\(|\d(?:\.\d+)?cap\b/g)].map(
+      (m) => `${f}: ${m[0]}`,
+    ),
+  );
+  expect(found).toEqual([]);
+});
