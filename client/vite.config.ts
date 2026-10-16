@@ -247,11 +247,15 @@ const keepSceneOutOfEntry = (): Plugin => ({
       [...entry].flatMap((f) => [...(chunks.get(f)!.viteMetadata?.importedCss ?? [])]),
     );
     const gz = (text: string | Uint8Array) => gzipSync(text, { level: 9 }).length;
+    // The start page always imports index.css: no CSS, or a name the bundle
+    // lacks, means Vite's metadata changed and the sum would quietly shrink
+    if (!css.size) this.error('keep-scene-out-of-entry: the entry imports no CSS');
     const bytes =
       [...entry].reduce((t, f) => t + gz(chunks.get(f)!.code), 0) +
       [...css].reduce((t, f) => {
         const asset = bundle[f];
-        return t + (asset?.type === 'asset' ? gz(asset.source) : 0);
+        if (asset?.type !== 'asset') this.error(`keep-scene-out-of-entry: no asset ${f}`);
+        return t + gz(asset.source);
       }, 0);
     if (bytes > ENTRY_GZIP_BUDGET)
       this.error(
