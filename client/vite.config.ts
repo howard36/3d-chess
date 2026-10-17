@@ -1,4 +1,3 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { build, defineConfig, minify } from 'vite';
@@ -323,47 +322,6 @@ const socialImageOnPreviews = (): Plugin => ({
   },
 });
 
-/**
- * Pages keeps nothing by default: a returning browser asks again for every
- * file. The files the build writes under assets/ carry a hash of their
- * contents in their names, so the build adds a rule to the host's `_headers`
- * for each of them, keeping it a year. One rule a file, never `/assets/*`: a
- * name this deploy does not have (an old page's chunk after a deploy) matches
- * no rule, so whatever the host answers for it is never kept, and
- * assets/404.html makes that answer a 404 (Pages serves the nearest 404.html)
- * rather than the start page. The build fails on a file there whose name has
- * no hash, and past Pages' 100 rules.
- */
-export const HASHED_NAME = /^assets\/[\w.-]+-[\w-]{8}\.\w+$/;
-export const KEEP_A_YEAR = 'public, max-age=31536000, immutable';
-export const keepHashedFiles = (): Plugin => {
-  let outDir = 'dist';
-  return {
-    name: 'keep-hashed-files',
-    apply: 'build',
-    configResolved(config) {
-      outDir = resolve(config.root, config.build.outDir);
-    },
-    writeBundle(_options, bundle) {
-      const names = Object.keys(bundle).filter((name) => name.startsWith('assets/'));
-      const unhashed = names.filter((name) => !HASHED_NAME.test(name));
-      if (unhashed.length) this.error(`keep-hashed-files: no hash in ${unhashed.join(', ')}`);
-      const headers = resolve(outDir, '_headers');
-      const rules = names.map((name) => `/${name}\n  Cache-Control: ${KEEP_A_YEAR}\n`);
-      appendFileSync(
-        headers,
-        `\n# The built files, named by their hash (vite.config.ts, keepHashedFiles)\n${rules.join('')}`,
-      );
-      const count = readFileSync(headers, 'utf8').match(/^\//gm)?.length ?? 0;
-      if (count > 100) this.error(`keep-hashed-files: ${count} rules in _headers, past Pages' 100`);
-      writeFileSync(
-        resolve(outDir, 'assets/404.html'),
-        '<!doctype html><title>Not found</title>\n',
-      );
-    },
-  };
-};
-
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -376,7 +334,6 @@ export default defineConfig({
     keepSceneOutOfEntry(),
     invitePage(),
     socialImageOnPreviews(),
-    keepHashedFiles(),
   ],
   resolve: {
     // r3f pins a scheduler of its own (0.28) beside react-dom's (0.27, the

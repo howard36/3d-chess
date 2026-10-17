@@ -1,16 +1,9 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { UserConfig } from 'vite';
 import { expect, test, vi } from 'vitest';
 import { picturePlacement } from './src/three/landingLens';
-import { parseHeaders } from './bench/preview.config';
-import config, {
-  KEEP_A_YEAR,
-  keepHashedFiles,
-  placeLandingPictureEarly,
-  preloadLandingPictureOnStartPage,
-} from './vite.config';
+import config, { placeLandingPictureEarly, preloadLandingPictureOnStartPage } from './vite.config';
 
 test('the built page preloads its picture after the viewport tag, where a phone knows its width', async () => {
   const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
@@ -70,71 +63,6 @@ test('the build runs the start page’s scripts', () => {
   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
   expect(names).toEqual(
-    expect.arrayContaining([
-      'preload-landing-picture',
-      'place-landing-picture-early',
-      'keep-hashed-files',
-    ]),
+    expect.arrayContaining(['preload-landing-picture', 'place-landing-picture-early']),
   );
-});
-
-/** Runs keepHashedFiles' build step on a build of these files, in a folder of its own. */
-const keepFiles = (names: string[]) => {
-  const dir = mkdtempSync(join(tmpdir(), 'build-'));
-  mkdirSync(join(dir, 'assets'));
-  writeFileSync(join(dir, '_headers'), readFileSync(resolve(process.cwd(), 'public/_headers')));
-  const plugin = keepHashedFiles();
-  (plugin.configResolved as (c: unknown) => void)({ root: dir, build: { outDir: '.' } });
-  const context = {
-    error: (message: string) => {
-      throw new Error(message);
-    },
-  };
-  try {
-    (plugin.writeBundle as (this: unknown, o: unknown, b: unknown) => void).call(
-      context,
-      {},
-      Object.fromEntries(names.map((name) => [name, {}])),
-    );
-    return {
-      rules: parseHeaders(readFileSync(join(dir, '_headers'), 'utf8')),
-      notFound: existsSync(join(dir, 'assets/404.html')),
-    };
-  } finally {
-    rmSync(dir, { recursive: true });
-  }
-};
-
-test('the host keeps a year each file the build wrote under assets/, and nothing else', () => {
-  const { rules, notFound } = keepFiles([
-    'index.html',
-    'assets/index-B2x9_kQe.js',
-    'assets/manrope-latin-600-normal-4f0koTD-.woff2',
-  ]);
-  const cache = (path: string) =>
-    rules
-      .filter((r) => r.path.test(path))
-      .flatMap((r) => r.headers)
-      .find(([name]) => name === 'Cache-Control')?.[1];
-  expect(cache('/assets/index-B2x9_kQe.js')).toBe(KEEP_A_YEAR);
-  expect(cache('/assets/manrope-latin-600-normal-4f0koTD-.woff2')).toBe(KEEP_A_YEAR);
-  // A name this deploy lacks (an old page's chunk) is never kept: the host
-  // answers it from assets/404.html, not with the start page
-  for (const path of ['/assets/index-ZZZZZZZZ.js', '/assets/404.html', '/', '/index.html'])
-    expect(cache(path)).toBeUndefined();
-  for (const path of ['/game/abc', '/landing/phone.avif', '/og.jpg'])
-    expect(cache(path)).toBeUndefined();
-  expect(notFound).toBe(true);
-  // Every file keeps the host's other headers
-  expect(rules.filter((r) => r.path.test('/assets/index-B2x9_kQe.js')).length).toBe(2);
-});
-
-test('the build fails on a file under assets/ with no hash in its name', () => {
-  expect(() => keepFiles(['assets/logo.svg'])).toThrow(/no hash in assets\/logo.svg/);
-  expect(() => keepFiles(['assets/a-B2x9_kQe.js', 'assets/b.js'])).toThrow(/assets\/b.js/);
-});
-
-test('the build fails past the host’s 100 rules', () => {
-  const many = Array.from({ length: 100 }, (_, i) => `assets/c${i}-B2x9_kQe.js`);
-  expect(() => keepFiles(many)).toThrow(/101 rules/);
 });
