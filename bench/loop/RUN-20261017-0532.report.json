@@ -1,0 +1,119 @@
+{
+  "title": "Perf run 20261017-0532",
+  "eyebrow": "3D chess · perf-iteration · run 20261017-0532 · speed run",
+  "heading": "A returning phone's start page is usable about 30% sooner",
+  "meta": "<p>The run kept one speed change, the one you approved last run (ledger 0930:17): the host now lets a browser keep each built file for a year, and a click on the start page takes down a preview that has loaded but not shown. On a returning phone (4× slower CPU, Fast 4G) the start page is usable after about 400 ms instead of 550–610 ms. The A/B on <code>5dee0a5</code> called this better (550 → 393 ms, −28%, every pair 0.67–0.77). On the final commit the gain is the same size in two re-checks (−29% and −38%), but neither re-check calls it, because one pair in each differs a lot from the others.</p><p>No headline row is called worse anywhere in the run. The target, every headline row 1.2× faster than the base <code>5362029</code>, was missed: ×1.001 over the 15 rows on the final commit.</p>",
+  "needs": {
+    "intro": "<p>Three items. All three are information: the PR waits on none of them.</p>",
+    "items": [
+      {
+        "title": "Your limit on the returning board: over it in the first A/B, under it over all 24 pairs",
+        "body": "<p>You approved the cache change on condition that the returning phone's board shows at most about 100 ms later. The run record first said this was met at \"the median pair ×1.18, +96 ms\". That figure was the geometric mean of the pairs, not the median pair. The review caught it. Read correctly, the first A/B (<code>ab-20261017-0532-cache.md</code>, 8 pairs on <code>5dee0a5</code>) was over the limit: median pair ×1.23, medians 535 → 660 ms (+125 ms), 6 of 8 pairs slower.</p><p>The two re-checks on the final commit, each 8 pairs against <code>5362029</code>, came in lower:</p><ul><li>the full headline profile (<code>ab-20261017-0532-final.md</code>): median pair ×1.165, about +97 ms on 590 ms; pairs 1.47 1.18 0.96 1.39 0.93 0.43 1.15 1.58;</li><li>the cold load alone (<code>ab-20261017-0532-final-coldload.md</code>): median pair ×1.06, about +40 ms on 656 ms; pairs 0.90 1.10 1.05 1.07 1.01 1.25 0.91 1.84.</li></ul><p>Over all 24 pairs the median pair is ×1.14, about +80 ms. The row is noisy (pairs 0.43–1.84), so 8 pairs alone cannot place it within 100 ms either way. I kept the change. The returning first click stayed inside your other limit: +12.5 ms in the first A/B (40.3 → 52.8 ms), and 51.6 → 59.6 ms and 146 → 65 ms at the medians in the re-checks.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final cold load: 0bb455f vs 5362029 (cold-load, 8 pairs)",
+              "only": "returning · (“Play a friend” enabled|board on screen|first click)"
+            },
+            "caption": "The returning phone on the final code, cold load only, 0bb455f against 5362029, 8 pairs (ab-20261017-0532-final-coldload.md)."
+          },
+          {
+            "rows": {
+              "change": "0930:17 (cache + click, AH1, ST1): 5dee0a5 vs 5362029 (cold-load, 8 pairs)",
+              "only": "returning · (“Play a friend” enabled|board on screen|first click)"
+            },
+            "caption": "The same rows in the first A/B, 5dee0a5 against 5362029, 8 pairs (ab-20261017-0532-cache.md)."
+          }
+        ],
+        "recommend": "Keep it. To overrule, revert <code>5dee0a5</code>; its click half can also be tested on its own first (ledger 1017-0532:CK1)."
+      },
+      {
+        "title": "Headline rows over the speed rule's 3% on the final code; none called, one repeats",
+        "body": "<p>The speed rule lists here every headline row that is more than 3% slower at its median pair, even when the A/B does not call it.</p><ul><li><b>Reopening a long game (2,000 plies)</b>: ×1.386 in the full profile (5 of 8 slower; base first 0.83, head first 1.70) and ×1.098 narrowed to setup and reopen (6 of 8; pairs 1.09 1.10 0.88 1.48 1.68 1.31 0.89 1.09; <code>ab-20261017-0532-final-setup-reopen.md</code>). Nothing in the diff runs on a game page: the change is the start page's click and the host's cache rules, which can only make a reload fetch less. The same code against itself gave this row pairs 0.64–3.07 (A/A, <code>ab-20261017-0532-aa.md</code>), and the ledger already tracks its lean (1016:RG3, 1016:RG4). Not traced this run.</li><li><b>A shared game's page, first screen</b>: ×1.279 in the full profile (6 of 8). It did not repeat: ×0.98 at the median pair, narrowed, 8 pairs.</li><li><b>The player's move appears</b>: ×1.039 (5 of 8). The A/A gave ×1.035 on identical code.</li><li><b>Start page usable, desktop</b>: ×1.034 (4 of 8) in the cold-load re-check; ×1.0 in the full profile.</li></ul><p>The desktop board, which the first A/B listed here (×1.053, 5 of 8), is ×0.985 and ×0.995 at the median pair in the two re-checks.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final setup and reopen: 0bb455f vs 5362029 (setup, reopen, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "The shared page, joining and reopening on the final code, narrowed, 8 pairs (ab-20261017-0532-final-setup-reopen.md)."
+          }
+        ],
+        "recommend": "No action. Next run, trace reopening on both sides (1016:RG4) before any change to it."
+      },
+      {
+        "title": "The 1.2× target was missed (information)",
+        "body": "<p>Over the 15 headline rows the final commit is ×1.001 as fast as the base <code>5362029</code> (8 pairs). Only the returning phone moved, and it moved past the target (×0.68 at the median pair, where the target is ×0.83). The run spent its Improve time on your approved change and on RB1, which did not pay. The Improve stage started late (08:27, against a 05:32 start) and ended at 09:55, past the 4-hour budget, so RS1 (the picked-up piece's lean) was not traced and no idea for every row was tried.</p>"
+      }
+    ]
+  },
+  "scoreboard": {
+    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Target: every one 1.2× faster than the base <code>5362029</code> (the dashed line).</p><p>On the final code (<code>86eb945</code>, the same app code as <code>5dee0a5</code>), the full profile, 8 pairs: ×1.001 over the 15 rows; none called better or worse. Of 105 other measurements, 2 were called better (the returning phone's requests 18 → 2 and bytes downloaded 5.3 → 0.6 KiB) and 1 worse (that visit's server connection opens 410 → 481 ms, +18%, every pair 1.14–1.29: the page's code, now read from the cache, runs while the connection opens). Memory: geometries grown over 16 moves 10 → 10; textures 0.5 → 1, a count that also moved on identical code in this run's A/A.</p><p>At the start of the run, <code>5362029</code> against the last run's base <code>38d62be</code> was ×0.998, none called (<code>ab-20261017-0532-regress.md</code>). For the long view, the last measurement against the first recorded run (92ce041) stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure.</p>",
+    "items": [
+      {
+        "title": "Every headline row on the final code against the base and the target",
+        "charts": [
+          {
+            "rows": { "change": "final: 86eb945 vs 5362029 (primary, 8 pairs)", "only": "PRIMARY" },
+            "caption": "The 15 headline rows, 86eb945 against 5362029, 8 pairs (ab-20261017-0532-final.md).",
+            "target": 1.2
+          },
+          {
+            "rows": {
+              "change": "final cold load: 0bb455f vs 5362029 (cold-load, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "The start page's six rows again, cold load only, 0bb455f against 5362029, 8 pairs (ab-20261017-0532-final-coldload.md).",
+            "target": 1.2
+          }
+        ]
+      },
+      {
+        "title": "The base against the last run's base",
+        "charts": [
+          {
+            "rows": {
+              "change": "regression check: 5362029 (7d2e7b3) vs 38d62be",
+              "only": "PRIMARY"
+            },
+            "caption": "The 15 headline rows, 5362029 against 38d62be, 6 pairs (ab-20261017-0532-regress.md)."
+          }
+        ]
+      }
+    ]
+  },
+  "changed": {
+    "intro": "<p>Two commits change code. The rest of the branch is the run's record, its A/B reports and the ledger.</p>",
+    "items": [
+      {
+        "title": "A returning phone keeps the built files, and a click takes down a preview queued behind it (5dee0a5)",
+        "body": "<p>The build now writes a rule into the host's <code>_headers</code> for each file it puts under <code>assets/</code>, telling browsers to keep it a year. Each of these files has a hash of its contents in its name, so a new deploy gives changed files new names. There is one rule per file, never <code>/assets/*</code>: a name the deploy does not have, such as an old page's chunk, matches no rule and is never kept. The build also writes <code>assets/404.html</code>, so the host answers such a name with a 404 page instead of the start page. The build fails on a file there with no hash in its name, and past the host's limit of 100 rules (26 are used).</p><p>A click on the start page now takes down the live preview when its code has arrived but it has not shown yet. Without this, the preview's queued build ran before the next page could show. The picture it stands behind stays, so nothing moves on screen. Before the preview's code arrives the click does nothing extra.</p><p>Evidence: returning phone usable 550 → 393 ms, −28%, called better, every pair 0.67–0.77, 8 pairs against <code>5362029</code> (<code>ab-20261017-0532-cache.md</code>; scoreboard \"0930:17 (cache + click, AH1, ST1)\"). On the final code: −29% (pairs 0.54–1.00) and −38% (pairs 0.26–0.81), not called. Tests that fail on the wrong form: <code>vite.config.test.ts</code> fails on an <code>/assets/*</code> rule; <code>StartScreen.test.tsx</code> fails when the click does not take the preview down, and when it renders the page again before the preview's code arrives.</p>"
+      },
+      {
+        "title": "The bench serves the build's own headers (ac02f49)",
+        "body": "<p>A measurement fix the change above needs: the bench's preview server read <code>public/_headers</code>, which does not have the rules the build adds. It now reads the copy in the build it serves. On the base, that copy is <code>public/_headers</code> unchanged, so both sides of an A/B are served as the host would serve them.</p>"
+      }
+    ]
+  },
+  "removed": {
+    "intro": "<p>Nothing removed. Outside <code>bench/loop/</code> the app and its build config grow by 60 lines (StartScreen +17, vite.config +43), the tests by 164, ARCHITECTURE.md by 2; the bench code is unchanged in size.</p>"
+  },
+  "rejected": {
+    "intro": "<p>The result is also in the ledger.</p>",
+    "items": [
+      {
+        "title": "RB1: a returning visit asks for the preview only after the connection opens and the page is idle",
+        "body": "<p>Tried as <code>31600cf</code>, reverted in <code>0b00cd8</code>. Against <code>5dee0a5</code>, cold load, 8 pairs (<code>ab-20261017-0532-rb1.md</code>): no headline row called. Returning usable −3.7% (5 of 8 lower), returning board −1.8% (mixed), connection open +1%. The returning first click went 58.9 → 40.7 ms, lower in every pair (0.57–0.89) but not called. Saved as <code>patches/returning-preview-hold-RB1.patch</code>; ledger 1016-2036:RB1, parked.</p>"
+      }
+    ]
+  },
+  "choices": {
+    "intro": "<ul><li>AH1 as one rule per built file, written by the build, rather than <code>/assets/*</code> plus a 404 page: whatever the host does with a missing name, no rule matches it.</li><li>I kept the cache change although the first A/B put the returning board over your 100 ms limit (median pair ×1.23). The two re-checks and all 24 pairs together put it under (×1.14, about +80 ms). Needs from me, item 1, has the numbers.</li><li>RB1 reverted under the speed rule, although its returning first click was lower in every pair.</li><li>The final re-check ran the full headline profile, as the review asked, and then the cold load alone, as the Improve stage asked. A third, narrowed run checked the shared page and reopening, which leaned in the full profile.</li><li>The exploratory bisect reports for RS1 stay in <code>bench/out/</code>, which git ignores; the run record has one line each. No decision rests on them.</li></ul>"
+  },
+  "notConfirmed": {
+    "intro": "<ul><li>That Cloudflare Pages answers a missing <code>/assets/</code> name with <code>assets/404.html</code> and a 404 status, and that <code>/new</code>, <code>/learn</code> and <code>/computer</code> still get the start page. This comes from Pages' docs and Cloudflare's asset-server source; the live host was unreachable from here (the proxy answered 403). Check it on this PR's Pages preview (ledger 1017-0532:AH3). The year-long rule is safe either way, because no rule matches a missing name.</li><li>Why reopening a long game leans slower in this run's re-checks (×1.10–1.39 at the median pair) when nothing in the diff runs there.</li><li>RS1, the picked-up piece's lean since <code>38d62be</code>: not traced. On the final code it is ×0.955 at the median pair against <code>5362029</code>.</li></ul>"
+  },
+  "next": {
+    "intro": "<ol><li>Relaunch lenses 1, 2 and 5 for ideas that move every headline row; the ledger's open items each touch one row.</li><li>Trace a pick on <code>38d62be</code> and the head (1017-0532:RS1), and reopening on both sides (1016:RG4); close either as drift if nothing shows.</li><li>Check AH1 on a Pages preview deploy, then AH3 (one <code>/assets/*</code> rule), AH5 (a stricter hash check) and CK1 (the click half on its own).</li><li>BR1: print the median pair beside the geometric mean in the A/B report, so a limit like yours is read from one named figure.</li></ol>"
+  }
+}
