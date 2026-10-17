@@ -1,8 +1,8 @@
 diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
-index 1a47440..3227721 100644
+index 1f9f3dd..48e7a5b 100644
 --- a/ARCHITECTURE.md
 +++ b/ARCHITECTURE.md
-@@ -459,7 +459,7 @@ Key decisions:
+@@ -465,7 +465,7 @@ Key decisions:
    resolution, 4:4:4, cost 12–15% more for no difference to see at the size shown, and is a
    profile not every AVIF decoder takes). The preview opens on exactly the picture's moment (the opening position
    from the turn's first angle) and fades in over it in 0.3 s once its first frame is
@@ -11,7 +11,7 @@ index 1a47440..3227721 100644
    recomputes the baked numbers from the fit and fails when the rings, the opening view
    or the bands change: bake them again and re-render the pictures
    (`scripts/landing-pictures.mjs`, through the dev-only `landing-pictures.html`). The
-@@ -1435,8 +1435,8 @@ which only holds what main deployed, so a branch's preview build points it at th
+@@ -1441,8 +1441,8 @@ which only holds what main deployed, so a branch's preview build points it at th
  preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
  `public/_headers` sets three headers on every address: other sites may not show the app in
  a frame, browsers must not guess file types, and a link the player follows sends only the
@@ -19,24 +19,23 @@ index 1a47440..3227721 100644
 -(Pages' default). The bench's `vite preview` sends the same headers
 +site's name. The built files under `/assets/`, whose names carry their hash, are kept a
 +year; anything else a returning browser asks for again (Pages' default). The bench's `vite preview` sends the same headers
- (`client/bench/preview.config.ts`), so its returning visit is cached as a player's is.
+ (`client/bench/preview.config.ts`), so its returning visit is cached as a player's is, and
+ serves a game's address the invitation's page, as `public/_redirects` has the host do.
  
- Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 diff --git a/client/bench/preview.config.test.ts b/client/bench/preview.config.test.ts
-index d6c6454..52e1e22 100644
+index b40e8ad..ac4640f 100644
 --- a/client/bench/preview.config.test.ts
 +++ b/client/bench/preview.config.test.ts
 @@ -1,4 +1,4 @@
--import { readFileSync } from 'node:fs';
-+import { existsSync, readFileSync } from 'node:fs';
- import { resolve } from 'node:path';
+-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
++import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+ import { tmpdir } from 'node:os';
+ import { join, resolve } from 'node:path';
  import type { PreviewServer } from 'vite';
- import { expect, test, vi } from 'vitest';
-@@ -49,3 +49,17 @@ test('the preview server sends every matching rule’s headers, query aside', ()
-   const plugins = (config as { plugins: { name: string }[] }).plugins.map((p) => p.name);
-   expect(plugins).toEqual(['host-headers']);
+@@ -51,6 +51,20 @@ test('the preview server sends every matching rule’s headers, query aside', ()
+   expect(plugins).toEqual(['host-headers', 'host-redirects']);
  });
-+
+ 
 +test('the host keeps the built files a year, and only those, whose names carry their hash', () => {
 +  const rules = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8'));
 +  const cache = (path: string) =>
@@ -50,6 +49,10 @@ index d6c6454..52e1e22 100644
 +  // Nothing from public/ lands among them under a name without a hash
 +  expect(existsSync(resolve(process.cwd(), 'public/assets'))).toBe(false);
 +});
++
+ test('the bench serves a game’s address the invitation’s page, as the host does (public/_redirects)', () => {
+   const rules = parseRedirects(readFileSync(resolve(process.cwd(), 'public/_redirects'), 'utf8'));
+   expect(rules.find((r) => r.path.test('/game/ABC123'))?.to).toBe('/invite');
 diff --git a/client/public/_headers b/client/public/_headers
 index 24cc9da..ec2f957 100644
 --- a/client/public/_headers
