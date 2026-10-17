@@ -8,7 +8,7 @@
   "items": [
    {
     "title": "0930:17: take the returning phone's faster start page with a later board?",
-    "body": "<p>Your condition: on 8 pairs against the base, the returning phone's board at most ~100 ms later. On the A/B that tested it (<code>ab-20261017-0532-cache.md</code>, <code>5dee0a5</code> vs <code>5362029</code>, 8 pairs) the board went 535 → 660 ms, median pair ×1.23, pairs 0.88 1.32 1.17 1.30 1.29 1.13 1.48 0.97. The change is parked, not kept. What it gives and costs, with every pair:</p><ul><li><b>Returning phone usable</b>: 550 → 393 ms, called better (cache A/B); −29% in the full re-check, pairs 0.67 0.84 0.70 0.60 1.00 0.66 0.74 0.54; −38% in the cold-load re-check, every pair lower (0.26–0.81).</li><li><b>Returning board</b>: re-checks ×1.165 (1.47 1.18 0.96 1.39 0.93 0.43 1.15 1.58) and ×1.06 (0.90 1.10 1.05 1.07 1.01 1.25 0.91 1.84).</li><li><b>Returning instant first click</b>: 40.3 → 52.8 ms, every pair slower, not called.</li><li>Headline rows more than 3% slower at the median pair on that code, none called. Full profile (<code>ab-20261017-0532-final.md</code>): reopening a long game ×1.386, pairs 0.48 1.62 0.92 2.63 0.49 1.69 2.19 1.16 (narrowed re-check ×1.098: 1.09 1.10 0.88 1.48 1.68 1.31 0.89 1.09); a shared game's page ×1.279, pairs 1.24 1.35 1.50 1.00 0.75 1.05 2.01 1.31 (narrowed ×0.98: 0.57 0.79 0.81 1.72 1.33 0.50 1.16 1.15); the player's move ×1.039, pairs 0.86 1.19 1.08 0.82 0.74 1.04 1.04 1.37. Cold-load re-check: desktop start page usable ×1.034, pairs 1.14 1.08 0.56 0.87 0.98 1.55 1.15 0.72. Cache A/B: desktop board ×1.053, pairs 1.03 0.93 1.28 1.24 0.88 1.07 0.97 1.24 (×0.985 in the full re-check). Nothing in the patch runs on a game page.</li></ul>",
+    "body": "<p>Your condition: on 8 pairs against the base, the returning phone's board at most ~100 ms later. On the A/B that tested it (<code>ab-20261017-0532-cache.md</code>, <code>5dee0a5</code> vs <code>5362029</code>, 8 pairs) the board went 535 → 660 ms, median pair ×1.23, pairs 0.88 1.32 1.17 1.30 1.29 1.13 1.48 0.97. The change is parked, not kept. What it gives and costs, with every pair:</p><ul><li><b>Returning phone usable</b>: 550 → 393 ms, called better (cache A/B); −29% in the full re-check, pairs 0.67 0.84 0.70 0.60 1.00 0.66 0.74 0.54; −38% in the cold-load re-check on <code>0bb455f</code>, every pair lower (0.26–0.81; that report is not committed, as it measured code the PR no longer holds).</li><li><b>Returning board</b>: re-checks ×1.165 (1.47 1.18 0.96 1.39 0.93 0.43 1.15 1.58) and ×1.06 (0.90 1.10 1.05 1.07 1.01 1.25 0.91 1.84).</li><li><b>Returning instant first click</b>: 40.3 → 52.8 ms, every pair slower, not called.</li><li>Headline rows more than 3% slower at the median pair on that code, none called. Full profile (<code>ab-20261017-0532-final.md</code>): reopening a long game ×1.386, pairs 0.48 1.62 0.92 2.63 0.49 1.69 2.19 1.16 (narrowed re-check ×1.098, not committed: 1.09 1.10 0.88 1.48 1.68 1.31 0.89 1.09); a shared game's page ×1.279, pairs 1.24 1.35 1.50 1.00 0.75 1.05 2.01 1.31 (narrowed ×0.98, not committed: 0.57 0.79 0.81 1.72 1.33 0.50 1.16 1.15); the player's move ×1.039, pairs 0.86 1.19 1.08 0.82 0.74 1.04 1.04 1.37. Cold-load re-check (not committed): desktop start page usable ×1.034, pairs 1.14 1.08 0.56 0.87 0.98 1.55 1.15 0.72. Cache A/B: desktop board ×1.053, pairs 1.03 0.93 1.28 1.24 0.88 1.07 0.97 1.24 (×0.985 in the full re-check). Nothing in the patch runs on a game page.</li></ul>",
     "charts": [
      {
       "rows": {
@@ -16,20 +16,13 @@
        "only": "returning · (“Play a friend” enabled|board on screen|first click)"
       },
       "caption": "The same rows in the first A/B, 5dee0a5 against 5362029, 8 pairs (ab-20261017-0532-cache.md)."
-     },
-     {
-      "rows": {
-       "change": "final cold load: 0bb455f vs 5362029 (cold-load, 8 pairs)",
-       "only": "returning · (“Play a friend” enabled|board on screen|first click)"
-      },
-      "caption": "The returning phone on the final code, cold load only, 0bb455f against 5362029, 8 pairs (ab-20261017-0532-final-coldload.md)."
      }
     ],
     "recommend": "Leave it parked. The next run tries to win back the board first (RB1 did not), checks the click half alone (CK1) and AH3 on a Pages preview, then runs one 8-pair A/B judged by your condition as stated. Say \"take it as is\" if −28% on the returning start page is worth about +80–125 ms on its board."
    },
    {
     "title": "A regression since the last run, not fixed: a picked-up piece appears about 14% later (RS1)",
-    "body": "<p>Since the last run's base <code>38d62be</code>, \"A picked-up piece appears\" leans slower: ×1.10 at the median pair in the regression check (<code>ab-20261017-0532-regress.md</code>, 6 pairs: 1.09 1.05 1.12 1.25 0.98 1.24) and ×1.15 narrowed to the pick (6 pairs: 0.93 1.14 1.26 1.15 1.23 1.15; report not committed, an exploratory narrowing). Identical code gave ×0.98. Neither A/B calls it. A bisect found no single cause: each of #164, #163 and #167 leans +4–6.5%; none touches <code>three/</code>. The speed rule says to fix a regression first. It was not traced: the run's budget was spent before the Improve stage, which took your approved item first.</p>",
+    "body": "<p>Since the last run's base <code>38d62be</code>, \"A picked-up piece appears\" leans slower: ×1.10 at the median pair in the regression check (<code>ab-20261017-0532-regress.md</code>, 6 pairs: 1.09 1.05 1.12 1.25 0.98 1.24) and ×1.15 narrowed to the pick (<code>ab-20261017-0532-select.md</code>, 6 pairs: 0.93 1.14 1.26 1.15 1.23 1.15). Identical code gave ×0.98. Neither A/B calls it. A bisect found no single cause: each of #164, #163 and #167 leans +4–6.5%; none touches <code>three/</code>. The speed rule says to fix a regression first. It was not traced: the run's budget was spent before the Improve stage, which took your approved item first.</p>",
     "charts": [
      {
       "rows": {
@@ -39,7 +32,7 @@
       "caption": "The 15 headline rows, 5362029 against 38d62be, 6 pairs (ab-20261017-0532-regress.md)."
      }
     ],
-    "recommend": "No action from you. The next run traces three picks on each side first (ledger 1017-0532:RS1) and fixes the cause if it is ours, or closes it as drift."
+    "recommend": "No action from you. The next run's first item: trace three picks on <code>38d62be</code> and three on <code>5362029</code>, then fix the cause with a called A/B or close it as drift on that evidence (ledger 1017-0532:RS1)."
    },
    {
     "title": "The 1.2× target was missed (information)",
@@ -48,7 +41,7 @@
   ]
  },
  "scoreboard": {
-  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Target: every one 1.2× faster than the base <code>5362029</code> (the dashed line).</p><p>The PR's final code is the base's (no code change kept), so nothing was re-measured for it. The charts below are the parked change 0930:17 on <code>86eb945</code> and <code>0bb455f</code> (the same app code as <code>5dee0a5</code>): full profile, 8 pairs, ×1.001 over the 15 rows, none called; of 105 other measurements 2 called better (the returning phone's requests 18 → 2, bytes 5.3 → 0.6 KiB) and 1 worse (that visit's connection opens 410 → 481 ms).</p><p>At the start of the run, <code>5362029</code> against the last run's base <code>38d62be</code> was ×0.998, none called (<code>ab-20261017-0532-regress.md</code>). For the long view, the last measurement against the first recorded run (92ce041) stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure.</p>",
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Target: every one 1.2× faster than the base <code>5362029</code> (the dashed line).</p><p>The PR's final code is the base's (no code change kept), so nothing was re-measured for it. The chart below is the parked change 0930:17 on <code>86eb945</code> (the same app code as <code>5dee0a5</code>): full profile, 8 pairs, ×1.001 over the 15 rows, none called; of 105 other measurements 2 called better (the returning phone's requests 18 → 2, bytes 5.3 → 0.6 KiB) and 1 worse (that visit's connection opens 410 → 481 ms).</p><p>At the start of the run, <code>5362029</code> against the last run's base <code>38d62be</code> was ×0.998, none called (<code>ab-20261017-0532-regress.md</code>). For the long view, the last measurement against the first recorded run (92ce041) stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure.</p>",
   "items": [
    {
     "title": "Every headline row with the parked change 0930:17, against the base and the target",
@@ -59,14 +52,6 @@
        "only": "PRIMARY"
       },
       "caption": "The 15 headline rows, 86eb945 (0930:17) against 5362029, 8 pairs (ab-20261017-0532-final.md).",
-      "target": 1.2
-     },
-     {
-      "rows": {
-       "change": "final cold load: 0bb455f vs 5362029 (cold-load, 8 pairs)",
-       "only": "PRIMARY"
-      },
-      "caption": "The start page's six rows, cold load only, 0bb455f (0930:17) against 5362029, 8 pairs (ab-20261017-0532-final-coldload.md).",
       "target": 1.2
      }
     ]
@@ -89,7 +74,7 @@
   "intro": "<p>No code change kept. The branch holds the run's record, its A/B reports, the ledger and the parked patch.</p>"
  },
  "removed": {
-  "intro": "<p>Nothing removed.</p>"
+  "intro": "<ul><li><code>patches/assets-cache-click-RC1.patch</code> (run 20261016-2036's form of 0930:17), replaced by <code>patches/assets-cache-click-0930-17.patch</code>, which applies to <code>5362029</code>; run 20261016-2036's record now points to the new file.</li><li>Two of this run's re-check reports, <code>ab-20261017-0532-final-coldload.md</code> and <code>-final-setup-reopen.md</code>, and their 72 scoreboard rows: they measured <code>0bb455f</code>, code the PR no longer holds. <code>-final.md</code> stays, as 0930:17's figures cite it.</li><li>The A/A's 120 scoreboard rows: its report was never committed; the run record gives it one line.</li></ul>"
  },
  "rejected": {
   "intro": "<p>The results are also in the ledger.</p>",
@@ -105,12 +90,12 @@
   ]
  },
  "choices": {
-  "intro": "<ul><li>0930:17 parked at the step 8 follow-up, not kept: your condition failed on the A/B it named, and pooling the later re-checks to get under it was optional stopping. Earlier stages had kept it on all 24 pairs (×1.14, about +80 ms).</li><li>The bench fix <code>ac02f49</code> went into the patch with it: it exists only to measure that change.</li><li>RS1 raised to you as information rather than traced now: the run was already about 7 hours into a 4-hour budget.</li><li>AH1 as one rule per built file rather than <code>/assets/*</code> plus a 404 page: whatever the host does with a missing name, no rule matches it (in the patch).</li><li>RB1 reverted under the speed rule, although its returning first click was lower in every pair.</li><li>The A/A and the select narrowing, both exploratory, are not committed (one line each in the run record); they are in <code>bench/out/</code>, as are the RS1 bisect reports.</li></ul>"
+  "intro": "<ul><li>0930:17 parked at the step 8 follow-up, not kept: your condition failed on the A/B it named, and pooling the later re-checks to get under it was optional stopping. Earlier stages had kept it on all 24 pairs (×1.14, about +80 ms).</li><li>The bench fix <code>ac02f49</code> went into the patch with it: it exists only to measure that change.</li><li>RS1 raised to you as information rather than traced now: the run was already about 7 hours into a 4-hour budget.</li><li>AH1 as one rule per built file rather than <code>/assets/*</code> plus a 404 page: whatever the host does with a missing name, no rule matches it (in the patch).</li><li>RB1 reverted under the speed rule, although its returning first click was lower in every pair.</li><li>The A/A, exploratory, is not committed (one line in the run record). The select narrowing is committed (<code>ab-20261017-0532-select.md</code>) as RS1's evidence; the RS1 bisect reports stay in <code>bench/out/</code>.</li><li>Budget: about 7.5 hours against 4 (05:32 to about 13:05).</li></ul>"
  },
  "notConfirmed": {
   "intro": "<ul><li>For the parked patch: that Cloudflare Pages answers a missing <code>/assets/</code> name with <code>assets/404.html</code> and a 404, and that <code>/new</code>, <code>/learn</code> and <code>/computer</code> still get the start page (Pages' docs and asset-server source; the live host was unreachable from here). Check on a Pages preview of the patch (ledger AH3).</li><li>Why reopening a long game leaned slower with the patch (×1.10–1.39) when nothing in it runs there.</li><li>RS1's cause (item 2 above).</li></ul>"
  },
  "next": {
-  "intro": "<ol><li>Trace a pick on <code>38d62be</code> and the base (RS1): fix it if ours, else close it as drift. Same for reopening (1016:RG4).</li><li>Relaunch lenses 1, 2 and 5 for ideas that move every headline row.</li><li>0930:17: a fix for the returning board, CK1 and AH3 on a Pages preview, then one 8-pair A/B against your condition as stated.</li><li>Keep Measure to about an hour: the A/A and the bisect pushed Improve to 08:27 this run.</li></ol>"
+  "intro": "<ol><li>RS1 first: trace three picks on <code>38d62be</code> and three on <code>5362029</code>, then fix the cause with a called A/B or close it as drift on that evidence. Then reopening (1016:RG4).</li><li>Relaunch lenses 1, 2 and 5 for ideas that move every headline row.</li><li>0930:17: a fix for the returning board, CK1 and AH3 on a Pages preview, then one 8-pair A/B against your condition as stated.</li><li>Keep Measure to about an hour: the A/A and the bisect pushed Improve to 08:27 this run.</li></ol>"
  }
 }
