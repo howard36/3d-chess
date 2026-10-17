@@ -49,11 +49,18 @@ typedef struct {
   int value[8];
   int16_t MG[16 * CELLS];
   int16_t EG[16 * CELLS];
+  int mob[8];   // mobility weight per type
+  int trop[8];  // pressure on the enemy king per type
+  int bpair;    // the bishop pair
 } EvalParams;
 
+#define NTHETA 58
 void eval_init(EvalParams *e, const int *values /* P N B R U Q, centipawns */);
+// The evaluation from its 58 numbers (layout as eval_features) and the values
+// the search orders and prunes by
+void eval_init_theta(EvalParams *e, const double *theta, const int *values);
 int evaluate(const EvalParams *e, const Pos *p, int full);
-int mobility_score(const Pos *p);
+int mobility_score(const EvalParams *e, const Pos *p);
 
 #define INF 32000
 #define MATE 31000

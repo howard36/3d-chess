@@ -418,7 +418,7 @@ static inline double jsround(double x) {
   return (x - f >= 0.5) ? f + 1 : f;
 }
 
-void eval_init(EvalParams *e, const int *v) {
+void eval_init_theta(EvalParams *e, const double *th, const int *v) {
   init_tables();
   memset(e, 0, sizeof *e);
   e->value[PAWN] = v[0];
@@ -429,28 +429,55 @@ void eval_init(EvalParams *e, const int *v) {
   e->value[QUEEN] = v[5];
   e->value[KING] = 0;
   for (int c = 0; c < CELLS; c++) {
-    int centre = CENTRE[c];
-    int x = CX[c], y = CY[c];
-    int out = y + CZ[c];
+    int cen = CENTRE[c];
+    int x = CX[c], y = CY[c], z = CZ[c];
+    int out = y + z;
     int mc = CELLS - 1 - c;
-#define SET(type, mg, eg)                                     \
-  do {                                                        \
-    e->MG[(type) * CELLS + c] = e->value[type] + (mg);         \
-    e->EG[(type) * CELLS + c] = e->value[type] + (eg);         \
-    e->MG[((type) | BLACK) * CELLS + mc] = -(e->value[type] + (mg)); \
-    e->EG[((type) | BLACK) * CELLS + mc] = -(e->value[type] + (eg)); \
+#define SET(type, mg, eg)                                    \
+  do {                                                       \
+    int m_ = (int)jsround(mg), e_ = (int)jsround(eg);        \
+    e->MG[(type) * CELLS + c] = m_;                          \
+    e->EG[(type) * CELLS + c] = e_;                          \
+    e->MG[((type) | BLACK) * CELLS + mc] = -m_;              \
+    e->EG[((type) | BLACK) * CELLS + mc] = -e_;              \
   } while (0)
-    int fileBonus = x == 2 ? 6 : (x == 1 || x == 3) ? 3 : 0;
-    SET(PAWN, PAWN_STEP_MG[out] + fileBonus, PAWN_STEP_EG[out]);
-    int home = (y == 0 && CZ[c] == 0) ? -14 : 0;
-    SET(KNIGHT, 28 - 8 * centre + home, 18 - 6 * centre);
-    SET(BISHOP, 16 - 4 * centre + home, 10 - 3 * centre);
-    SET(UNICORN, 12 - 3 * centre + ((y <= 1 && CZ[c] == 0) ? -8 : 0), 8 - 2 * centre);
-    SET(ROOK, 6 - centre, 4 - centre);
-    SET(QUEEN, 6 - 2 * centre, 10 - 3 * centre);
-    SET(KING, -14 * out - 4 * abs(x - 2), 24 - 8 * centre);
+    double file = x == 2 ? th[18] : (x == 1 || x == 3) ? th[19] : 0;
+    SET(PAWN, th[out] + file, th[9 + out]);
+    int home = y == 0 && z == 0;
+    SET(KNIGHT, th[20] + th[21] * cen + th[22] * home, th[23] + th[24] * cen);
+    SET(BISHOP, th[25] + th[26] * cen + th[27] * home, th[28] + th[29] * cen);
+    SET(UNICORN, th[30] + th[31] * cen + th[32] * (y <= 1 && z == 0), th[33] + th[34] * cen);
+    SET(ROOK, th[35] + th[36] * cen, th[37] + th[38] * cen);
+    SET(QUEEN, th[39] + th[40] * cen, th[41] + th[42] * cen);
+    SET(KING, th[43] * out + th[44] * abs(x - 2), th[45] + th[46] * cen);
 #undef SET
   }
+  e->mob[KNIGHT] = (int)jsround(th[47]);
+  e->mob[BISHOP] = (int)jsround(th[48]);
+  e->mob[ROOK] = (int)jsround(th[49]);
+  e->mob[UNICORN] = (int)jsround(th[50]);
+  e->mob[QUEEN] = (int)jsround(th[51]);
+  e->trop[KNIGHT] = (int)jsround(th[52]);
+  e->trop[BISHOP] = (int)jsround(th[53]);
+  e->trop[ROOK] = (int)jsround(th[54]);
+  e->trop[UNICORN] = (int)jsround(th[55]);
+  e->trop[QUEEN] = (int)jsround(th[56]);
+  e->bpair = (int)jsround(th[57]);
+}
+
+// The game's evaluation (evaluate.ts) at piece values v
+void eval_init(EvalParams *e, const int *v) {
+  double th[NTHETA];
+  for (int i = 0; i < 9; i++) {
+    th[i] = v[0] + PAWN_STEP_MG[i];
+    th[9 + i] = v[0] + PAWN_STEP_EG[i];
+  }
+  th[18] = 6; th[19] = 3;
+  double rest[] = {v[1] + 28, -8, -14, v[1] + 18, -6, v[2] + 16, -4, -14, v[2] + 10, -3,
+                   v[4] + 12, -3, -8, v[4] + 8, -2, v[3] + 6, -1, v[3] + 4, -1, v[5] + 6, -2, v[5] + 10, -3,
+                   -14, -4, 24, -8, 2, 2, 2, 2, 1, 3, 2, 1, 2, 6, 20};
+  for (int i = 0; i < 38; i++) th[20 + i] = rest[i];
+  eval_init_theta(e, th, v);
 }
 
 static inline int toward50(int score, int halfmoves) {
@@ -459,8 +486,8 @@ static inline int toward50(int score, int halfmoves) {
   return (int)jsround((double)(score * (400 - h)) / 400.0);
 }
 
-int mobility_score(const Pos *p) {
-  int m = pos_mobility(p, MOBILITY_WEIGHT);
+int mobility_score(const EvalParams *e, const Pos *p) {
+  int m = pos_mobility(p, e->mob);
   return toward50(p->side == WHITE_SIDE ? m : -m, pos_halfmoves(p));
 }
 
@@ -488,15 +515,15 @@ int evaluate(const EvalParams *e, const Pos *p, int full) {
         int enemyKing = side == WHITE_SIDE ? bk : wk;
         if (enemyKing >= 0) {
           int near = 4 - DIST[c * CELLS + enemyKing];
-          if (near > 0) tropism += (side == WHITE_SIDE ? 1 : -1) * near * TROPISM_WEIGHT[type];
+          if (near > 0) tropism += (side == WHITE_SIDE ? 1 : -1) * near * e->trop[type];
         }
       }
     }
   }
   if (phase > PHASE_MAX) phase = PHASE_MAX;
   mg += tropism;
-  if (bishops[0] >= 2) mg += 20;
-  if (bishops[1] >= 2) mg -= 20;
+  if (bishops[0] >= 2) mg += e->bpair;
+  if (bishops[1] >= 2) mg -= e->bpair;
   int score = (int)jsround((double)(mg * phase + eg * (PHASE_MAX - phase)) / PHASE_MAX);
   int lead = material[0] - material[1];
   if (abs(lead) >= 150) {
@@ -512,5 +539,143 @@ int evaluate(const EvalParams *e, const Pos *p, int full) {
   }
   int relative = p->side == WHITE_SIDE ? score : -score;
   int scaled = toward50(relative, pos_halfmoves(p));
-  return full ? scaled + mobility_score(p) : scaled;
+  return full ? scaled + mobility_score(e, p) : scaled;
+}
+
+// --- Decomposition (analysis only) ---------------------------------------------
+// For each piece on the board, what the evaluation credits it with beyond its
+// constant, from its own side's view: out[side][type][0] count, [1] table bonus
+// (middlegame and endgame tables blended by the phase, the bishop pair shared
+// between the bishops), [2] mobility, [3] pressure on the enemy king (blended).
+static int piece_mobility(const Pos *p, int c) {
+  const uint8_t *board = p->board;
+  int pc = board[c], type = pc & 7, own = pc & BLACK, count = 0;
+  if (type == KNIGHT) {
+    for (int i = 0, len = KNIGHT_LEN[c]; i < len; i++) {
+      int q = board[KNIGHT_TO[c * 24 + i]];
+      if (!q || (q & BLACK) != own) count++;
+    }
+    return count;
+  }
+  int d0 = type == BISHOP ? ROOK_END : type == UNICORN ? BISHOP_END : 0;
+  int d1 = type == ROOK ? ROOK_END : type == BISHOP ? BISHOP_END : DIRS;
+  for (int d = d0; d < d1; d++) {
+    int len = RAY_LEN[c * DIRS + d], base = (c * DIRS + d) * 4;
+    for (int i = 0; i < len; i++) {
+      int q = board[RAY[base + i]];
+      if (!q) { count++; continue; }
+      if ((q & BLACK) != own) count++;
+      break;
+    }
+  }
+  return count;
+}
+
+int eval_decompose(const EvalParams *e, const Pos *p, double out[2][8][4]) {
+  int phase = 0, bishops[2] = {0, 0};
+  for (int c = 0; c < CELLS; c++) {
+    int q = p->board[c];
+    if (q) { phase += PHASE[q & 7]; if ((q & 7) == BISHOP) bishops[q >> 3]++; }
+  }
+  if (phase > PHASE_MAX) phase = PHASE_MAX;
+  double fm = phase / (double)PHASE_MAX, fe = 1 - fm;
+  for (int c = 0; c < CELLS; c++) {
+    int q = p->board[c];
+    if (!q) continue;
+    int type = q & 7, side = q >> 3, sign = side ? -1 : 1;
+    double mg = sign * e->MG[q * CELLS + c] - e->value[type];
+    double eg = sign * e->EG[q * CELLS + c] - e->value[type];
+    double table = fm * mg + fe * eg;
+    if (type == BISHOP && bishops[side] >= 2) table += fm * 20.0 / bishops[side];
+    out[side][type][0] += 1;
+    out[side][type][1] += table;
+    if (MOBILITY_WEIGHT[type]) out[side][type][2] += MOBILITY_WEIGHT[type] * piece_mobility(p, c);
+    if (type != PAWN && type != KING) {
+      int ek = p->king[side ^ 1];
+      if (ek >= 0) {
+        int near = 4 - DIST[c * CELLS + ek];
+        if (near > 0) out[side][type][3] += fm * near * TROPISM_WEIGHT[type];
+      }
+    }
+  }
+  return phase;
+}
+
+// --- Features for fitting the evaluation (analysis only) -------------------------
+// The evaluation is linear in its numbers but for the material lead term; for a
+// position, f[j] is how much number j contributes per unit (White's view), and
+// *offset the lead term (at the current values). evaluate(), White's view, with no
+// moves towards the fifty, equals sum(theta_j * f_j) + offset up to rounding.
+// Layout: 0-8 pawn mg by progress, 9-17 pawn eg, 18 pawn centre file, 19 pawn next
+// file; per piece N(20) B(25) U(30): mg0 mg/centre home eg0 eg/centre; R(35) Q(39):
+// mg0 mg/centre eg0 eg/centre; K(43): mg/progress mg/file eg0 eg/centre; mobility
+// N B R U Q (47-51); king pressure N B R U Q (52-56); bishop pair (57).
+#define NFEAT 58
+int eval_features(const EvalParams *e, const Pos *p, double *f, double *offset) {
+  int phase = 0, bishops[2] = {0, 0}, material[2] = {0, 0}, pieces[2] = {0, 0};
+  for (int j = 0; j < NFEAT; j++) f[j] = 0;
+  for (int c = 0; c < CELLS; c++) {
+    int q = p->board[c];
+    if (!q) continue;
+    int t = q & 7, s = q >> 3;
+    phase += PHASE[t];
+    if (t == BISHOP) bishops[s]++;
+    material[s] += e->value[t];
+    if (t != PAWN && t != KING) pieces[s] += e->value[t];
+  }
+  if (phase > PHASE_MAX) phase = PHASE_MAX;
+  double fm = phase / (double)PHASE_MAX, fe = 1 - fm;
+  static const int MOBI[8] = {-1, -1, 47, 48, 49, 50, 51, -1};
+  static const int TROI[8] = {-1, -1, 52, 53, 54, 55, 56, -1};
+  for (int c = 0; c < CELLS; c++) {
+    int q = p->board[c];
+    if (!q) continue;
+    int t = q & 7, s = q >> 3;
+    double sg = s ? -1 : 1;
+    int w = s ? CELLS - 1 - c : c;   // the cell from its own side's view
+    int x = CX[w], y = CY[w], z = CZ[w], out = y + z, cen = CENTRE[w];
+    switch (t) {
+      case PAWN:
+        f[out] += sg * fm;
+        f[9 + out] += sg * fe;
+        if (x == 2) f[18] += sg * fm;
+        else if (x == 1 || x == 3) f[19] += sg * fm;
+        break;
+      case KNIGHT: case BISHOP: case UNICORN: {
+        int b = t == KNIGHT ? 20 : t == BISHOP ? 25 : 30;
+        int home = t == UNICORN ? (y <= 1 && z == 0) : (y == 0 && z == 0);
+        f[b] += sg * fm; f[b + 1] += sg * fm * cen; f[b + 2] += sg * fm * home;
+        f[b + 3] += sg * fe; f[b + 4] += sg * fe * cen;
+        break;
+      }
+      case ROOK: case QUEEN: {
+        int b = t == ROOK ? 35 : 39;
+        f[b] += sg * fm; f[b + 1] += sg * fm * cen; f[b + 2] += sg * fe; f[b + 3] += sg * fe * cen;
+        break;
+      }
+      case KING:
+        f[43] += sg * fm * out; f[44] += sg * fm * abs(x - 2); f[45] += sg * fe; f[46] += sg * fe * cen;
+        break;
+    }
+    if (MOBI[t] >= 0) f[MOBI[t]] += sg * piece_mobility(p, c);
+    if (TROI[t] >= 0) {
+      int ek = p->king[s ^ 1];
+      if (ek >= 0) {
+        int near = 4 - DIST[c * CELLS + ek];
+        if (near > 0) f[TROI[t]] += sg * fm * near;
+      }
+    }
+  }
+  f[57] = fm * ((bishops[0] >= 2) - (bishops[1] >= 2));
+  double off = 0;
+  int lead = material[0] - material[1];
+  if (abs(lead) >= 150) {
+    int strong = lead > 0 ? 0 : 1, sign = lead > 0 ? 1 : -1;
+    int total = material[0] + material[1], tt = total < 7800 ? total : 7800;
+    off += sign * jsround((double)(abs(lead) * (7800 - tt)) / 7800.0 / 6.0);
+    int wk = p->king[strong ^ 1], sk = p->king[strong];
+    if (pieces[strong ^ 1] <= 300 && wk >= 0 && sk >= 0) off += sign * (12 * CENTRE[wk] + 10 * (4 - DIST[wk * CELLS + sk]));
+  }
+  *offset = off;
+  return phase;
 }

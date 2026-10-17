@@ -24,10 +24,10 @@ import type { Turn } from './history';
  */
 const PIECE_TENTHS: Record<PieceType, number> = {
   [PieceType.King]: 0,
-  [PieceType.Queen]: 99,
-  [PieceType.Knight]: 28,
-  [PieceType.Bishop]: 28,
-  [PieceType.Rook]: 25,
+  [PieceType.Queen]: 112,
+  [PieceType.Knight]: 31,
+  [PieceType.Bishop]: 31,
+  [PieceType.Rook]: 28,
   [PieceType.Unicorn]: 12,
   [PieceType.Pawn]: 10,
 };

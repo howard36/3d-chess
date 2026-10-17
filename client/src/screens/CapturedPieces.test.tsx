@@ -45,16 +45,16 @@ describe('CapturedPieces', () => {
     // They took a bishop and a pawn: yours, in porcelain, and the lead on their side
     expect(glyphs(haul('them'))).toEqual(['white Bishop', 'white Pawn']);
     expect(haul('them')).toHaveTextContent(
-      'Your opponent has taken a bishop and a pawn; they are 0.6 ahead.',
+      'Your opponent has taken a bishop and a pawn; they are 0.9 ahead.',
     );
-    expect(haul('them').querySelector('.hud-lead')).toHaveTextContent('+0.6');
+    expect(haul('them').querySelector('.hud-lead')).toHaveTextContent('+0.9');
   });
 
   it('is told from Black’s side the other way round', () => {
     seatedAs('black', OPENING);
     expect(glyphs(haul('me'))).toEqual(['white Bishop', 'white Pawn']);
-    expect(haul('me')).toHaveTextContent('You have taken a bishop and a pawn; you are 0.6 ahead.');
-    expect(haul('me').querySelector('.hud-lead')).toHaveTextContent('+0.6');
+    expect(haul('me')).toHaveTextContent('You have taken a bishop and a pawn; you are 0.9 ahead.');
+    expect(haul('me').querySelector('.hud-lead')).toHaveTextContent('+0.9');
     expect(glyphs(haul('them'))).toEqual(['black Unicorn', 'black Pawn']);
     expect(haul('them')).toHaveTextContent('Your opponent has taken a unicorn and 2 pawns.');
     expect(haul('them').querySelector('.hud-lead')).toBeNull();

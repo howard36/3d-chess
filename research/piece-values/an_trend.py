@@ -1,5 +1,4 @@
-"""The final fit: the pieces' ratios shared by every budget, one scale (a bishop in pawns) per
-budget, an intercept and pawn slope per phase group; and the 80k less 20k difference with its SD."""
+"""Shared piece ratios, one scale per budget; and the paired 20k/80k difference with its SD."""
 import numpy as np
 from scipy.optimize import minimize
 from an_budget import rows

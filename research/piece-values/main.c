@@ -35,7 +35,7 @@ static int read_records(Pos *p, char *line) {
   return 1;
 }
 
-static const int DEFAULT_VALUES[6] = {100, 320, 295, 245, 140, 980};  // evaluate.ts VALUE
+static const int DEFAULT_VALUES[6] = {100, 320, 295, 245, 140, 980};
 
 static Pos gpos;
 
@@ -121,21 +121,37 @@ static void parse_values(const char *s, int *v) {
   }
 }
 
-// One job a line (the last three fields optional):
-//   id board side randPlies randMargin seed nodesW nodesB valsW valsB record keepTT [dump featW featB]
-// keepTT is a bitmask (1 White, 2 Black); feat* are F_* search improvements; dump
-// prints every dump-th quiet position as "B id ply side score board".
-// Output: "R id result plies reason material depthW depthB" (result for White: 1,
-// 0.5, 0; material the final counts P N B R U Q per side, in hex) and, with
+// "100,320,..." the game's evaluation at those piece values; "@file" a whole
+// evaluation: 58 numbers (eval_features' layout) then the 6 values to order by
+static void init_eval_spec(EvalParams *e, const char *s) {
+  if (s[0] != '@') {
+    int v[6];
+    parse_values(s, v);
+    eval_init(e, v);
+    return;
+  }
+  FILE *f = fopen(s + 1, "r");
+  if (!f) { fprintf(stderr, "no file %s\n", s + 1); exit(1); }
+  double th[NTHETA];
+  int v[6];
+  for (int i = 0; i < NTHETA; i++) if (fscanf(f, "%lf", &th[i]) != 1) { fprintf(stderr, "short %s\n", s + 1); exit(1); }
+  for (int i = 0; i < 6; i++) if (fscanf(f, "%d", &v[i]) != 1) { fprintf(stderr, "short %s\n", s + 1); exit(1); }
+  fclose(f);
+  eval_init_theta(e, th, v);
+}
+
+// One job a line:
+//   id board side randPlies randMargin seed nodesW nodesB valsW valsB record keepTT
+// Output: "R id result plies reason" (result for White: 1, 0.5, 0) and, with
 // record, "S id" then run-length tokens sig:quiet:count of each position.
 static void mode_play(int resign, int maxPlies) {
   static char line[4096];
-  static char board[256], valsW[64], valsB[64];
+  static char board[256], valsW[256], valsB[256];
   while (fgets(line, sizeof line, stdin)) {
     long id, nodes[2];
     int side, randPlies, randMargin, record, keep, dump = 0, feat[2] = {0, 0};
     unsigned long seed;
-    int nf = sscanf(line, "%ld %200s %d %d %d %lu %ld %ld %60s %60s %d %d %d %d %d", &id, board, &side, &randPlies, &randMargin,
+    int nf = sscanf(line, "%ld %200s %d %d %d %lu %ld %ld %250s %250s %d %d %d %d %d", &id, board, &side, &randPlies, &randMargin,
                     &seed, &nodes[0], &nodes[1], valsW, valsB, &record, &keep, &dump, &feat[0], &feat[1]);
     if (nf < 12) {
       fprintf(stderr, "bad job: %s", line);
@@ -143,12 +159,9 @@ static void mode_play(int resign, int maxPlies) {
     }
     rng_state = seed * 0x9E3779B97F4A7C15ull + 12345;
     for (int i = 0; i < 5; i++) rnd();
-    int vw[6], vb[6];
-    parse_values(valsW, vw);
-    parse_values(valsB, vb);
     static EvalParams evs[2];
-    eval_init(&evs[0], vw);
-    eval_init(&evs[1], vb);
+    init_eval_spec(&evs[0], valsW);
+    init_eval_spec(&evs[1], valsB);
     static Searcher *ss[2];
     if (!ss[0]) {
       ss[0] = searcher_new(&evs[0]);
@@ -273,6 +286,64 @@ static void mode_play(int resign, int maxPlies) {
   }
 }
 
+int eval_decompose(const EvalParams *e, const Pos *p, double out[2][8][4]);
+// decomp < lines "board side": per position, the phase and, per side and type,
+// count table mobility pressure
+static void mode_decomp(void) {
+  static char line[4096], board[256];
+  EvalParams ev;
+  eval_init(&ev, DEFAULT_VALUES);
+  while (fgets(line, sizeof line, stdin)) {
+    int side;
+    if (sscanf(line, "%200s %d", board, &side) != 2) continue;
+    parse_board(&gpos, board, side);
+    double out[2][8][4] = {{{0}}};
+    int phase = eval_decompose(&ev, &gpos, out);
+    printf("%d", phase);
+    for (int s = 0; s < 2; s++)
+      for (int t = 1; t <= 6; t++) printf(" %g %g %g %g", out[s][t][0], out[s][t][1], out[s][t][2], out[s][t][3]);
+    printf("\n");
+  }
+}
+
+int eval_features(const EvalParams *e, const Pos *p, double *f, double *offset);
+// features < lines "board side": the evaluation's features (see engine.c), the lead term,
+// and evaluate() from White's view, for fitting the evaluation to results
+static void mode_features(void) {
+  static char line[4096], board[256];
+  EvalParams ev;
+  eval_init(&ev, DEFAULT_VALUES);
+  double f[64], off;
+  while (fgets(line, sizeof line, stdin)) {
+    int side;
+    if (sscanf(line, "%200s %d", board, &side) != 2) continue;
+    parse_board(&gpos, board, side);
+    eval_features(&ev, &gpos, f, &off);
+    int e = evaluate(&ev, &gpos, 1);
+    if (gpos.side == BLACK_SIDE) e = -e;
+    for (int j = 0; j < 58; j++) printf("%g ", f[j]);
+    printf("%g %d\n", off, e);
+  }
+}
+
+int searcher_qscore(Searcher *s, Pos *pos);
+// quiet < lines "board side": static evaluation and quiescence score, side to move's view
+static void mode_quiet(void) {
+  static char line[4096], board[256];
+  EvalParams ev;
+  eval_init(&ev, DEFAULT_VALUES);
+  Searcher *s = searcher_new(&ev);
+  while (fgets(line, sizeof line, stdin)) {
+    int side;
+    if (sscanf(line, "%200s %d", board, &side) != 2) continue;
+    parse_board(&gpos, board, side);
+    int st = evaluate(&ev, &gpos, 1);
+    int q = searcher_qscore(s, &gpos);
+    printf("%d %d %d\n", st, q, pos_in_check(&gpos, gpos.side));
+    fflush(stdout);
+  }
+}
+
 int main(int argc, char **argv) {
   init_tables();
   if (argc < 2) {
@@ -283,6 +354,12 @@ int main(int argc, char **argv) {
   else if (!strcmp(argv[1], "search"))
     mode_search(atol(argv[2]), atoi(argv[3]), argc > 4 ? atoi(argv[4]) : 0, argc > 5 ? atoi(argv[5]) : 0,
                 argc > 6 ? atoi(argv[6]) : 0);
+  else if (!strcmp(argv[1], "quiet"))
+    mode_quiet();
+  else if (!strcmp(argv[1], "features"))
+    mode_features();
+  else if (!strcmp(argv[1], "decomp"))
+    mode_decomp();
   else if (!strcmp(argv[1], "play"))
     mode_play(argc > 2 ? atoi(argv[2]) : 0, argc > 3 ? atoi(argv[3]) : 1000);
   else {

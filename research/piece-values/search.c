@@ -137,7 +137,7 @@ static int quiesce(Searcher *s, int alpha, int beta, int ply, int qply) {
   if (s->stopped) return 0;
   int rough = evaluate(s->ev, pos, 0);
   if (rough - 150 >= beta) return rough;
-  int stand = rough + 150 <= alpha ? rough : rough + mobility_score(pos);
+  int stand = rough + 150 <= alpha ? rough : rough + mobility_score(s->ev, pos);
   if (stand >= beta) return stand;
   if (ply >= MAX_PLY - 1 || qply >= s->qLimit) return stand;
   if (stand > alpha) alpha = stand;
@@ -423,4 +423,19 @@ int searcher_root_scores(Searcher *s, Pos *pos, int depth, int *moves, int *scor
     pos_unmake(pos, m);
   }
   return n;
+}
+
+// The quiescence search's score from the side to move's view, full window: what the
+// captures available settle the position at (analysis only)
+int searcher_qscore(Searcher *s, Pos *pos) {
+  s->pos = pos;
+  s->nodes = 0;
+  s->stopped = 0;
+  s->canStop = 0;
+  s->rootPly = pos->ply;
+  s->maxNodes = 0x7fffffffffffL;
+  s->qLimit = 64;
+  s->feat = 0;
+  memset(s->killers, 0, sizeof s->killers);
+  return quiesce(s, -INF, INF, 0, 0);
 }

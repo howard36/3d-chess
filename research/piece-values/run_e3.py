@@ -2,6 +2,7 @@
 from the same base with the removals swapped between the sides."""
 import json, argparse, random, itertools, math, collections
 from design import *
+from quiet import is_quiet
 ap = argparse.ArgumentParser()
 ap.add_argument('--n', type=int); ap.add_argument('--nodes', type=int); ap.add_argument('--tag')
 ap.add_argument('--seed', type=int, default=3); ap.add_argument('--values', default=None)
@@ -57,6 +58,9 @@ while len(jobs) < a.n:
     try:
         b1 = remove(base['board'], wl, bl, rng); b2 = remove(base['board'], bl, wl, rng)
     except ValueError:
+        continue
+    # both starts must stay quiet: nothing hanging, no check
+    if not (is_quiet(b1, base['side']) and is_quiet(b2, base['side'])):
         continue
     s = a.seed * 1000003 + len(jobs)
     for board, w, bb in ((b1, wl, bl), (b2, bl, wl)):
