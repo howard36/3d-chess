@@ -1328,11 +1328,34 @@ async function coldSection(browser) {
             await cdp.send('Network.enable');
             await cdp.send('Network.emulateNetworkConditions', c.net);
           }
-          await page.goto(`${BASE}/`, { waitUntil: 'commit', timeout: 60000 });
-          await page.waitForFunction(() => window.__bench.firsts.previewLive, null, {
-            polling: 20,
-            timeout: 120000,
-          });
+          // BENCH_TRACE_COLD=<dir>: a Chrome trace of each of these loads,
+          // from the navigation to the live preview, into <dir> (the network,
+          // the scripts, the picture's decode, each frame); its stamps go in
+          // the raw JSON beside it
+          const traceDir = process.env.BENCH_TRACE_COLD;
+          const trace = traceDir && path.join(traceDir, `cold-${c.key}-${Date.now()}.json`);
+          if (trace) {
+            fs.mkdirSync(traceDir, { recursive: true });
+            await browser.startTracing(page, {
+              categories: [
+                'devtools.timeline',
+                'disabled-by-default-devtools.timeline',
+                'disabled-by-default-devtools.timeline.frame',
+                'v8.execute',
+                'loading',
+                'blink.user_timing',
+              ],
+            });
+          }
+          try {
+            await page.goto(`${BASE}/`, { waitUntil: 'commit', timeout: 60000 });
+            await page.waitForFunction(() => window.__bench.firsts.previewLive, null, {
+              polling: 20,
+              timeout: 120000,
+            });
+          } finally {
+            if (trace) fs.writeFileSync(trace, await browser.stopTracing());
+          }
           // (awaited here, before the context closes under it)
           const run = await page.evaluate(() => {
             const { firsts, pictureFailed = false, earlyPicture = false } = window.__bench;
@@ -1350,9 +1373,10 @@ async function coldSection(browser) {
               fetched,
               pictureFailed,
               earlyPicture,
+              picture,
             };
           });
-          return run;
+          return trace ? { ...run, trace } : run;
         } finally {
           await ctx.close();
         }
