@@ -1240,15 +1240,18 @@ draw, and so does one repeated inside the line searched (it can always be repeat
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` scores material at this
-board's values as measured by self-play (queen 9.8, knight 3.2, bishop 2.95, rook 2.45,
-unicorn 1.4; the captured pieces' "+N", `game/material.ts`, rounds them), development and
-centralisation in the cube, pawns' progress towards their last square (worth more as the
-board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
-active king in the endgame, mobility (left out of the quiescence search where it cannot
-matter), the bishop pair, and, a side ahead, trading down and driving the bare king to a
-corner, which mates with king and queen. In the browser it searches some 400,000 positions
-a second.
+side behind takes a repetition when it is offered. `evaluate.ts` scores material and
+position together, in tables per piece and cell (development and centralisation in the cube,
+pawns' progress towards their last square, worth more as the board empties); the king home
+behind its pawns while the enemy has the pieces to attack it, its queen above all, and active
+once they are gone; its own pawns beside it; pressure on the enemy king; pieces a pawn
+attacks; mobility (left out of the quiescence search where it cannot matter); the bishop
+pair; and, a side ahead, trading down and driving the bare king to a corner, which mates with
+king and queen. Its numbers were tuned for playing strength by self-play
+(`research/evaluation/`, its README for the method): at the same number of positions
+searched it scored 68.7% against the hand-set evaluation it replaced (2,000 games at 40,000
+positions a move, about 135 Elo). In the browser it searches some 360,000 positions a second
+(the king and pawn terms cost about a tenth).
 
 **The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
 engine, the search gives an exact score to every root move within a margin of the best, and
@@ -1374,6 +1377,7 @@ server/bench/    Server benchmarks: store operations, live WebSocket load, adver
 bench/           The benchmark runner (run.mjs) and the primary rows (primary.mjs); reports go to bench/out/.
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
+research/evaluation/  How the computer's evaluation was tuned: a C port of src/ai, SPSA and matches (not shipped).
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).

@@ -142,8 +142,39 @@ const SHIELD = {f(x[2])};
 /** Each enemy piece (not a pawn or the king) a pawn attacks. */
 const PAWN_THREAT = {f(x[5])};
 
-/** Each side's pawns, gathered while the board is read. */
-const PAWNS = [new Int8Array(64), new Int8Array(64)];
+/** Per side and cell, the cells a pawn there captures on, as four 32-cell words. */
+const CAPTURES = new Int32Array(2 * CELLS * 4);
+for (let side = 0; side < 2; side++) {{
+  for (let c = 0; c < CELLS; c++) {{
+    for (let k = 0; k < PAWN_CAP_LEN[side][c]; k++) {{
+      const t = PAWN_CAP[side][c * 5 + k];
+      CAPTURES[(side * CELLS + c) * 4 + (t >> 5)] |= 1 << (t & 31);
+    }}
+  }}
+}}
+
+/** How many of the cells in one 32-cell word of the board (from `base`) hold an enemy piece other than a pawn or the king. */
+const pieceHits = (board: Uint8Array, w: number, base: number) => {{
+  let n = 0;
+  let bits = w;
+  while (bits !== 0) {{
+    const low = bits & -bits;
+    bits ^= low;
+    const t = (board[base | (31 - Math.clz32(low))] & 7);
+    if (t !== PAWN && t !== KING) n++;
+  }}
+  return n;
+}};
+
+/** A king's danger, 0 to 24, from the game's phase and the enemy's pieces and queen. */
+const danger = (phase: number, enemyForce: number, enemyQueens: number) => {{
+  const f = enemyForce < 12 ? enemyForce : 12;
+  const w =
+    (1 - DANGER_FORCE - DANGER_QUEEN) * phase +
+    2 * DANGER_FORCE * f +
+    24 * DANGER_QUEEN * (enemyQueens > 0 ? 1 : 0);
+  return w < 0 ? 0 : w > 24 ? 24 : w;
+}};
 
 /**
  * The position for the side to move, in centipawns (positive: better for
@@ -154,18 +185,30 @@ export function evaluate(pos: Position, full = true): number {{
   let mg = 0;
   let eg = 0;
   let phase = 0;
-  // Material without pawns and kings, and with them, per side
-  const pieces = [0, 0];
-  const material = [0, 0];
-  const bishops = [0, 0];
-  // The pieces bar pawns and kings at their phase weight, and the queens, per side
-  const force = [0, 0];
-  const queens = [0, 0];
-  // Each side's pressure on the enemy king; each king's tables
-  const tropism = [0, 0];
-  const kingMg = [0, 0];
-  const kingEg = [0, 0];
-  const pawnCount = [0, 0];
+  // Per side (w, b): material without pawns and kings, and with them; bishops;
+  // the pieces bar pawns and kings at their phase weight; queens; pressure on
+  // the enemy king; the king's tables; pawns beside the king; enemy pieces its
+  // pawns attack
+  let piecesW = 0;
+  let piecesB = 0;
+  let materialW = 0;
+  let materialB = 0;
+  let bishopsW = 0;
+  let bishopsB = 0;
+  let forceW = 0;
+  let forceB = 0;
+  let queensW = 0;
+  let queensB = 0;
+  let tropismW = 0;
+  let tropismB = 0;
+  let kingMgW = 0;
+  let kingMgB = 0;
+  let kingEgW = 0;
+  let kingEgB = 0;
+  let shieldW = 0;
+  let shieldB = 0;
+  let threatsW = 0;
+  let threatsB = 0;
   const wk = pos.king[0];
   const bk = pos.king[1];
   const occ = pos.occ;
@@ -177,27 +220,66 @@ export function evaluate(pos: Position, full = true): number {{
       const c = ((word & 3) << 5) | (31 - Math.clz32(low));
       const p = board[c];
       const type = p & 7;
-      const side = p >> 3;
-      if (type === KING) {{
-        kingMg[side] = MG[p * CELLS + c];
-        kingEg[side] = EG[p * CELLS + c];
-      }} else {{
-        mg += MG[p * CELLS + c];
-        eg += EG[p * CELLS + c];
-      }}
       phase += PHASE[type];
-      material[side] += VALUE[type];
-      if (type === PAWN) {{
-        if (pawnCount[side] < 64) PAWNS[side][pawnCount[side]++] = c;
-      }} else if (type !== KING) {{
-        pieces[side] += VALUE[type];
-        force[side] += PHASE[type];
-        if (type === QUEEN) queens[side]++;
-        if (type === BISHOP) bishops[side]++;
-        const enemyKing = side === WHITE_SIDE ? bk : wk;
-        if (enemyKing >= 0) {{
-          const near = 4 - DIST[c * CELLS + enemyKing];
-          if (near > 0) tropism[side] += near * TROPISM_WEIGHT[type];
+      if (p < BLACK) {{
+        materialW += VALUE[type];
+        if (type === PAWN) {{
+          mg += MG[p * CELLS + c];
+          eg += EG[p * CELLS + c];
+          if (wk >= 0 && DIST[c * CELLS + wk] === 1) shieldW++;
+          // Black's pieces it attacks
+          const m = c * 4;
+          const a0 = CAPTURES[m] & occ[4];
+          const a1 = CAPTURES[m + 1] & occ[5];
+          const a2 = CAPTURES[m + 2] & occ[6];
+          const a3 = CAPTURES[m + 3] & occ[7];
+          if ((a0 | a1 | a2 | a3) !== 0)
+            threatsW +=
+              pieceHits(board, a0, 0) + pieceHits(board, a1, 32) + pieceHits(board, a2, 64) + pieceHits(board, a3, 96);
+        }} else if (type === KING) {{
+          kingMgW = MG[p * CELLS + c];
+          kingEgW = EG[p * CELLS + c];
+        }} else {{
+          mg += MG[p * CELLS + c];
+          eg += EG[p * CELLS + c];
+          piecesW += VALUE[type];
+          forceW += PHASE[type];
+          if (type === QUEEN) queensW++;
+          else if (type === BISHOP) bishopsW++;
+          if (bk >= 0) {{
+            const near = 4 - DIST[c * CELLS + bk];
+            if (near > 0) tropismW += near * TROPISM_WEIGHT[type];
+          }}
+        }}
+      }} else {{
+        materialB += VALUE[type];
+        if (type === PAWN) {{
+          mg += MG[p * CELLS + c];
+          eg += EG[p * CELLS + c];
+          if (bk >= 0 && DIST[c * CELLS + bk] === 1) shieldB++;
+          // White's pieces it attacks
+          const m = (CELLS + c) * 4;
+          const a0 = CAPTURES[m] & occ[0];
+          const a1 = CAPTURES[m + 1] & occ[1];
+          const a2 = CAPTURES[m + 2] & occ[2];
+          const a3 = CAPTURES[m + 3] & occ[3];
+          if ((a0 | a1 | a2 | a3) !== 0)
+            threatsB +=
+              pieceHits(board, a0, 0) + pieceHits(board, a1, 32) + pieceHits(board, a2, 64) + pieceHits(board, a3, 96);
+        }} else if (type === KING) {{
+          kingMgB = MG[p * CELLS + c];
+          kingEgB = EG[p * CELLS + c];
+        }} else {{
+          mg += MG[p * CELLS + c];
+          eg += EG[p * CELLS + c];
+          piecesB += VALUE[type];
+          forceB += PHASE[type];
+          if (type === QUEEN) queensB++;
+          else if (type === BISHOP) bishopsB++;
+          if (wk >= 0) {{
+            const near = 4 - DIST[c * CELLS + wk];
+            if (near > 0) tropismB += near * TROPISM_WEIGHT[type];
+          }}
         }}
       }}
     }}
@@ -205,63 +287,36 @@ export function evaluate(pos: Position, full = true): number {{
   if (phase > PHASE_MAX) phase = PHASE_MAX;
 
   // Two bishops cover both colours of the cube
-  if (bishops[0] >= 2) mg += BISHOP_PAIR;
-  if (bishops[1] >= 2) mg -= BISHOP_PAIR;
+  if (bishopsW >= 2) mg += BISHOP_PAIR;
+  if (bishopsB >= 2) mg -= BISHOP_PAIR;
 
-  // Each king's danger, in 24ths: its tables, and the pressure on it, blend by
-  // that rather than by the game's phase
-  const danger = [0, 0];
-  for (let s = 0; s < 2; s++) {{
-    const f = force[s ^ 1] < 12 ? force[s ^ 1] : 12;
-    const w =
-      (1 - DANGER_FORCE - DANGER_QUEEN) * phase +
-      2 * DANGER_FORCE * f +
-      24 * DANGER_QUEEN * (queens[s ^ 1] > 0 ? 1 : 0);
-    danger[s] = w < 0 ? 0 : w > 24 ? 24 : w;
-  }}
+  // Each king's danger, in 24ths, from the enemy's pieces and queen: its
+  // tables, and the pressure on it, blend by that rather than by the phase
+  const dangerW = danger(phase, forceB, queensB);
+  const dangerB = danger(phase, forceW, queensW);
   let sum = mg * phase + eg * (PHASE_MAX - phase);
-  sum +=
-    kingMg[0] * danger[0] +
-    kingEg[0] * (24 - danger[0]) +
-    kingMg[1] * danger[1] +
-    kingEg[1] * (24 - danger[1]);
-  sum += tropism[0] * danger[1] - tropism[1] * danger[0];
-  // Pawns beside their king
-  for (let s = 0; s < 2; s++) {{
-    const k = pos.king[s];
-    if (k < 0) continue;
-    let n = 0;
-    for (let i = 0; i < pawnCount[s]; i++) if (DIST[PAWNS[s][i] * CELLS + k] === 1) n++;
-    sum += (s ? -1 : 1) * SHIELD * n * danger[s];
-  }}
+  sum += kingMgW * dangerW + kingEgW * (24 - dangerW) + kingMgB * dangerB + kingEgB * (24 - dangerB);
+  sum += tropismW * dangerB - tropismB * dangerW;
+  // Pawns beside their king, while it is in danger
+  if (wk >= 0) sum += SHIELD * shieldW * dangerW;
+  if (bk >= 0) sum += -1 * SHIELD * shieldB * dangerB;
   // Pieces a pawn attacks
-  for (let s = 0; s < 2; s++) {{
-    let n = 0;
-    const caps = PAWN_CAP[s];
-    const lens = PAWN_CAP_LEN[s];
-    for (let i = 0; i < pawnCount[s]; i++) {{
-      const c = PAWNS[s][i];
-      for (let k = 0, len = lens[c]; k < len; k++) {{
-        const q = board[caps[c * 5 + k]];
-        if (q && q >> 3 !== s && (q & 7) !== PAWN && (q & 7) !== KING) n++;
-      }}
-    }}
-    sum += (s ? -1 : 1) * PAWN_THREAT * 24 * n;
-  }}
+  sum += PAWN_THREAT * 24 * threatsW;
+  sum += -1 * PAWN_THREAT * 24 * threatsB;
   let score = Math.round(sum / PHASE_MAX);
 
   // Ahead on material: trade down (each trade makes the lead count for more),
   // and with the enemy short of pieces, drive the king to a corner and bring
   // our own up to help
-  const lead = material[0] - material[1];
+  const lead = materialW - materialB;
   if (Math.abs(lead) >= 150) {{
     const strong = lead > 0 ? 0 : 1;
     const sign = lead > 0 ? 1 : -1;
-    const total = material[0] + material[1];
+    const total = materialW + materialB;
     score += sign * Math.round((Math.abs(lead) * (7800 - Math.min(total, 7800))) / 7800 / 6);
     const weakKing = pos.king[strong ^ 1];
     const strongKing = pos.king[strong];
-    if (pieces[strong ^ 1] <= 300 && weakKing >= 0 && strongKing >= 0) {{
+    if ((strong ? piecesW : piecesB) <= 300 && weakKing >= 0 && strongKing >= 0) {{
       score += sign * (12 * CENTRE[weakKing] + 10 * (4 - DIST[weakKing * CELLS + strongKing]));
     }}
   }}

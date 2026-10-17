@@ -61,8 +61,8 @@ const KNIGHT_LEN = new Uint8Array(CELLS);
 const PAWN_FORWARD = [new Int8Array(CELLS), new Int8Array(CELLS)];
 const PAWN_UP = [new Int8Array(CELLS), new Int8Array(CELLS)];
 /** A pawn's capture squares per side, and the squares a pawn attacks a cell from. */
-const PAWN_CAP = [new Int8Array(CELLS * 5), new Int8Array(CELLS * 5)];
-const PAWN_CAP_LEN = [new Uint8Array(CELLS), new Uint8Array(CELLS)];
+export const PAWN_CAP = [new Int8Array(CELLS * 5), new Int8Array(CELLS * 5)];
+export const PAWN_CAP_LEN = [new Uint8Array(CELLS), new Uint8Array(CELLS)];
 const PAWN_FROM = [new Int8Array(CELLS * 5), new Int8Array(CELLS * 5)];
 const PAWN_FROM_LEN = [new Uint8Array(CELLS), new Uint8Array(CELLS)];
 
