@@ -1,0 +1,1 @@
+@joint_start.txt vs 100,320,295,245,140,980 at 40000 nodes: {m:.3f} ± {se:.3f} ({elo:+.0f} Elo) over {len(sc)} games {'adjudicated': 698, 'repetition': 118, 'fifty': 126, 'mate': 58}
