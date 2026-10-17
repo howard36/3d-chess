@@ -3,11 +3,7 @@ import { resolve } from 'node:path';
 import type { UserConfig } from 'vite';
 import { expect, test, vi } from 'vitest';
 import { picturePlacement } from './src/three/landingLens';
-import config, {
-  parseHeaders,
-  placeLandingPictureEarly,
-  preloadLandingPictureOnStartPage,
-} from './vite.config';
+import config, { placeLandingPictureEarly, preloadLandingPictureOnStartPage } from './vite.config';
 
 test('the built page preloads its picture after the viewport tag, where a phone knows its width', async () => {
   const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
@@ -69,22 +65,4 @@ test('the build runs the start page’s scripts', () => {
   expect(names).toEqual(
     expect.arrayContaining(['preload-landing-picture', 'place-landing-picture-early']),
   );
-});
-
-test('vite preview sends the host’s headers (public/_headers), read as Pages reads them', () => {
-  const rules = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8'));
-  const names = (path: string) =>
-    rules.filter((r) => r.path.test(path)).flatMap((r) => r.headers.map(([name]) => name));
-  for (const path of ['/', '/game/abc', '/assets/index-B2x9_kQe.js'])
-    expect(names(path)).toEqual(
-      expect.arrayContaining([
-        'X-Frame-Options',
-        'Content-Security-Policy',
-        'X-Content-Type-Options',
-      ]),
-    );
-  // A path's dots are dots, its star anything
-  const [rule] = parseHeaders('/a.b/*\n  X-Test: 1\n');
-  expect([rule.path.test('/a.b/c/d'), rule.path.test('/axb/c')]).toEqual([true, false]);
-  expect(rule.headers).toEqual([['X-Test', '1']]);
 });

@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PRIMARY } from './primary.mjs';
+import { PRIMARY } from '../../primary.mjs';
 
 const [contentFile, out] = process.argv.slice(2);
 if (!contentFile || !out) {
@@ -23,12 +23,15 @@ const board = readFileSync(join(here, '..', 'scoreboard.jsonl'), 'utf8')
   .map((l) => JSON.parse(l));
 
 const esc = (s) =>
-  String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  String(s).replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+  );
 
 const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// "PRIMARY" picks the primary rows, as primary.mjs names them
+// "PRIMARY" picks the primary rows of every tier, as bench/primary.mjs names them
 const PRIMARY_RE = new RegExp(
-  `^(${PRIMARY.map(([, key]) => `.* · ${escapeRe(key)}`).join('|')})$`,
+  `^(${PRIMARY.map(({ where, what }) => `${escapeRe(where)} · ${escapeRe(what)}`).join('|')})$`,
 );
 const pick = (f) => {
   const only = f.only === 'PRIMARY' ? PRIMARY_RE : f.only ? new RegExp(f.only) : null;
@@ -68,7 +71,9 @@ const changeOf = (r) => {
   return Math.exp(ratios.reduce((s, p) => s + Math.log(p), 0) / ratios.length);
 };
 
-const chart = (f, caption) => {
+// `target` (optional): how many times faster the run's target asks each row
+// to be; drawn as a dashed line at head ÷ base = 1 / target
+const chart = (f, caption, target) => {
   const rows = pick(f);
   const W = 640;
   const left = 250;
@@ -78,12 +83,15 @@ const chart = (f, caption) => {
   const H = top + rows.length * rowH + 8;
   const lo = Math.log(0.5);
   const hi = Math.log(2);
-  const x = (ratio) => left + ((Math.log(Math.min(Math.max(ratio, 0.5), 2)) - lo) / (hi - lo)) * (right - left);
+  const x = (ratio) =>
+    left + ((Math.log(Math.min(Math.max(ratio, 0.5), 2)) - lo) / (hi - lo)) * (right - left);
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(caption)}">`;
   for (const t of [0.5, 0.67, 0.8, 1, 1.25, 1.5, 2]) {
     svg += `<line x1="${x(t)}" y1="${top - 6}" x2="${x(t)}" y2="${H - 4}" class="${t === 1 ? 'axis1' : 'grid'}"/>`;
     svg += `<text x="${x(t)}" y="${top - 10}" class="tick" text-anchor="middle">${t}×</text>`;
   }
+  if (target)
+    svg += `<line x1="${x(1 / target)}" y1="${top - 6}" x2="${x(1 / target)}" y2="${H - 4}" class="target"/>`;
   rows.forEach((r, i) => {
     const y = top + i * rowH;
     const ratio = changeOf(r);
@@ -94,7 +102,8 @@ const chart = (f, caption) => {
     const a = Math.min(x(1), x(ratio));
     const b = Math.max(x(1), x(ratio));
     svg += `<rect x="${a}" y="${y + 6}" width="${Math.max(b - a, 1.5)}" height="14" rx="2" class="bar ${cls}"/>`;
-    for (const p of r.pairs ?? []) if (Number.isFinite(p)) svg += `<circle cx="${x(p)}" cy="${y + 13}" r="3" class="pair"/>`;
+    for (const p of r.pairs ?? [])
+      if (Number.isFinite(p)) svg += `<circle cx="${x(p)}" cy="${y + 13}" r="3" class="pair"/>`;
     const pct = `${ratio < 1 ? '−' : '+'}${Math.abs((ratio - 1) * 100).toFixed(0)}%`;
     svg += `<text x="${right}" y="${y + 29}" class="sub" text-anchor="end">${pct} ${r.verdict === 'unchanged' ? '(not called)' : r.verdict}</text>`;
   });
@@ -102,8 +111,11 @@ const chart = (f, caption) => {
   const sources = [...new Set(rows.map((r) => r.source))].join(', ');
   const how = rows.every((r) => r.tier === 'build')
     ? 'Head ÷ base, log axis; one build each (bytes do not vary).'
-    : 'Head ÷ base, log axis; bar = the A/B report\'s change (geometric mean of the interleaved pairs\' ratios), dots = each pair.';
-  return `<figure class="chart"><div class="scroll">${svg}</div><figcaption>${esc(caption)} ${how} Data: <code>bench/loop/scoreboard.jsonl</code> from <code>${esc(sources)}</code>.</figcaption></figure>`;
+    : "Head ÷ base, log axis; bar = the A/B report's change (geometric mean of the interleaved pairs' ratios), dots = each pair.";
+  const goal = target
+    ? ` Dashed line: the target, every row ${target}× faster (head ÷ base ${(1 / target).toFixed(2)}).`
+    : '';
+  return `<figure class="chart"><div class="scroll">${svg}</div><figcaption>${esc(caption)} ${how}${goal} Data: <code>bench/loop/scoreboard.jsonl</code> from <code>${esc(sources)}</code>.</figcaption></figure>`;
 };
 
 const item = (it) => {
@@ -111,8 +123,9 @@ const item = (it) => {
   if (it.title) html += `<h3>${it.title}</h3>`;
   if (it.body) html += `<div class="body">${it.body}</div>`;
   // A picture that is not a benchmark row (a table, a small diagram), as HTML
-  if (it.figure) html += `<figure class="chart"><div class="scroll">${it.figure.html}</div><figcaption>${esc(it.figure.caption ?? '')}</figcaption></figure>`;
-  for (const c of it.charts ?? []) html += chart(c.rows, c.caption ?? '');
+  if (it.figure)
+    html += `<figure class="chart"><div class="scroll">${it.figure.html}</div><figcaption>${esc(it.figure.caption ?? '')}</figcaption></figure>`;
+  for (const c of it.charts ?? []) html += chart(c.rows, c.caption ?? '', c.target);
   if (it.recommend) html += `<p class="rec"><span>Recommendation</span> ${it.recommend}</p>`;
   return `${html}</article>`;
 };
@@ -168,6 +181,7 @@ h3 { font: 650 17px/1.3 var(--body); margin: 0; text-wrap: balance; }
 .chart .grid { stroke: var(--rule); } .chart .axis1 { stroke: var(--muted); stroke-width: 1.5; }
 .chart .bar.good { fill: var(--good); } .chart .bar.bad { fill: var(--bad); } .chart .bar.flat { fill: var(--flat); opacity: .55; }
 .chart .pair { fill: var(--dot); }
+.chart .target { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 4 3; }
 figcaption { font-size: 13px; color: var(--muted); }
 table { border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }

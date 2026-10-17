@@ -29,8 +29,11 @@
   /* The five level colours, sky (E, the top) to rose (A, the base), as every gradient of them
      runs, left to right and top to bottom: the home page's title and rims, the lobby's */
   --landing-levels: linear-gradient(90deg, #47bbec, #4180f3, #8f61fc, #de5cec, #ec539b);
+  /* The night round the tower: the garden's sky at its top (palette.ts, skyTop), which the
+     start page's pictures fade into at their edges */
+  --night: #010205;
   /* The start and waiting pages */
-  --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, #010205 100%);
+  --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, var(--night) 100%);
   --page-fg: #eef1f7;
 }
 
@@ -1250,7 +1253,8 @@ body {
 }
 /* A window no wider than 13:9: the steps under the tower behind the result
    card; put away, they take the pill's place at the top (the HUD's band,
-   which the board stays below), the rematch alone under the tower, and the
+   which the board stays below), the rematch and the way home under the
+   tower (.hud-end), and the
    list opens under them on asking, a few moves tall, so it covers little of
    the tower */
 @media (max-aspect-ratio: 13/9) and (min-height: 481px) {
@@ -1266,8 +1270,10 @@ body {
   .hud-history[data-ended] {
     top: 12px;
     bottom: auto;
-    /* The pill's width, between the way home and the empty corner across */
-    width: min(340px, calc(100vw - 120px));
+    /* The top row to itself (the way home stands with the rematch, below:
+       .hud-end), so the move shown between the steps and each side's marks
+       on one line have room on a narrow phone */
+    width: min(400px, calc(100vw - 24px));
     padding: 2px;
     border-radius: 20px;
   }
@@ -1419,7 +1425,7 @@ body {
   height: 100dvh;
   width: 100vw;
   overflow: hidden;
-  background: #010205;
+  background: var(--night);
   color: var(--hud-fg);
   font-family: var(--hud-font);
   letter-spacing: var(--hud-tracking);
@@ -1447,13 +1453,13 @@ body {
 /* The same picture placed by the built page before the entry ran
    (earlyPicture.ts), until the page takes it in */
 #landing-early {
-  background: #010205;
+  background: var(--night);
 }
 /* The veil the demo closes between one game and the next (LandingPreview) */
 .landing-veil {
   position: absolute;
   inset: 0;
-  background: #010205;
+  background: var(--night);
   pointer-events: none;
 }
 /* A fade behind the menu, clear just past the tower's edge */
@@ -2265,6 +2271,37 @@ body {
   top: 8px;
   right: 8px;
 }
+/* The review: the way home and the rematch. Home keeps its corner (.hud-home)
+   and the rematch its place below the tower (.hud-new-game), but in a window
+   no wider than 13:9, where the steps take the top row, the two share one row
+   below the tower: home at its left, the rematch in its middle while there is
+   room (a wide answer to an offer pushes it right, never over home) */
+.hud-end {
+  display: contents;
+}
+@media (max-aspect-ratio: 13/9) and (min-height: 481px) {
+  .hud-end {
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: 18px;
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 1000;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    pointer-events: none;
+  }
+  .hud-end > .hud-home {
+    position: static;
+    justify-self: start;
+  }
+  .hud-end > .hud-new-game {
+    position: static;
+    grid-column: 2;
+    transform: none;
+    pointer-events: auto;
+  }
+}
 /* Play again, below the tower, once the result card is put away */
 .hud-new-game {
   position: fixed;
@@ -2310,17 +2347,29 @@ body {
   order: 1;
 }
 
-/* The way home from a game: the top left corner, across from the way to
-   the tutorial, its word where the window has room for it and the pill, the
-   arrow alone in a circle where it has not (a short window too, where the
-   pill stands at the top left beside it) */
+/* The way home from a game, once it is over: the top left corner, across
+   from the way to the tutorial, a house and its word where the window has
+   room for them and the pill, the house alone in a circle where it has not
+   (a short window too, where the pill stands at the top left beside it) */
 .hud-home {
   position: absolute;
   top: 16px;
   left: max(12px, env(safe-area-inset-left));
   pointer-events: auto;
 }
+/* Its house beside the word, a little taller than the capitals and centred on
+   them; alone in the circle, 16 px as the game's other icons, a pixel more
+   where the circle is odd (it grows with the capitals' parity) */
+.hud-home-icon {
+  flex: none;
+  width: auto;
+  height: calc(var(--caps) * 1.4);
+  aspect-ratio: 1;
+}
 @media (max-width: 719px), (max-height: 480px) {
+  .hud-home-icon {
+    height: calc(16px + var(--caps-odd));
+  }
   .hud-home {
     top: 14px;
     justify-content: center;

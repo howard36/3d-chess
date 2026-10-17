@@ -1,11 +1,12 @@
 // Appends an A/B report's rows (bench/run.mjs --base ... --out <file>.md) to
 // scoreboard.jsonl, one JSON object per measured row:
-//   node ab2jsonl.mjs <report.md> --run <id> --change <ledger id> [--variant <text>] [--only <regex>] [--head <sha>]
+//   node ab2jsonl.mjs <report.md> --run <id> --change <ledger id> [--variant <text>] [--only <regex>] [--head <sha> | --patch <file>]
 // --only keeps the rows whose "where · case" matches (the rows the change is
 // about, plus the primary ones); without it every row is kept. A head measured
-// with uncommitted changes is written <sha>+wip (its parent's sha and more),
-// unless --head names the commit the change became.
-import { appendFileSync, readFileSync } from 'node:fs';
+// with uncommitted changes must say what it was, so a later run can rebuild
+// it: --head names the commit the change became, or --patch the committed
+// patch (under bench/loop/patches/) that was applied, written <sha>+<patch>.
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,18 +19,36 @@ const file = args[0];
 const run = opt('--run');
 const change = opt('--change');
 if (!file || !run || !change) {
-  console.error('usage: node ab2jsonl.mjs <report.md> --run <id> --change <id> [--variant t] [--only re] [--head sha]');
+  console.error(
+    'usage: node ab2jsonl.mjs <report.md> --run <id> --change <id> [--variant t] [--only re] [--head sha | --patch file]',
+  );
   process.exit(2);
 }
 const variant = opt('--variant');
 const only = opt('--only') ? new RegExp(opt('--only')) : null;
 const text = readFileSync(file, 'utf8');
-const base = text.match(/^Base `([0-9a-f]+)`/m)?.[1] ?? null;
+// "Base `<ref>` (`<sha>`)": the sha, or the ref where it is one
+const baseLine = text.match(/^Base `([^`]+)`(?: \(`([0-9a-f]+)`\))?/m);
+const base = baseLine ? (/^[0-9a-f]+$/.test(baseLine[1]) ? baseLine[1] : baseLine[2]) : null;
 const measured = text.match(/against this checkout \(`([^`]+)`( with uncommitted changes)?/m);
-const head = opt('--head') ?? (measured ? `${measured[1]}${measured[2] ? '+wip' : ''}` : null);
+const patch = opt('--patch');
+if (patch && !existsSync(patch)) {
+  console.error(`no such patch: ${patch}`);
+  process.exit(2);
+}
+if (measured?.[2] && !opt('--head') && !patch) {
+  console.error('the head was measured with uncommitted changes: name them with --head or --patch');
+  process.exit(2);
+}
+if (patch && !measured?.[2]) {
+  console.error('--patch names uncommitted changes, and this head had none');
+  process.exit(2);
+}
+const head =
+  opt('--head') ?? (measured ? `${measured[1]}${patch ? `+${basename(patch)}` : ''}` : null);
 
 /** A value as the report prints it ("1.2 ms", "830 µs", "7.91 fps", "4.5/s") in its unit's base. */
-const SCALE = { ns: 1e-6, 'µs': 1e-3, ms: 1, s: 1000, B: 1, KiB: 1024, MiB: 1024 ** 2 };
+const SCALE = { ns: 1e-6, µs: 1e-3, ms: 1, s: 1000, B: 1, KiB: 1024, MiB: 1024 ** 2 };
 const parse = (cell) => {
   // (k, M and G only as a rate's multiplier: "4.5k/s", never the M of "MiB")
   const m = cell.match(/^([\d.,]+)\s*([kMG](?=\/s))?\s*(\S*)/);
@@ -55,7 +74,10 @@ for (const line of text.split('\n')) {
   if (h) tier = h[1];
   if (!tier || !line.startsWith('| ') || line.startsWith('| Where') || line.startsWith('| :'))
     continue;
-  const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+  const cells = line
+    .split('|')
+    .slice(1, -1)
+    .map((c) => c.trim());
   if (cells.length !== 7) continue;
   const [where, scenario, b, hd, , pairs, verdict] = cells;
   if (only && !only.test(`${where} · ${scenario}`)) continue;
@@ -91,4 +113,6 @@ for (const line of text.split('\n')) {
   appendFileSync(out, `${JSON.stringify(row)}\n`);
   rows++;
 }
-console.log(`${rows} rows appended to ${out}${missing ? ` (${missing} with one side missing)` : ''}`);
+console.log(
+  `${rows} rows appended to ${out}${missing ? ` (${missing} with one side missing)` : ''}`,
+);

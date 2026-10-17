@@ -214,9 +214,12 @@ async function problemsAt(page: Page, width: number, height: number) {
     }
   }
   if (hauls.length === 2 && meet(hauls[0], hauls[1], 3)) problems.push('the captures meet');
-  // The ways home and to the tutorial (but in the review) stand clear of the
-  // rest of the HUD, and in the window
-  const corners = (review ? ['home'] : ['home', 'how to play']).map((what) => {
+  // The way home (once the game is over: while it is on, there is none) and
+  // the way to the tutorial (but in the review) stand clear of the rest of
+  // the HUD, and in the window
+  const over = await page.locator('[data-testid="turn-indicator"][data-result]').count();
+  if (!over && hud.some((r) => r.what === 'home')) problems.push('a way home while the game is on');
+  const corners = [...(over ? ['home'] : []), ...(review ? [] : ['how to play'])].map((what) => {
     const corner = hud.find((r) => r.what === what);
     if (!corner) problems.push(`no ${what}`);
     else {
@@ -239,11 +242,23 @@ async function problemsAt(page: Page, width: number, height: number) {
   }
   // Every move in the record whole: a long one takes the room it needs
   // (Black's under it), never cut off at its column's edge
-  const cut = await page.evaluate(() =>
-    [...document.querySelectorAll('.hud-moves:not(.sr-only) .hud-ply-word')]
-      .filter((word) => word.scrollWidth > word.clientWidth + 0.5)
-      .map((word) => word.textContent),
-  );
+  const { open, shown, cut } = await page.evaluate(() => {
+    const seen = (el: Element) => el.getClientRects().length > 0;
+    const all = [...document.querySelectorAll('.hud-moves:not(.sr-only)')];
+    const words = [...document.querySelectorAll('.hud-moves:not(.sr-only) .hud-ply-word')].filter(
+      seen,
+    );
+    return {
+      open: all.filter(seen).length,
+      shown: words.length,
+      cut: words
+        .filter((word) => word.scrollWidth > word.clientWidth + 0.5)
+        .map((word) => word.textContent),
+    };
+  });
+  // Measured at all: a record on screen whose moves this cannot see (a
+  // renamed class, another wrapper) would pass with nothing to cut
+  if (open && !shown) problems.push('no move measured in the record');
   for (const move of cut) problems.push(`the record cuts off ${move}`);
   return problems.map((p) => `${width}x${height}: ${p}`);
 }

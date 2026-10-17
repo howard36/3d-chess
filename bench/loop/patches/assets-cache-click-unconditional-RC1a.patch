@@ -1,0 +1,80 @@
+diff --git a/client/public/_headers b/client/public/_headers
+index 24cc9da..ec2f957 100644
+--- a/client/public/_headers
++++ b/client/public/_headers
+@@ -7,3 +7,8 @@
+   Content-Security-Policy: frame-ancestors 'none'
+   X-Content-Type-Options: nosniff
+   Referrer-Policy: strict-origin-when-cross-origin
++
++# Built files whose names carry a hash of their contents (Vite's assets/):
++# a returning player's browser uses its copy without asking again
++/assets/*
++  Cache-Control: public, max-age=31536000, immutable
+diff --git a/client/src/screens/StartScreen.tsx b/client/src/screens/StartScreen.tsx
+index d1956c0..58adf58 100644
+--- a/client/src/screens/StartScreen.tsx
++++ b/client/src/screens/StartScreen.tsx
+@@ -1,4 +1,5 @@
+ import React from 'react';
++import { flushSync } from 'react-dom';
+ import { useNavigate } from 'react-router';
+ import { useMediaQuery } from '../hooks/useMediaQuery';
+ import { lazyChunk } from '../lib/cachedImport';
+@@ -31,16 +32,26 @@ const StartScreen: React.FC = () => {
+   // Whether the player asked their system for less motion, following a change
+   const still = useMediaQuery('(prefers-reduced-motion: reduce)');
+   // The live preview: loading (the picture showing), shown over the picture
+-  // (which then goes), or failed to load (the picture stays)
+-  const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed'>('loading');
++  // (which then goes), failed to load (the picture stays), or dropped on the
++  // way out before it showed
++  const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed' | 'left'>('loading');
+   // Motion turned back on brings a new preview, which fades in over the picture again
+   const [wasStill, setWasStill] = React.useState(still);
+   if (wasStill !== still) {
+     setWasStill(still);
+     if (preview === 'shown') setPreview('loading');
+   }
+-  const live = !still && preview !== 'failed';
++  const live = !still && preview !== 'failed' && preview !== 'left';
+   const onShown = React.useCallback(() => setPreview('shown'), []);
++  // A preview which has not shown yet is taken down in the click's own task,
++  // before the next page renders: its build, its programs' linking and its
++  // first frame, queued ahead of the navigation, would otherwise all run
++  // before the next page shows (a returning visit, its chunk in the cache,
++  // waited ~600 ms). The picture it stands behind stays, so nothing moves
++  const go = (to: string) => {
++    if (live && preview === 'loading') flushSync(() => setPreview('left'));
++    navigate(to);
++  };
+ 
+   return (
+     <main className="landing" data-testid="landing">
+@@ -65,7 +76,7 @@ const StartScreen: React.FC = () => {
+           </h1>
+         </header>
+         <div className="landing-foot">
+-          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/new')}>
++          <button ref={tileRim} className="landing-mode" onClick={() => go('/new')}>
+             <span className="landing-mode-icon" aria-hidden>
+               <span className="landing-face">
+                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+@@ -74,7 +85,7 @@ const StartScreen: React.FC = () => {
+             </span>
+             <span className="landing-label">Play a friend</span>
+           </button>
+-          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/computer')}>
++          <button ref={tileRim} className="landing-mode" onClick={() => go('/computer')}>
+             <span className="landing-mode-icon landing-mode-icon-wide" aria-hidden>
+               <span className="landing-face">
+                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+@@ -87,7 +98,7 @@ const StartScreen: React.FC = () => {
+         </div>
+         <button
+           className="button-secondary landing-learn"
+-          onClick={() => navigate('/learn')}
++          onClick={() => go('/learn')}
+           // The tutorial's page is a chunk of its own: asked for on the way to the button
+           onPointerEnter={learnScreen.preload}
+           onFocus={learnScreen.preload}

@@ -251,7 +251,11 @@ const stats = (xs) => ({
   max: maxOf(xs),
   n: xs.filter(ok).length,
 });
-/** A section row's primary number, for comparing runs (null where there is none). */
+/**
+ * A section row's primary number, for comparing runs (null where there is
+ * none). `better`: 'lower', 'higher', or 'none' for a row shown changed but
+ * never called better or worse.
+ */
 const metric = (value, unit = 'ms', better = 'lower') =>
   ok(value) ? { value: Number(value.toPrecision(6)), unit, better } : null;
 /** A [label, median, p95, max, n, ...extra] row of durations, and its median as the metric. */
@@ -1216,7 +1220,7 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The fourth is that phone coming back: its profile has visited the start page once before (until the live preview showed), so its cache holds what the host let it keep (\`vite preview\` sends the host’s \`public/_headers\`; a file they say nothing about is asked for again, as Cloudflare Pages does by default). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
+      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The fourth is that phone coming back: its profile has visited the start page once before (until the live preview showed), so its cache holds what the host let it keep (\`vite preview\` sends the host’s \`public/_headers\`, through the harness’s \`bench/preview.config.ts\`; a file they say nothing about is asked for again, as Cloudflare Pages does by default). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 240000 : 480000,
@@ -1399,15 +1403,17 @@ async function coldSection(browser) {
         sec.add(['', ...row], m, `${c.label} · pictures of the board downloaded`);
         // Which the board row timed: a change that stops the picture painting
         // shows here, not only as a later board under the min() above
-        for (const [label, pick] of [
-          ['loads whose board showed first as its picture', (r) => r.shown === 'picture'],
-          ['pictures that failed to decode', (r) => r.pictureFailed],
+        // (each judged its own way: more boards shown as their picture is
+        // better, and where the picture is placed is a choice, never called)
+        for (const [label, pick, better] of [
+          ['loads whose board showed first as its picture', (r) => r.shown === 'picture', 'higher'],
+          ['pictures that failed to decode', (r) => r.pictureFailed, 'lower'],
           // The built page's inline script (earlyPicture.ts), which nothing
           // else runs: e2e serves the dev page
-          ['loads whose picture was placed before the entry ran', (r) => r.earlyPicture],
+          ['loads whose picture was placed before the entry ran', (r) => r.earlyPicture, 'none'],
         ]) {
           const [row, m] = countStat(label, [raw.coldPicture[c.key].filter(pick).length]);
-          sec.add(['', ...row], m, `${c.label} · ${label}`);
+          sec.add(['', ...row], m && { ...m, better }, `${c.label} · ${label}`);
         }
         {
           const label = 'requests to the server, until the side choice';
@@ -3336,6 +3342,9 @@ async function main() {
       [
         VITE,
         'preview',
+        // The harness's own config (both sides of an A/B served alike)
+        '--config',
+        path.join(CLIENT, 'bench/preview.config.ts'),
         '--outDir',
         dist,
         '--port',
