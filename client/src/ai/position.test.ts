@@ -157,7 +157,8 @@ it('keeps the sums through a promotion, a capture of the king and a pass', () =>
   pos.board[cellOf(4, 0, 4)] = KING | BLACK;
   pos.board[cellOf(2, 4, 3)] = PAWN;
   pos.board[cellOf(1, 4, 4)] = ROOK | BLACK;
-  pos.board[cellOf(4, 0, 0)] = ROOK;
+  // Near the black king, so its capture has pressure to clear
+  pos.board[cellOf(4, 0, 2)] = ROOK;
   pos.reset(WHITE_SIDE);
   const out = new Int32Array(256);
   const n = pos.generate(out, 0);
