@@ -1,13 +1,15 @@
 // How the computer judges a position, in centipawns for the side to move.
 //
-// Material uses this board's values (game/material.ts: measured by self-play,
-// queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4). On top of it,
-// what a club player looks for: pieces brought out towards the middle of the
-// cube, pawns pushed on towards their last square (counted more as the board
-// empties), the king kept home behind its pawns while queens and knights are
-// about and brought out once they are gone (position.ts), pieces with room to
-// move and near the enemy king, and, a side ahead, trading down and driving
-// the bare king to a corner.
+// Material at the engine's own values (queen 9.8, knight 3.2, bishop 2.95,
+// rook 2.45, unicorn 1.4), which play with the terms below: the captured
+// pieces' "+N" (game/material.ts) counts material alone at values measured
+// for that, and those played no better here (ARCHITECTURE.md "Piece values").
+// On top of it, what a club player looks for: pieces brought out towards the
+// middle of the cube, pawns pushed on towards their last square (counted more
+// as the board empties), the king kept home behind its pawns while queens and
+// knights are about and brought out once they are gone (position.ts), pieces
+// with room to move and near the enemy king, and, a side ahead, trading down
+// and driving the bare king to a corner.
 
 import {
   BLACK_SIDE,

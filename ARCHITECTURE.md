@@ -306,9 +306,9 @@ Key decisions:
   ("Move taken back. Your move."). The flag and the arrow are disabled while the connection is down or not yet
   back in the game, and a resignation or offer queued meanwhile is dropped, like a move. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
-  silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns:
-  queen 10, knight and bishop 3, rook 2.5, unicorn 1.5, measured for this board by
-  self-play, not 2D chess's); one above the other at the top left in a short window. The camera fit keeps their row clear
+  silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns, to the tenth:
+  queen 11.2, knight and bishop 3.1, rook 2.8, unicorn 1.2, measured for this board by
+  self-play, not 2D chess's: see Piece values); one above the other at the top left in a short window. The camera fit keeps their row clear
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
   apply: "Reconnecting…" (the pill and the captures dim), the refusal that still stands and the
@@ -1240,9 +1240,9 @@ draw, and so does one repeated inside the line searched (it can always be repeat
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` scores material at this
-board's values as measured by self-play (queen 9.8, knight 3.2, bishop 2.95, rook 2.45,
-unicorn 1.4; the captured pieces' "+N", `game/material.ts`, rounds them), development and
+side behind takes a repetition when it is offered. `evaluate.ts` scores material at its own
+values (queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4, which play with the
+terms that follow; the captured pieces' "+N" counts material alone, see Piece values), development and
 centralisation in the cube, pawns' progress towards their last square (worth more as the
 board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
 active king in the endgame, mobility (left out of the quiescence search where it cannot
@@ -1292,6 +1292,42 @@ ahead) that it hardly changes the result: a mistake past 7 pawns, an inaccuracy 
 self-play (`chooseMove` games, each position reviewed), per 100 moves: Easy 13.6
 inaccuracies, 6.6 mistakes and 5.8 blunders, Medium 10.5, 2.1 and 2.9, Hard 2.0, 0 and 0.3
 (16 Easy, 12 Medium and 8 Hard sides).
+
+### Piece values
+
+What a piece is worth here, in pawns, is measured rather than borrowed from chess: queen 11.2,
+knight 3.1, bishop 3.1, rook 2.8, unicorn 1.2 (`game/material.ts`, the captured pieces' "+N", meant
+to say who is winning from which pieces stand alone, in every phase of the game). They come from
+self-play of test bots (`research/piece-values/`, its README for the detail): a C port of `src/ai`
+that searches node for node as the game does, with pruning added that is worth about 200 Elo at
+the same work, every move searched to a fixed number of positions. Material was taken away at
+random, never by a bot's choice, so no imbalance came with compensation, from the starting
+position and from quiet, level positions of played games in three phases (12 or more pieces
+besides kings and pawns; 6–11; 1–5 with pawns on both sides), leaving the start quiet (nothing
+hanging, no check); each imbalance was played twice, swapped between the sides. In each phase
+every piece's effect on the odds of winning was fitted, the pawn's included, and one set fitted
+to predict well in all phases at once, each weighted equally; the pawn was set to 1 last. Over
+some 15,000 games at three strengths:
+
+- A knight is worth a bishop; a rook about nine tenths of one, a unicorn two fifths, a queen
+  three and a half; the same at every strength and in every phase but one: in endings a rook is
+  worth more against pawns.
+- The values hold once the bots play reasonably: replaying the same games at 20,000, 80,000 and
+  320,000 positions a move gives a bishop 3.14, 3.20 and 3.08 pawns (only at 5,000, 3.4, is
+  play weak enough to shift them). Each of those steps is worth 300 to 375 Elo; the game's Hard
+  sits about 205 Elo above the 80,000 bots, so the 320,000 bots play about 100 Elo above Hard.
+  The values are fitted to the games at 80,000 and 320,000 together.
+- Against the old values (queen 10, knight and bishop 3, rook 2.5, unicorn 1.5), these predict
+  results better in every phase, and where the two read a game differently, the side these
+  put ahead scored 54% (680 games).
+- In endings without pawns no lone piece mates, so an extra piece there nearly always draws;
+  the "+N" cannot show that.
+
+The computer keeps its own values (`ai/evaluate.ts`: queen 9.8, knight 3.2, bishop 2.95, rook
+2.45, unicorn 1.4): they play together with its positional terms, and at equal work its search
+did no better with the measured values (scaled so its positional credits keep their share: 44–46%
+in 1,000 games), with evaluations fitted to self-play results (29% or worse), or with constants
+tuned for strength (51.3% ± 1.4%).
 
 ## The tutorial
 
@@ -1374,6 +1410,7 @@ server/bench/    Server benchmarks: store operations, live WebSocket load, adver
 bench/           The benchmark runner (run.mjs) and the primary rows (primary.mjs); reports go to bench/out/.
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
+research/piece-values/  How the piece values were measured: test bots (a C port of src/ai) and scripts.
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).
