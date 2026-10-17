@@ -14,6 +14,8 @@ import {
   PAWN,
   Position,
   QUEEN,
+  ROOK,
+  TERMS,
   WHITE_SIDE,
   cellOf,
   moveCaptured,
@@ -102,6 +104,81 @@ it('agrees with the engine on every position of random games', () => {
   // Thousands of positions, each checked against the engine: a few seconds
   // with coverage on a busy runner
 }, 30_000);
+
+/** The sums evaluate() reads at the position's ply, and as a fresh count over its pieces. */
+const termsKept = (pos: Position) => [
+  ...pos.terms.subarray(pos.ply * TERMS, (pos.ply + 1) * TERMS),
+];
+const termsCounted = (pos: Position) => {
+  const fresh = new Position();
+  fresh.board.set(pos.board);
+  fresh.reset(pos.side);
+  return [...fresh.terms.subarray(0, TERMS)];
+};
+
+it('keeps the sums evaluate() reads, and finds a move illegal, as a fresh look would', () => {
+  // Every move the rules allow but for the king's safety, from each position
+  // of random games: the sums kept against a count over the pieces, and
+  // make()'s verdict against looking for an attack on the king
+  const random = rng(11);
+  const out = new Int32Array(512);
+  let made = 0;
+  let illegal = 0;
+  for (let game = 0; game < 12; game++) {
+    const pos = Position.start();
+    for (let ply = 0; ply < 160; ply++) {
+      const n = pos.generate(out, 0);
+      const legal: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const side = pos.side;
+        const ok = pos.make(out[i]);
+        const k = pos.king[side];
+        expect(ok).toBe(k < 0 || !pos.attacked(k, side ^ 1));
+        expect(termsKept(pos)).toEqual(termsCounted(pos));
+        if (ok) legal.push(out[i]);
+        else illegal++;
+        made++;
+        pos.unmake(out[i]);
+      }
+      if (legal.length === 0) break;
+      const captures = legal.filter((m) => moveCaptured(m));
+      const pool = captures.length && random() < 0.5 ? captures : legal;
+      pos.make(pool[Math.floor(random() * pool.length)]);
+      expect(termsKept(pos)).toEqual(termsCounted(pos));
+    }
+  }
+  expect(made).toBeGreaterThan(50_000);
+  expect(illegal).toBeGreaterThan(500);
+}, 30_000);
+
+it('keeps the sums through a promotion, a capture of the king and a pass', () => {
+  const pos = new Position();
+  pos.board[cellOf(0, 0, 0)] = KING;
+  pos.board[cellOf(4, 0, 4)] = KING | BLACK;
+  pos.board[cellOf(2, 4, 3)] = PAWN;
+  pos.board[cellOf(1, 4, 4)] = ROOK | BLACK;
+  // Near the black king, so its capture has pressure to clear
+  pos.board[cellOf(4, 0, 2)] = ROOK;
+  pos.reset(WHITE_SIDE);
+  const out = new Int32Array(256);
+  const n = pos.generate(out, 0);
+  let promotions = 0;
+  for (let i = 0; i < n; i++) {
+    pos.make(out[i]);
+    expect(termsKept(pos)).toEqual(termsCounted(pos));
+    if (movePromotion(out[i])) promotions++;
+    pos.unmake(out[i]);
+  }
+  expect(promotions).toBe(10);
+  // White's rook takes the king (a line no legal game reaches)
+  const take = pos.generate(out, 0);
+  const king = [...out.subarray(0, take)].find((m) => moveCaptured(m) === (KING | BLACK))!;
+  pos.make(king);
+  expect(pos.king[BLACK_SIDE]).toBe(-1);
+  expect(termsKept(pos)).toEqual(termsCounted(pos));
+  pos.makeNull();
+  expect(termsKept(pos)).toEqual(termsCounted(pos));
+});
 
 it('takes back every move exactly, hash included', () => {
   const pos = Position.fromRecords([

@@ -28,14 +28,14 @@ const SEED = 1;
  */
 const EXPECTED_SEARCH: Record<string, { depth: number; move: string; nodes: number }> = QUICK
   ? {
-      opening: { depth: 1, move: 'Ab1-Bb3', nodes: 2817 },
-      middlegame: { depth: 1, move: 'Ae2-Cd2', nodes: 172 },
-      'late middlegame': { depth: 1, move: 'Ab2-Bb2', nodes: 1601 },
+      opening: { depth: 1, move: 'Ab2-Bc3', nodes: 4178 },
+      middlegame: { depth: 1, move: 'Ae2-Cd2', nodes: 190 },
+      'late middlegame': { depth: 1, move: 'Ab2-Bb2', nodes: 2214 },
     }
   : {
-      opening: { depth: 1, move: 'Ab1-Bb3', nodes: 2817 },
-      middlegame: { depth: 3, move: 'Ca1-Ca5', nodes: 12099 },
-      'late middlegame': { depth: 3, move: 'Ab2-Bb2', nodes: 9062 },
+      opening: { depth: 1, move: 'Ab2-Bc3', nodes: 4178 },
+      middlegame: { depth: 3, move: 'Ca1-Ca5', nodes: 9107 },
+      'late middlegame': { depth: 3, move: 'Ab2-Bb2', nodes: 10943 },
     };
 
 const { decisive } = sharedGames();

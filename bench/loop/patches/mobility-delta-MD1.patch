@@ -1,0 +1,241 @@
+diff --git a/client/src/ai/position.ts b/client/src/ai/position.ts
+index 7c8700b..683f657 100644
+--- a/client/src/ai/position.ts
++++ b/client/src/ai/position.ts
+@@ -322,6 +322,16 @@ export class Position {
+   terms = new Int32Array(HISTORY_PLIES * TERMS);
+   /** checks[ply]: whether the side to move is in check there (1, 0, or -1 not yet known). */
+   private checks = new Int8Array(HISTORY_PLIES);
++  /**
++   * mobs[ply]: mobility() there, when mobKnown[ply]; reached[ply]: the move
++   * that reached it (-1 a pass), so a child's comes from its parent's.
++   */
++  private mobs = new Int32Array(HISTORY_PLIES);
++  private mobKnown = new Uint8Array(HISTORY_PLIES);
++  private reached = new Int32Array(HISTORY_PLIES);
++  private mobWeights: readonly number[] | null = null;
++  /** Scratch for mobilityDelta: the slider rays the move crosses, cell * 32 + direction. */
++  private readonly crossed = new Int32Array(64);
+   /** The index of the current position in `history` (moves played since reset). */
+   ply = 0;
+ 
+@@ -382,6 +392,7 @@ export class Position {
+     this.history[1] = hi;
+     this.clocks[0] = halfmoves;
+     this.checks[0] = -1;
++    this.mobKnown[0] = 0;
+     const t = this.terms;
+     t.fill(0, 0, TERMS);
+     for (let c = 0; c < CELLS; c++) {
+@@ -439,11 +450,21 @@ export class Position {
+       const checks = new Int8Array(this.checks.length * 2);
+       checks.set(this.checks);
+       this.checks = checks;
++      const mobs = new Int32Array(this.mobs.length * 2);
++      mobs.set(this.mobs);
++      this.mobs = mobs;
++      const mobKnown = new Uint8Array(this.mobKnown.length * 2);
++      mobKnown.set(this.mobKnown);
++      this.mobKnown = mobKnown;
++      const reached = new Int32Array(this.reached.length * 2);
++      reached.set(this.reached);
++      this.reached = reached;
+     }
+     this.history[ply * 2] = this.hashLo;
+     this.history[ply * 2 + 1] = this.hashHi;
+     this.clocks[ply] = clock;
+     this.checks[ply] = -1;
++    this.mobKnown[ply] = 0;
+     const t = this.terms;
+     t.copyWithin(ply * TERMS, (ply - 1) * TERMS, ply * TERMS);
+   }
+@@ -636,6 +657,7 @@ export class Position {
+     this.hashLo = lo ^ SIDE_LO;
+     this.hashHi = hi ^ SIDE_HI;
+     this.push(captured || type === PAWN ? 0 : this.clocks[this.ply] + 1);
++    this.reached[this.ply] = move;
+ 
+     // The sums evaluate() reads, the move's change to them
+     const t = this.terms;
+@@ -705,6 +727,7 @@ export class Position {
+     this.hashLo ^= SIDE_LO;
+     this.hashHi ^= SIDE_HI;
+     this.push(0);
++    this.reached[this.ply] = -1;
+   }
+ 
+   unmakeNull(): void {
+@@ -736,8 +759,173 @@ export class Position {
+   /**
+    * The squares each piece could move to (its own pieces aside), weighted by
+    * `weights[type]`: White's less Black's. Kings and pawns are not counted.
++   * Kept per ply, and taken from the parent's by the move's change to it
++   * when the parent's is known (the same sum: see mobilityFull).
+    */
+   mobility(weights: readonly number[]): number {
++    const ply = this.ply;
++    const known = this.mobKnown;
++    if (weights !== this.mobWeights) {
++      known.fill(0);
++      this.mobWeights = weights;
++    } else if (known[ply]) return this.mobs[ply];
++    let score: number;
++    if (ply > 0 && known[ply - 1]) {
++      const move = this.reached[ply];
++      score = this.mobs[ply - 1] + (move === -1 ? 0 : this.mobilityDelta(move, weights));
++    } else score = this.mobilityFull(weights);
++    this.mobs[ply] = score;
++    known[ply] = 1;
++    return score;
++  }
++
++  /**
++   * What `move`, just played, changed mobility() by. Only the pieces on its
++   * two cells, the knights a jump from them and the sliders whose rays cross
++   * them count differently; each such ray is counted on the board before
++   * the move and after.
++   */
++  private mobilityDelta(move: number, weights: readonly number[]): number {
++    const board = this.board;
++    const from = moveFrom(move);
++    const to = moveTo(move);
++    const piece = movePiece(move);
++    const captured = moveCaptured(move);
++    const placed = board[to];
++    let delta = 0;
++    // The pieces on the two cells: after, then before
++    if (weights[placed & 7]) delta += this.signedCount(to, placed, weights);
++    board[to] = captured;
++    board[from] = piece;
++    if (weights[piece & 7]) delta -= this.signedCount(from, piece, weights);
++    if (captured && weights[captured & 7]) delta -= this.signedCount(to, captured, weights);
++    board[from] = 0;
++    board[to] = placed;
++    // Knights a jump away: each of the two cells counts for them or not
++    const kw = weights[KNIGHT];
++    const crossed = this.crossed;
++    let n = 0;
++    for (let k = 0; k < 2; k++) {
++      const x = k === 0 ? from : to;
++      const other = k === 0 ? to : from;
++      const after = board[x];
++      const before = k === 0 ? piece : captured;
++      if (kw) {
++        for (let i = 0, len = KNIGHT_LEN[x]; i < len; i++) {
++          const c = KNIGHT_TO[x * 24 + i];
++          const q = board[c];
++          if ((q & 7) !== KNIGHT || c === other) continue;
++          const own = q & BLACK;
++          const was = !before || (before & BLACK) !== own ? 1 : 0;
++          const now = !after || (after & BLACK) !== own ? 1 : 0;
++          if (now !== was) delta += own ? -kw * (now - was) : kw * (now - was);
++        }
++      }
++    }
++    // Sliders whose ray along a line through either cell reaches it, looking
++    // through the two cells (a ray crossing both counted once)
++    const occ = this.occ;
++    for (let word = 0; word < 8; word++) {
++      let bits = occ[word];
++      while (bits !== 0) {
++        const low = bits & -bits;
++        bits ^= low;
++        const c = ((word & 3) << 5) | (31 - Math.clz32(low));
++        const type = board[c] & 7;
++        if (type === KNIGHT || !weights[type] || c === to) continue;
++        let last = -1;
++        for (let k = 0; k < 2; k++) {
++          const x = k === 0 ? from : to;
++          const d = LINE[c * CELLS + x];
++          if (d < 0 || d === last || (type !== QUEEN && SLIDER_OF[d] !== type)) continue;
++          const base = (c * DIRS + d) * 4;
++          let clear = true;
++          for (let i = 0; ; i++) {
++            const q = RAY[base + i];
++            if (q === x) break;
++            if (q !== from && q !== to && board[q]) {
++              clear = false;
++              break;
++            }
++          }
++          if (!clear) continue;
++          crossed[n++] = (c << 5) | d;
++          last = d;
++        }
++      }
++    }
++    if (n === 0) return delta;
++    delta += this.raysCount(n, weights);
++    board[to] = captured;
++    board[from] = piece;
++    delta -= this.raysCount(n, weights);
++    board[from] = 0;
++    board[to] = placed;
++    return delta;
++  }
++
++  /** The crossed rays' squares, weighted and signed, on the board as it stands. */
++  private raysCount(n: number, weights: readonly number[]): number {
++    const board = this.board;
++    const crossed = this.crossed;
++    let score = 0;
++    for (let j = 0; j < n; j++) {
++      const c = crossed[j] >> 5;
++      const d = crossed[j] & 31;
++      const p = board[c];
++      const own = p & BLACK;
++      const len = RAY_LEN[c * DIRS + d];
++      const base = (c * DIRS + d) * 4;
++      let count = 0;
++      for (let i = 0; i < len; i++) {
++        const q = board[RAY[base + i]];
++        if (!q) {
++          count++;
++          continue;
++        }
++        if ((q & BLACK) !== own) count++;
++        break;
++      }
++      const w = weights[p & 7];
++      score += own ? -w * count : w * count;
++    }
++    return score;
++  }
++
++  /** Piece `p`'s squares from cell `c`, weighted and signed as in mobility(). */
++  private signedCount(c: number, p: number, weights: readonly number[]): number {
++    const board = this.board;
++    const type = p & 7;
++    const own = p & BLACK;
++    let count = 0;
++    if (type === KNIGHT) {
++      for (let i = 0, len = KNIGHT_LEN[c]; i < len; i++) {
++        const q = board[KNIGHT_TO[c * 24 + i]];
++        if (!q || (q & BLACK) !== own) count++;
++      }
++    } else {
++      const d0 = type === BISHOP ? ROOK_END : type === UNICORN ? BISHOP_END : 0;
++      const d1 = type === ROOK ? ROOK_END : type === BISHOP ? BISHOP_END : DIRS;
++      for (let d = d0; d < d1; d++) {
++        const len = RAY_LEN[c * DIRS + d];
++        const base = (c * DIRS + d) * 4;
++        for (let i = 0; i < len; i++) {
++          const q = board[RAY[base + i]];
++          if (!q) {
++            count++;
++            continue;
++          }
++          if ((q & BLACK) !== own) count++;
++          break;
++        }
++      }
++    }
++    const w = weights[type];
++    return own ? -w * count : w * count;
++  }
++
++  /** mobility() counted from scratch, piece by piece. */
++  mobilityFull(weights: readonly number[]): number {
+     const board = this.board;
+     let score = 0;
+     const occ = this.occ;

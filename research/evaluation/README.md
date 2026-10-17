@@ -78,8 +78,9 @@ evaluation:
 | 34.6k against 40k                          | 1,000 | 62.7% ± 1.4% | +90  |
 | 40k nodes, the new terms switched off      | 1,000 | 64.1% ± 1.3% | +101 |
 
-The gain holds as the search deepens. The JS search runs at 0.91× the old positions a second
-(interleaved runs of `search` on the same positions), which the equal-time rows charge it.
+The gain holds as the search deepens. The board keeps the new terms as moves are played
+(`position.ts`), and the JS search runs at 0.93× the positions a second it did before
+(interleaved runs of `search` on the same positions); the equal-time rows charge it more.
 Most of the gain is the retuned numbers; the new terms add some 35 Elo on top.
 Every match's line is in `results.txt`.
 
