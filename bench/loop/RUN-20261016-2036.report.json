@@ -1,0 +1,108 @@
+{
+  "title": "Perf run 20261016-2036",
+  "eyebrow": "3D chess · perf-iteration · run 20261016-2036",
+  "heading": "A returning phone's start page is usable about 145 ms sooner",
+  "meta": "<p>A phone that has opened the game before now keeps the built files for a year, so it does not ask the server for them again. On <code>f5615af</code>, the branch's last code commit, against the base <code>38d62be</code>, 8 pairs: the returning phone's start page is usable after 409 ms instead of 553 ms (−27%, every pair faster, called better). Against main as it is now (<code>3ae1481</code>, 6 pairs) the same row goes 557 → 406 ms (−30%, called better).</p><p>This has a cost on the same visit. Its first click is answered 17 ms later (40.7 → 57.7 ms, called worse), and its board shows about 70 ms later (+9.6%, not called). The cached 3D code now runs before the page is ready. That trade is the first item under Needs from me.</p><p>The run also fixed the bench in four places, so that both sides of a comparison are served as the host serves players. It fixed a computer that could still search after it was disposed, and it added three checks that fail the build or a test when a rule is broken.</p>",
+  "needs": {
+    "intro": "<p>Two items. Neither blocks the PR. 1016:FT1 (the move list's quiet focus) still waits on you from an earlier run, unchanged.</p>",
+    "items": [
+      {
+        "title": "Keep the year's cache, which trades a returning phone's first click and board for a page that is usable sooner?",
+        "body": "<p>Commit <code>98699f5</code> does two things. It tells the host to let browsers keep the built files under <code>/assets/</code> for a year. Every one of those file names carries a hash of its content, so a changed file always gets a new name. It also makes a click on the start page take down a 3D preview that has loaded but not shown yet. Without that second part, the first click waited 624 ms (run 20261016-1616).</p><p>On the final comparison (<code>f5615af</code> against <code>38d62be</code>, cold load, 8 pairs, <code>ab-20261016-2036-final.md</code>), a returning phone (4× slower CPU, Fast 4G):</p><ul><li>is usable after 409 ms instead of 553 ms (−27%, called better; pairs 0.66–0.77) and makes 2 requests instead of 14.5;</li><li>answers its first click after 57.7 ms instead of 40.7 ms (+39%, called worse; pairs 1.15–1.66);</li><li>shows its board after 636 ms instead of 567 ms (+9.6%, 6 of 8 pairs slower, not called);</li><li>opens its connection to the server after 484 ms instead of 394 ms (+21%, called worse).</li></ul><p>The cause of the costs is known. With the 3D code in the cache, the browser runs it before the page is ready (script run time until ready 162 → 373 ms, called worse). Ledger row 1016-2036:RB1 asks for that code only after the page is ready, which should win back the board and the click. The Improve stage kept this change on its own judgement. At 4 pairs the click cost was not called; at 8 pairs it is. A first visit is not affected.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final: f5615af vs 38d62be (primary, 8 pairs)",
+              "only": "returning · (“Play a friend” enabled|first click: side choice shown|board on screen|connection to the server open|first contentful paint|requests to the server)"
+            },
+            "caption": "A returning phone, f5615af against 38d62be, cold load, 8 pairs (ab-20261016-2036-final.md)."
+          }
+        ],
+        "recommend": "Keep it. 145 ms off the moment the page can be used is a gain a player can notice. 17 ms on a click is below what a player can notice. Then do RB1 next run to win back the board and the click. If you do not want the trade, revert <code>98699f5</code> alone: no later commit depends on it."
+      },
+      {
+        "title": "Four start-page rows lean slower on a first visit, and none is called",
+        "body": "<p>The skill asks me to list any headline row that is worse in every pair, or more than 3% worse at the median pair, even when the comparison does not call it. Against main (<code>f5615af</code> against <code>3ae1481</code>, cold load, 6 pairs, <code>ab-20261016-2036-vs-main.md</code>), which holds only this run's changes:</p><ul><li><b>Desktop, board on screen:</b> median pair ×1.245, 4 of 6 slower (1.42 0.81 1.21 1.54 0.81 1.28).</li><li><b>Phone, board on screen:</b> ×1.124, 3 of 6 slower (1.65 0.62 0.84 0.98 1.27 1.38).</li><li><b>Desktop, first click:</b> ×1.115, 3 of 6 slower (1.27 0.87 0.96 0.70 1.73 1.89).</li><li><b>Phone, usable:</b> ×1.045, 4 of 6 slower (1.10 1.05 1.06 0.96 1.04 0.88).</li></ul><p>The final comparison against the base (8 pairs) lists the same rows plus desktop usable (×1.078, 7 of 8), the computer's first board picture (×1.032, 4 of 8) and reopening a long game (×1.138, 6 of 8). Its head side also holds main's #163 and #164. Against main, reopening a long game is ×0.96 at the median pair, so this run does not cause that lean.</p><p>A first visit starts in an empty browser profile, so the cache rule cannot act there, and the start page only clicks after these rows are timed. I found no code in this run that runs in these loads and costs time. The desktop board row also leaned slower in this run's regression check (×1.10), which compared two commits with none of this run's code. It has never been called. Ledger row 1016:AA1 asks for a cold-load A/A of 8 pairs to see whether this row leans against itself.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "vs main: f5615af vs 3ae1481 (cold load + reopen, 6 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Every headline row this comparison measures, f5615af against main (3ae1481), 6 pairs (ab-20261016-2036-vs-main.md)."
+          }
+        ],
+        "recommend": "No action now. Run the A/A first. If the desktop board still leans against itself, it is the bench. If it does not, bisect this run's commits on that row."
+      }
+    ]
+  },
+  "scoreboard": {
+    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On <code>f5615af</code> against the base <code>38d62be</code>, 8 pairs: ×0.997 over the 15 rows, 1 called better (the returning phone's usable), none called worse. Geometries grown over 16 moves stay at 10, and textures at 0. JavaScript memory after reopening a 2,000-ply game is unchanged (−0.2%). No row moved by more than 5% in memory.</p><p>At the start of the run, <code>38d62be</code> against the last run's base <code>f294faf</code> was ×1.050 over the 15 rows, none called (<code>ab-20261016-2036-regress.md</code>).</p><p>This run did not measure against the first recorded run (92ce041). The last measurement stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure, against a target of 1.2.</p>",
+    "items": [
+      {
+        "title": "Every headline row on the final code against the base",
+        "charts": [
+          {
+            "rows": { "change": "final: f5615af vs 38d62be (primary, 8 pairs)", "only": "PRIMARY" },
+            "caption": "The 15 headline rows, f5615af against 38d62be, 8 pairs (ab-20261016-2036-final.md). The head side also holds main's #163 and #164."
+          }
+        ]
+      },
+      {
+        "title": "The base against the last run's base",
+        "charts": [
+          {
+            "rows": { "change": "regression check: 38d62be (c33c700) vs f294faf (primary, 4 pairs)", "only": "PRIMARY" },
+            "caption": "The 15 headline rows, 38d62be against f294faf, 4 pairs (ab-20261016-2036-regress.md)."
+          }
+        ]
+      }
+    ]
+  },
+  "changed": {
+    "intro": "<p>One change is for speed. The others fix behaviour, make the bench serve pages as the host does, or turn a rule into a check.</p>",
+    "items": [
+      {
+        "title": "A returning phone keeps the built files (98699f5)",
+        "body": "<p><code>public/_headers</code> keeps the files under <code>/assets/</code> for a year. A click on the start page takes down a preview whose code has arrived but which has not shown yet, in the click's own task, so its build never runs ahead of the next page. The picture behind it stays, so nothing on screen moves. The numbers and the trade are under Needs from me. Tests check that the click takes the preview down, that a preview already shown stays, and that the rule covers <code>/assets/*</code> and nothing else.</p>"
+      },
+      {
+        "title": "A disposed computer no longer runs a queued search (f5b2c71)",
+        "body": "<p>When the computer's worker fails to load, its searches run on the page, one after another. A search that was waiting in that queue when the game closed still ran. It now checks that it is still wanted after its short wait. New tests measure the gap between searches, check that a dropped search never runs, and check that a failing search fails only its own question. This path only runs when the worker fails, so no headline row can see it.</p>"
+      },
+      {
+        "title": "Both sides of a comparison are served as the host serves players (10b16c7, 64c3fa2, 190a4b5, 1fc6c71, f03c208)",
+        "body": "<ul><li>The bench's preview server now reads each side's own <code>public/_headers</code>, so the base side is no longer given the head's cache rule (10b16c7). The code that did this left the shipped <code>vite.config.ts</code> (−51 lines).</li><li>A game's address is served the invitation's page, as <code>public/_redirects</code> has the host do (64c3fa2). The shared-game rows now measure the page players get, so they cannot be compared with runs before this commit.</li><li>Two counts on the start page are judged in their own direction (190a4b5). Since #162 every comparison had called the early picture's count worse, by design.</li><li>Each run waits for the CPU to go quiet before it starts (1fc6c71). Runs now begin with under 2% of the CPU waiting, about 18 s after the last one.</li><li>The report's legend now says which counts are judged higher and which are never called (f03c208).</li></ul>"
+      },
+      {
+        "title": "Rules that are now checks (3103ccc, a8c3660, aae20d5, 823d0b3, e322e61, 53ab6bf)",
+        "body": "<ul><li>The build fails when the start page's code and styles grow past 121,000 bytes gzipped (116,562 today). It also fails when it cannot find the start page's CSS, so the sum cannot quietly shrink.</li><li>The page's night colour is written once, as <code>--night</code>, and a test ties it to the sky's colour in the 3D scene. The dev page that renders the start page's pictures reads it from the same place.</li><li>The e2e check that no move in the record is cut off now fails when it finds no move to measure.</li><li>The computer's tests reset their shared search log before each test.</li></ul>"
+      }
+    ]
+  },
+  "removed": {
+    "intro": "<p>The bench's header code left the shipped <code>vite.config.ts</code> (−51 lines, moved into <code>client/bench/preview.config.ts</code>), and the lint rule for <code>__r3fState</code> states its message once (−10 lines). The patch of the cache rule, kept this run, left <code>bench/loop/patches/</code>.</p><p>Against main, outside <code>bench/loop/</code>: the app and its build config shrink by 7 lines net (+86, −93). Tests grow by 102 lines net, the bench by 283 (the preview config, its tests and the verdict test), and ARCHITECTURE.md by 2.</p>"
+  },
+  "rejected": {
+    "intro": "<p>Each of these has its result in the ledger.</p>",
+    "items": [
+      {
+        "title": "The click taking down any preview still loading, even before its code arrives",
+        "body": "<p>On a first visit, the phone's first click went 39.2 → 48.4 ms (+23%, every pair slower, not called): the click re-rendered the page where nothing was queued yet (<code>ab-20261016-2036-cache-rc1.md</code>, 6 pairs). The kept form acts only once the code has arrived: +0.5% (<code>-cache-rc1b.md</code>).</p>"
+      },
+      {
+        "title": "Rejected on reading, without a measurement",
+        "body": "<ul><li>A script-src Content Security Policy: the app has no place where untrusted text becomes code, and the policy would need hashes generated at build time that e2e cannot see.</li><li>Counting cache hits on the returning visit: the request count already shows it (14.5 → 2).</li><li>Escape closing the move list behind a dialog: everything behind a dialog is already inert.</li><li>The first form of the e2e record check: it failed at 360×640, 390×844 and 700×900, where the narrow list is folded away.</li></ul>"
+      }
+    ]
+  },
+  "choices": {
+    "intro": "<ul><li>The Improve stage kept the cache rule and the click change together, without asking you, because the click change removes the rule's 624 ms click. At 8 pairs the remaining click cost (+17 ms) is called. I kept the commit in the PR and put the trade under Needs from me rather than take out the run's only speed change at the end of the run. Revert <code>98699f5</code> if you disagree.</li><li>I fixed the review's one blocker (the stale patch of the kept idea) and five small items it raised: the build check on missing CSS, the report's legend, the night colour in the dev page, the test reset, and a stale figure in ARCHITECTURE.md. The other 11 items went to the ledger.</li><li>I merged main (#163, #164) once before the final checks.</li><li>The exploratory bisect reports from the start of the run stay in <code>bench/out/</code>, which git ignores. No decision rests on them, and the loop commits only reports that one does.</li></ul>"
+  },
+  "notConfirmed": {
+    "intro": "<ul><li>Why the desktop board leans slower on a first visit (see Needs from me). No A/A of the cold load has run since the CPU wait was added.</li><li>The cache rule on a real Cloudflare Pages deploy: whether a missing <code>/assets/</code> file is answered with the app's HTML under the year's rule (ledger 1016-2036:AH1).</li><li>The computer's first board picture (×1.032 at the median pair against the base) was not measured against main.</li></ul>"
+  },
+  "next": {
+    "intro": "<ol><li>1016:AA1: an 8-pair cold-load A/A on this run's head, to read the desktop board's lean.</li><li>1016-2036:RB1: ask for the 3D code after the page is ready on a returning visit, to win back the board and the click that the cache rule costs.</li><li>1009-1606:Q1: count the first click's two modes, then SP5.</li><li>1016-1616:SWR and IV1: the start page's pictures cached, and the early-picture script in the invitation's page.</li><li>1016-0821:CG1 and the other open rows by expected value.</li></ol>"
+  }
+}
