@@ -552,10 +552,13 @@ const BENCH_INIT = () => {
       '#landing-early img, [data-testid="landing-picture"] img',
     );
     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
-      b.pictureSeen = true;
+      b.pictureSeen = now();
       // (a picture that fails to decode is never painted: not timed, but counted)
       picture.decode().then(
-        () => requestAnimationFrame(() => (f.landingPicture = now())),
+        () => {
+          b.pictureDecoded = now();
+          requestAnimationFrame(() => (f.landingPicture = now()));
+        },
         () => (b.pictureFailed = true),
       );
     }
@@ -1366,6 +1369,28 @@ async function coldSection(browser) {
               .getEntriesByType('resource')
               .filter((e) => new URL(e.name).pathname.startsWith('/landing/'))
               .map((e) => new URL(e.name).pathname);
+            // Where the board's time went (raw only): the page, its styles,
+            // the entry and the picture arriving (Resource Timing), the
+            // picture seen loaded by the page, decoded, and painted
+            const res = performance.getEntriesByType('resource');
+            const nav = performance.getEntriesByType('navigation')[0];
+            const file = (re) => res.find((e) => re.test(new URL(e.name).pathname));
+            const img = file(/^\/landing\//);
+            const at = (t) => (t ? t - t0 : null);
+            const steps = {
+              html: nav.responseEnd,
+              css: file(/\.css$/)?.responseEnd ?? null,
+              entry: file(/^\/assets\/index-[\w-]+\.js$/)?.responseEnd ?? null,
+              pictureAsked: img?.requestStart ?? null,
+              pictureFirstByte: img?.responseStart ?? null,
+              pictureArrived: img?.responseEnd ?? null,
+              // (bytes over the wire: the file, its headers alone for a revalidated copy, 0 from the cache)
+              pictureTransfer: img?.transferSize ?? null,
+              pictureSeen: at(window.__bench.pictureSeen),
+              pictureDecoded: at(window.__bench.pictureDecoded),
+              picturePainted: Number.isFinite(picture) ? picture : null,
+              fcp: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
+            };
             return {
               board: Math.min(picture, live),
               preview: live,
@@ -1373,7 +1398,7 @@ async function coldSection(browser) {
               fetched,
               pictureFailed,
               earlyPicture,
-              picture,
+              steps,
             };
           });
           return trace ? { ...run, trace } : run;

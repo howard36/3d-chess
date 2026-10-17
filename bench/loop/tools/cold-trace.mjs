@@ -27,7 +27,7 @@ if (rawFile) {
 const files = fs
   .readdirSync(dir)
   .filter((f) => f.startsWith('cold-') && f.endsWith('.json'))
-  .filter((f) => !only || f.startsWith(`cold-${only}-`))
+  .filter((f) => !only || new RegExp(`^cold-${only}-\\d+\\.json$`).test(f))
   .sort();
 
 const short = (url) => {
@@ -116,7 +116,8 @@ for (const file of files) {
     }));
   const paints = named('Paint').map((e) => ({ t: ms(e.ts), dur: e.dur / 1000 }));
   const stamp = stamps.get(file);
-  const board = stamp?.picture ?? stamp?.board ?? lcp.find((c) => c.type === 'image')?.t ?? NaN;
+  const board =
+    stamp?.steps?.picturePainted ?? stamp?.board ?? lcp.find((c) => c.type === 'image')?.t ?? NaN;
   const before = (t) => tasks.filter((e) => ms(e.ts) < board && ms(e.ts) >= 0);
   const busy = before().reduce((s, e) => s + Math.min(e.dur / 1000, board - ms(e.ts)), 0);
   const sumIn = (list) =>
