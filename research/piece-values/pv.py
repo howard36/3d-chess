@@ -82,6 +82,7 @@ def run_jobs(jobs, workers=4, resign=1200, max_plies=1000, out_path=None, progre
             with lock:
                 if fout:
                     fout.write(line)
+                    fout.flush()
                 if parts[0] == 'R':
                     gid = int(parts[1])
                     results[gid] = {'result': float(parts[2]), 'plies': int(parts[3]), 'reason': parts[4],
