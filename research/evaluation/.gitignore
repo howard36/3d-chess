@@ -1,0 +1,7 @@
+engine
+*.raw
+*.traj
+*.lab
+*.part[0-9]*
+*_tmp/
+__pycache__/
