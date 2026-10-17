@@ -7,7 +7,7 @@ import type { Plugin } from 'vite';
  * The browser bench serves the build with `vite preview --config` this file,
  * not the app's own vite.config.ts: it is part of the harness (bench/run.mjs
  * copies client/bench over a base it compares with), so both sides of an A/B
- * are served by the same code, each with its own `public/_headers`.
+ * are served by the same code, each with its own `_headers` as built.
  */
 
 /** One rule of the host's `_headers` file: the paths it matches and the headers it adds. */
@@ -47,11 +47,12 @@ export function parseHeaders(text: string): HeaderRule[] {
   return rules;
 }
 
-/** Sends each matching rule's headers, in the file's order. */
+/** Sends each matching rule's headers, in the file's order (a relative `file` is in the build). */
 export const hostHeaders = (file: string): Plugin => ({
   name: 'host-headers',
   configurePreviewServer(server) {
-    const rules = parseHeaders(readFileSync(file, 'utf8'));
+    const outDir = resolve(server.config.root, server.config.build.outDir);
+    const rules = parseHeaders(readFileSync(resolve(outDir, file), 'utf8'));
     server.middlewares.use((req, res, next) => {
       const path = (req.url ?? '/').split('?')[0];
       for (const rule of rules)
@@ -108,10 +109,9 @@ export const hostRedirects = (file: string): Plugin => ({
   },
 });
 
-// Run from the side's client/ (the bench starts the server there)
+// Run from the side's client/ (the bench starts the server there). The
+// headers are the build's copy of public/_headers, with whatever rules the
+// build added to it (vite.config.ts, keepHashedFiles)
 export default defineConfig({
-  plugins: [
-    hostHeaders(resolve(process.cwd(), 'public/_headers')),
-    hostRedirects(resolve(process.cwd(), 'public/_redirects')),
-  ],
+  plugins: [hostHeaders('_headers'), hostRedirects(resolve(process.cwd(), 'public/_redirects'))],
 });
