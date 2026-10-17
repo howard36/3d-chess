@@ -989,6 +989,13 @@ body {
 .hud-ply[aria-current] .hud-ply-word {
   background: var(--hud-accent);
 }
+/* The list's one Tab stop is the move shown, whose light the light ring
+   vanishes into: a dark ring just inside the light's edge instead (one
+   outside it would be cut off by its row, which contains its paint) */
+.hud-ply[aria-current]:focus-visible:not([data-quiet-focus]) .hud-ply-word {
+  outline-color: var(--hud-accent-fg);
+  outline-offset: -2.5px;
+}
 .hud-ply:disabled {
   color: var(--hud-muted);
   cursor: default;
