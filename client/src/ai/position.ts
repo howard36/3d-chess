@@ -128,20 +128,20 @@ export const promotes = (cell: number, side: number) =>
 // judged without visiting its pieces. Here, beside the board, so its hot
 // loops read them as its own.
 //
-// Material uses this board's values (game/material.ts: measured by self-play,
-// queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4). On top of it,
-// what a club player looks for: pieces brought out towards the middle of the
-// cube, pawns pushed on towards their last square (counted more as the board
-// empties), the king kept home behind its pawns while queens and knights are
-// about and brought out once they are gone.
+// The numbers were tuned for playing strength by self-play
+// (research/evaluation/): material and position together in tables per piece
+// and cell, a piece's worth at the middle of the cube less a little for each
+// step out (and, for the knights, bishops and unicorns, for staying home),
+// pawns by how far along they are.
 
+/** What the search orders captures by and counts the material lead in. */
 export const VALUE = new Int16Array(8);
 VALUE[PAWN] = 100;
-VALUE[KNIGHT] = 320;
-VALUE[BISHOP] = 295;
-VALUE[ROOK] = 245;
-VALUE[UNICORN] = 140;
-VALUE[QUEEN] = 980;
+VALUE[KNIGHT] = 338;
+VALUE[BISHOP] = 293;
+VALUE[ROOK] = 237;
+VALUE[UNICORN] = 139;
+VALUE[QUEEN] = 971;
 VALUE[KING] = 0;
 
 /** Each piece's weight in the game's phase: the opening's 24 down to the endgame's 0. */
@@ -166,9 +166,9 @@ for (let c = 0; c < CELLS; c++) {
   }
 }
 
-/** A pawn's worth for how far along it is (rank + level, 0..8; 8 is its last square). */
-const PAWN_STEP_MG = [0, 0, 6, 14, 24, 36, 52, 75, 0];
-const PAWN_STEP_EG = [0, 0, 10, 24, 42, 66, 100, 150, 0];
+/** A pawn's worth by how far along it is (rank + level, 1..7; it starts at 1 or 2). */
+const PAWN_MG = [0, 86.6, 98.2, 122.1, 112.2, 126.7, 154.1, 181.3, 0];
+const PAWN_EG = [0, 97.1, 107.9, 115.5, 142.4, 166.5, 208.6, 246.7, 0];
 
 // Piece-square tables, material included, from White's side: middlegame and
 // endgame, per piece code and cell. Black's are White's turned through the
@@ -184,27 +184,29 @@ for (let c = 0; c < CELLS; c++) {
   // White's home is rank 1 and level A: how far out a piece has come
   const out = y + z;
   const set = (type: number, mg: number, eg: number) => {
-    MG[type * CELLS + c] = VALUE[type] + mg;
-    EG[type * CELLS + c] = VALUE[type] + eg;
-    MG[(type | BLACK) * CELLS + mirror(c)] = -(VALUE[type] + mg);
-    EG[(type | BLACK) * CELLS + mirror(c)] = -(VALUE[type] + eg);
+    const m = Math.round(mg);
+    const e = Math.round(eg);
+    MG[type * CELLS + c] = m;
+    EG[type * CELLS + c] = e;
+    MG[(type | BLACK) * CELLS + mirror(c)] = -m;
+    EG[(type | BLACK) * CELLS + mirror(c)] = -e;
   };
-  const fileBonus = x === 2 ? 6 : x === 1 || x === 3 ? 3 : 0;
-  set(PAWN, PAWN_STEP_MG[out] + fileBonus, PAWN_STEP_EG[out]);
-  // Developed: off the home rank and level
-  const home = y === 0 && z === 0 ? -14 : 0;
-  set(KNIGHT, 28 - 8 * centre + home, 18 - 6 * centre);
-  set(BISHOP, 16 - 4 * centre + home, 10 - 3 * centre);
-  set(UNICORN, 12 - 3 * centre + (y <= 1 && z === 0 ? -8 : 0), 8 - 2 * centre);
-  set(ROOK, 6 - centre, 4 - centre);
-  // The queen wants the middle, but not too soon (the knights and bishops first)
-  set(QUEEN, 6 - 2 * centre, 10 - 3 * centre);
+  const file = x === 2 ? 5.8 : x === 1 || x === 3 ? 1.4 : 0;
+  set(PAWN, PAWN_MG[out] + file, PAWN_EG[out]);
+  // Developed: off the home rank and level (the unicorns: off the first two ranks of level A)
+  const home = y === 0 && z === 0 ? 1 : 0;
+  const unicornHome = y <= 1 && z === 0 ? 1 : 0;
+  set(KNIGHT, 366.6 - 5.3 * centre - 4.7 * home, 354.8 - 4.1 * centre);
+  set(BISHOP, 303.7 - 2.7 * centre - 14.2 * home, 308.5 - 3.7 * centre);
+  set(UNICORN, 164.9 - 2.2 * centre - 6.8 * unicornHome, 132.2 - 2.2 * centre);
+  set(ROOK, 225.2 - 0.1 * centre, 258.8 - 0.9 * centre);
+  set(QUEEN, 955.6 - 3.4 * centre, 1003.1 - 2.5 * centre);
   // Home and behind its pawns while there is an attack to fear; to the middle after
-  set(KING, -14 * out - 4 * Math.abs(x - 2), 24 - 8 * centre);
+  set(KING, -10.9 * out - 6.2 * Math.abs(x - 2), 24 - 12.2 * centre);
 }
 
 /** How much a piece near the enemy king threatens it (pawns and kings: nothing). */
-export const TROPISM_WEIGHT = [0, 0, 3, 2, 1, 2, 6, 0];
+export const TROPISM_WEIGHT = [0, 0, 4, 2, 2, 1, 7, 0];
 
 // --- Moves -------------------------------------------------------------------
 
@@ -280,8 +282,10 @@ const SIDE_HI = nextZ();
  * What evaluate() adds up over the pieces, kept per ply as moves are played
  * (Position.terms, TERMS numbers a ply): the piece-square sums (middlegame,
  * endgame), the phase, and per side (White's, then Black's) its material,
- * its pieces' value (no pawns or kings), its bishops, and its pieces'
- * pressure on the enemy king.
+ * its pieces' value (no pawns or kings), its bishops, its pieces' pressure
+ * on the enemy king, its pieces' phase weight (no pawns or kings), its
+ * queens, its pawns beside its king, and the enemy pieces (no pawns or
+ * kings) its pawns attack, each pawn and piece a pair.
  */
 export const T_MG = 0;
 export const T_EG = 1;
@@ -290,7 +294,11 @@ export const T_MATERIAL = 3;
 export const T_PIECES = 5;
 export const T_BISHOPS = 7;
 export const T_PRESSURE = 9;
-export const TERMS = 11;
+export const T_FORCE = 11;
+export const T_QUEENS = 13;
+export const T_SHIELD = 15;
+export const T_THREATS = 17;
+export const TERMS = 19;
 
 /** Plies of history kept at first; the record grows as a game goes on. */
 const HISTORY_PLIES = 256;
@@ -395,9 +403,53 @@ export class Position {
       t[T_MATERIAL + s] += VALUE[type];
       if (type !== PAWN && type !== KING) t[T_PIECES + s] += VALUE[type];
       if (type === BISHOP) t[T_BISHOPS + s]++;
+      t[T_FORCE + s] += PHASE[type];
+      if (type === QUEEN) t[T_QUEENS + s]++;
+      if (type === PAWN) t[T_THREATS + s] += this.pawnHits(c, s, -1);
     }
     t[T_PRESSURE] = this.pressure(WHITE_SIDE);
     t[T_PRESSURE + 1] = this.pressure(BLACK_SIDE);
+    t[T_SHIELD] = this.shield(WHITE_SIDE);
+    t[T_SHIELD + 1] = this.shield(BLACK_SIDE);
+  }
+
+  /** `side`'s pawns beside its own king. */
+  private shield(side: number): number {
+    const king = this.king[side];
+    if (king < 0) return 0;
+    const pawn = side === WHITE_SIDE ? PAWN : PAWN | BLACK;
+    let n = 0;
+    for (let d = 0; d < DIRS; d++) {
+      if (RAY_LEN[king * DIRS + d] > 0 && this.board[RAY[(king * DIRS + d) * 4]] === pawn) n++;
+    }
+    return n;
+  }
+
+  /** The enemy pieces (no pawns or kings) a pawn of `side` on `cell` attacks, `skip` aside. */
+  private pawnHits(cell: number, side: number, skip: number): number {
+    const board = this.board;
+    const caps = PAWN_CAP[side];
+    const enemy = side === WHITE_SIDE ? BLACK : 0;
+    let n = 0;
+    for (let i = 0, len = PAWN_CAP_LEN[side][cell]; i < len; i++) {
+      const c = caps[cell * 5 + i];
+      const p = board[c];
+      if (c !== skip && p !== 0 && (p & BLACK) === enemy && (p & 7) !== PAWN && (p & 7) !== KING)
+        n++;
+    }
+    return n;
+  }
+
+  /** How many of `side`'s pawns attack `cell`, `skip` aside. */
+  private pawnsOn(cell: number, side: number, skip: number): number {
+    const from = PAWN_FROM[side];
+    const pawn = side === WHITE_SIDE ? PAWN : PAWN | BLACK;
+    let n = 0;
+    for (let i = 0, len = PAWN_FROM_LEN[side][cell]; i < len; i++) {
+      const c = from[cell * 5 + i];
+      if (c !== skip && this.board[c] === pawn) n++;
+    }
+    return n;
   }
 
   /** `side`'s pieces' pressure on the other side's king (TROPISM_WEIGHT by nearness). */
@@ -618,6 +670,32 @@ export class Position {
     // Not in check, a move but the king's can only expose it along one line
     const safe = type !== KING && this.king[side] >= 0 && !this.inCheck();
     const placed = promo ? promo | (piece & BLACK) : piece;
+    const enemy = side ^ 1;
+    const ct = captured & 7;
+    // The pawn terms' change, read off the board before the move: the pawns
+    // beside each king, and each pawn's attacks on enemy pieces (a pair
+    // between the mover and the piece taken is counted with the mover)
+    let shield = 0;
+    let shieldLost = 0;
+    let threats = 0;
+    let threatsAgainst = 0;
+    if (type === PAWN) {
+      const k = this.king[side];
+      if (k >= 0 && DIST[from * CELLS + k] === 1) shield--;
+      if (!promo && k >= 0 && DIST[to * CELLS + k] === 1) shield++;
+      threats -= this.pawnHits(from, side, -1);
+      if (promo) threatsAgainst += this.pawnsOn(to, enemy, -1);
+      else threats += this.pawnHits(to, side, -1);
+    } else if (type !== KING) {
+      threatsAgainst += this.pawnsOn(to, enemy, -1) - this.pawnsOn(from, enemy, -1);
+    }
+    if (ct === PAWN) {
+      const k = this.king[enemy];
+      if (k >= 0 && DIST[to * CELLS + k] === 1) shieldLost = 1;
+      threatsAgainst -= this.pawnHits(to, enemy, from);
+    } else if (captured && ct !== KING) {
+      threats -= this.pawnsOn(to, side, from);
+    }
     let lo = this.hashLo ^ ZOBRIST_LO[piece * CELLS + from] ^ ZOBRIST_LO[placed * CELLS + to];
     let hi = this.hashHi ^ ZOBRIST_HI[piece * CELLS + from] ^ ZOBRIST_HI[placed * CELLS + to];
     if (captured) {
@@ -640,7 +718,10 @@ export class Position {
     // The sums evaluate() reads, the move's change to them
     const t = this.terms;
     const o = this.ply * TERMS;
-    const enemy = side ^ 1;
+    t[o + T_SHIELD + side] += shield;
+    t[o + T_SHIELD + enemy] -= shieldLost;
+    t[o + T_THREATS + side] += threats;
+    t[o + T_THREATS + enemy] += threatsAgainst;
     t[o + T_MG] += MG[placed * CELLS + to] - MG[piece * CELLS + from];
     t[o + T_EG] += EG[placed * CELLS + to] - EG[piece * CELLS + from];
     if (promo) {
@@ -648,26 +729,35 @@ export class Position {
       t[o + T_MATERIAL + side] += VALUE[promo] - VALUE[PAWN];
       t[o + T_PIECES + side] += VALUE[promo];
       if (promo === BISHOP) t[o + T_BISHOPS + side]++;
+      t[o + T_FORCE + side] += PHASE[promo];
+      if (promo === QUEEN) t[o + T_QUEENS + side]++;
     }
     const enemyKing = this.king[enemy];
     if (captured) {
-      const ct = captured & 7;
       t[o + T_MG] -= MG[captured * CELLS + to];
       t[o + T_EG] -= EG[captured * CELLS + to];
       t[o + T_PHASE] -= PHASE[ct];
       t[o + T_MATERIAL + enemy] -= VALUE[ct];
       if (ct !== PAWN && ct !== KING) t[o + T_PIECES + enemy] -= VALUE[ct];
       if (ct === BISHOP) t[o + T_BISHOPS + enemy]--;
-      if (ct === KING) t[o + T_PRESSURE + side] = 0;
-      else if (type !== KING && this.king[side] >= 0)
+      t[o + T_FORCE + enemy] -= PHASE[ct];
+      if (ct === QUEEN) t[o + T_QUEENS + enemy]--;
+      if (ct === KING) {
+        t[o + T_PRESSURE + side] = 0;
+        t[o + T_SHIELD + enemy] = 0;
+      } else if (type !== KING && this.king[side] >= 0)
         t[o + T_PRESSURE + enemy] -= NEAR[to * CELLS + this.king[side]] * TROPISM_WEIGHT[ct];
     }
     if (enemyKing >= 0)
       t[o + T_PRESSURE + side] +=
         NEAR[to * CELLS + enemyKing] * TROPISM_WEIGHT[placed & 7] -
         NEAR[from * CELLS + enemyKing] * TROPISM_WEIGHT[type];
-    // The king moved: every enemy piece is nearer it or farther
-    if (type === KING) t[o + T_PRESSURE + enemy] = this.pressure(enemy);
+    // The king moved: every enemy piece is nearer it or farther, and its own
+    // pawns beside it others
+    if (type === KING) {
+      t[o + T_PRESSURE + enemy] = this.pressure(enemy);
+      t[o + T_SHIELD + side] = this.shield(side);
+    }
 
     const k = this.king[side];
     if (k < 0) return true;

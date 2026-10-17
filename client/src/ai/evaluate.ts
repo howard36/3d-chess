@@ -1,28 +1,38 @@
 // How the computer judges a position, in centipawns for the side to move.
 //
-// Material uses this board's values (game/material.ts: measured by self-play,
-// queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4). On top of it,
-// what a club player looks for: pieces brought out towards the middle of the
-// cube, pawns pushed on towards their last square (counted more as the board
-// empties), the king kept home behind its pawns while queens and knights are
-// about and brought out once they are gone (position.ts), pieces with room to
-// move and near the enemy king, and, a side ahead, trading down and driving
-// the bare king to a corner.
+// Material and position together, in tables per piece and cell (position.ts):
+// pieces brought out towards the middle of the cube, pawns pushed on towards
+// their last square (counted more as the board empties). Each table blends a
+// middlegame and an endgame half by the game's phase; the king's alone by its
+// own danger, the enemy's pieces and above all its queen: home behind its
+// pawns while there is an attack to fear, to the middle after. On top: pieces
+// with room to move and near the enemy king, the bishop pair, pawns beside
+// their king, pieces a pawn attacks, and, a side ahead, trading down and
+// driving the bare king to a corner. The numbers were tuned for playing
+// strength by self-play (research/evaluation/).
 
 import {
+  BLACK,
   BLACK_SIDE,
   CELLS,
   CENTRE,
   DIST,
+  EG,
+  KING,
+  MG,
   PHASE_MAX,
   TERMS,
   T_BISHOPS,
   T_EG,
+  T_FORCE,
   T_MATERIAL,
   T_MG,
   T_PHASE,
   T_PIECES,
   T_PRESSURE,
+  T_QUEENS,
+  T_SHIELD,
+  T_THREATS,
   WHITE_SIDE,
 } from './position';
 import type { Position } from './position';
@@ -30,7 +40,27 @@ import type { Position } from './position';
 export { DIST, VALUE } from './position';
 
 /** Positional terms beyond the tables, weighted per piece type. */
-const MOBILITY_WEIGHT = [0, 0, 2, 2, 2, 2, 1, 0];
+const MOBILITY_WEIGHT = [0, 0, 1, 1, 2, 3, 0, 0];
+const BISHOP_PAIR = 26;
+/** The king's danger: shares of the game's phase, the enemy's pieces and the enemy's queen. */
+const DANGER_FORCE = 0.29;
+const DANGER_QUEEN = 0.32;
+/** Each own pawn beside the king, at the king's danger. */
+const SHIELD = 9.9;
+/** Each enemy piece (no pawn or king) a pawn attacks. */
+const PAWN_THREAT = 33.7;
+const WHITE_KING = KING * CELLS;
+const BLACK_KING = (KING | BLACK) * CELLS;
+
+/** A king's danger, 0 to 24, from the game's phase and the enemy's pieces and queen. */
+const danger = (phase: number, enemyForce: number, enemyQueens: number) => {
+  const f = enemyForce < 12 ? enemyForce : 12;
+  const w =
+    (1 - DANGER_FORCE - DANGER_QUEEN) * phase +
+    2 * DANGER_FORCE * f +
+    24 * DANGER_QUEEN * (enemyQueens > 0 ? 1 : 0);
+  return w < 0 ? 0 : w > 24 ? 24 : w;
+};
 
 /**
  * The position for the side to move, in centipawns (positive: better for
@@ -40,18 +70,36 @@ const MOBILITY_WEIGHT = [0, 0, 2, 2, 2, 2, 1, 0];
 export function evaluate(pos: Position, full = true): number {
   const t = pos.terms;
   const o = pos.ply * TERMS;
-  let mg = t[o + T_MG];
-  const eg = t[o + T_EG];
   let phase = t[o + T_PHASE];
   if (phase > PHASE_MAX) phase = PHASE_MAX;
+  // The kings' tables apart: they blend by each king's danger
+  const wk = pos.king[0];
+  const bk = pos.king[1];
+  const kingMgW = wk >= 0 ? MG[WHITE_KING + wk] : 0;
+  const kingEgW = wk >= 0 ? EG[WHITE_KING + wk] : 0;
+  const kingMgB = bk >= 0 ? MG[BLACK_KING + bk] : 0;
+  const kingEgB = bk >= 0 ? EG[BLACK_KING + bk] : 0;
+  let mg = t[o + T_MG] - kingMgW - kingMgB;
+  const eg = t[o + T_EG] - kingEgW - kingEgB;
 
-  // Pressure on a king counts while there are pieces to make it tell
-  mg += t[o + T_PRESSURE] - t[o + T_PRESSURE + 1];
   // Two bishops cover both colours of the cube
-  if (t[o + T_BISHOPS] >= 2) mg += 20;
-  if (t[o + T_BISHOPS + 1] >= 2) mg -= 20;
+  if (t[o + T_BISHOPS] >= 2) mg += BISHOP_PAIR;
+  if (t[o + T_BISHOPS + 1] >= 2) mg -= BISHOP_PAIR;
 
-  let score = Math.round((mg * phase + eg * (PHASE_MAX - phase)) / PHASE_MAX);
+  // Each king's danger, in 24ths: its tables, the pressure on it and its
+  // pawns beside it count by that
+  const dangerW = danger(phase, t[o + T_FORCE + 1], t[o + T_QUEENS + 1]);
+  const dangerB = danger(phase, t[o + T_FORCE], t[o + T_QUEENS]);
+  let sum = mg * phase + eg * (PHASE_MAX - phase);
+  sum +=
+    kingMgW * dangerW + kingEgW * (24 - dangerW) + kingMgB * dangerB + kingEgB * (24 - dangerB);
+  sum += t[o + T_PRESSURE] * dangerB - t[o + T_PRESSURE + 1] * dangerW;
+  if (wk >= 0) sum += SHIELD * t[o + T_SHIELD] * dangerW;
+  if (bk >= 0) sum += -1 * SHIELD * t[o + T_SHIELD + 1] * dangerB;
+  // Pieces a pawn attacks
+  sum += PAWN_THREAT * 24 * t[o + T_THREATS];
+  sum += -1 * PAWN_THREAT * 24 * t[o + T_THREATS + 1];
+  let score = Math.round(sum / PHASE_MAX);
 
   // Ahead on material: trade down (each trade makes the lead count for more),
   // and with the enemy short of pieces, drive the king to a corner and bring

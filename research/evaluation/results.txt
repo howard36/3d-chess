@@ -1,0 +1,28 @@
+# Every match: the candidate's score against the evaluation named second (or the game's,
+# 100,320,295,245,140,980), the game's own search, each opening twice with colours swapped.
+## Screening new terms, 20k nodes (x_*: the game's numbers and one term)
+scr2_pass: 0.485 ± 0.018 (-10 Elo) over 600 games {'adjudicated': 420, 'fifty': 61, 'mate': 48, 'repetition': 71}
+scr2_threat: 0.544 ± 0.018 (+31 Elo) over 600 games {'adjudicated': 402, 'mate': 55, 'repetition': 78, 'fifty': 65}
+scr2_force: 0.513 ± 0.018 (+9 Elo) over 600 games {'mate': 55, 'adjudicated': 399, 'fifty': 74, 'repetition': 72}
+scr2_queen: 0.527 ± 0.018 (+19 Elo) over 600 games {'adjudicated': 398, 'fifty': 83, 'repetition': 71, 'mate': 48}
+scr2_shield: 0.532 ± 0.018 (+23 Elo) over 600 games {'mate': 65, 'adjudicated': 388, 'repetition': 77, 'fifty': 70}
+## Fitted to deeper searches, 20k
+scr2_fitS: 0.517 ± 0.018 (+12 Elo) over 600 games {'adjudicated': 405, 'repetition': 80, 'fifty': 76, 'mate': 39}
+## Piece values within the evaluation, 40k
+fairmul40: @k_fairmul.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.440 ± 0.014 (-42 Elo) over 1000 games {'adjudicated': 691, 'fifty': 143, 'repetition': 95, 'mate': 71}
+fairadd40: 100,334,329,316,126,1280 vs 100,320,295,245,140,980 at 40000 nodes: 0.426 ± 0.014 (-51 Elo) over 1000 games {'repetition': 93, 'adjudicated': 692, 'fifty': 144, 'mate': 71}
+spsak40: @spsak_final.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.548 ± 0.014 (+34 Elo) over 1000 games {'mate': 88, 'adjudicated': 687, 'fifty': 123, 'repetition': 102}
+kwin40: 0.472 ± 0.014 (-19 Elo) over 1000 games {'adjudicated': 687, 'fifty': 148, 'repetition': 92, 'mate': 73}
+fitR40: 0.467 ± 0.014 (-23 Elo) over 1000 games {'adjudicated': 711, 'mate': 96, 'fifty': 148, 'repetition': 45}
+## The joint run: its start, mid-run (2,544 pairs) and final (5,696 pairs, joint_final.txt)
+jstart40: 0.544 ± 0.014 (+31 Elo) over 1000 games {'adjudicated': 698, 'repetition': 118, 'fifty': 126, 'mate': 58}
+jmid40: 0.636 ± 0.013 (+97 Elo) over 1000 games {'adjudicated': 670, 'repetition': 94, 'fifty': 134, 'mate': 102}
+jmid160: 0.672 ± 0.018 (+125 Elo) over 500 games {'adjudicated': 361, 'fifty': 65, 'mate': 31, 'repetition': 43}
+vf40a: 0.701 ± 0.013 (+148 Elo) over 1000 games {'adjudicated': 704, 'fifty': 97, 'mate': 97, 'repetition': 102}
+vf40b: 0.673 ± 0.013 (+125 Elo) over 1000 games {'adjudicated': 706, 'repetition': 87, 'mate': 96, 'fifty': 111}
+vf80: 0.704 ± 0.013 (+151 Elo) over 1000 games {'adjudicated': 720, 'repetition': 85, 'mate': 82, 'fifty': 113}
+vf160: 0.712 ± 0.018 (+157 Elo) over 500 games {'adjudicated': 387, 'repetition': 45, 'fifty': 47, 'mate': 21}
+vfeqt36a: 0.661 ± 0.013 (+116 Elo) over 1000 games {'adjudicated': 727, 'mate': 91, 'repetition': 84, 'fifty': 98}
+vfeqt36b: 0.656 ± 0.013 (+112 Elo) over 1000 games {'adjudicated': 692, 'fifty': 118, 'repetition': 94, 'mate': 96}
+vfeqt40b: 0.627 ± 0.014 (+90 Elo) over 1000 games {'adjudicated': 707, 'repetition': 91, 'mate': 91, 'fifty': 111}
+vfnx40: 0.641 ± 0.013 (+101 Elo) over 1000 games {'adjudicated': 677, 'fifty': 106, 'mate': 118, 'repetition': 99}
