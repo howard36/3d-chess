@@ -22,7 +22,7 @@ A run is done when:
 <parameters>
 - Goal: steady. Work the ledger by expected value until the budget is spent or nothing worth doing is left. Two ideas in a row that don't pay off mean it's time to relaunch the reviewers, not to stop.
 - Focus: none.
-- Target: the primary rows 1.2× faster than this run's base commit (where the last run left them), by the A/B's one speed for them all, with no primary row called worse. Keep going after the target is met, while the budget lasts. If the target can't be met, say why under "Needs from me".
+- Target: every primary row 1.2× faster than this run's base commit (where the last run left them), as the A/B measures each row's median pair. Keep going after the target is met, while the budget lasts. If the target can't be met, say why under "Needs from me".
 - Run budget: about 4 hours. Record the start time and check `date` against it.
 - Landing: a branch `improve/<run id>` from the base commit, in its own git worktree, one commit per change. State each commit's evidence as a relationship plus a pointer to its scoreboard rows. Open one PR for the run, listing its changes, and don't merge it. Split a change into its own PR from `main` only when others need it before the run ends: a correctness or security fix, something another session depends on, or a change you would want to revert on its own.
 - Speed: no primary row called worse by `--base` against the base commit. "Not called" does not mean "not slower": a primary row that is worse in every pair, or more than 3% worse at the median, goes under "Needs from me" with its pairs.
