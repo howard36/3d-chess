@@ -5,13 +5,16 @@
 // what a club player looks for: pieces brought out towards the middle of the
 // cube, pawns pushed on towards their last square (counted more as the board
 // empties), the king kept home behind its pawns while queens and knights are
-// about and brought out once they are gone (terms.ts), pieces with room to
+// about and brought out once they are gone (position.ts), pieces with room to
 // move and near the enemy king, and, a side ahead, trading down and driving
 // the bare king to a corner.
 
-import { BLACK_SIDE, CELLS, WHITE_SIDE } from './cells';
-import { CENTRE, DIST, PHASE_MAX } from './terms';
 import {
+  BLACK_SIDE,
+  CELLS,
+  CENTRE,
+  DIST,
+  PHASE_MAX,
   TERMS,
   T_BISHOPS,
   T_EG,
@@ -20,10 +23,11 @@ import {
   T_PHASE,
   T_PIECES,
   T_PRESSURE,
+  WHITE_SIDE,
 } from './position';
 import type { Position } from './position';
 
-export { DIST, VALUE } from './terms';
+export { DIST, VALUE } from './position';
 
 /** Positional terms beyond the tables, weighted per piece type. */
 const MOBILITY_WEIGHT = [0, 0, 2, 2, 2, 2, 1, 0];
@@ -31,7 +35,7 @@ const MOBILITY_WEIGHT = [0, 0, 2, 2, 2, 2, 1, 0];
 /**
  * The position for the side to move, in centipawns (positive: better for
  * them); without the pieces' mobility unless `full`. The sums over the
- * pieces (terms.ts) are kept by the board as moves are played.
+ * pieces (position.ts) are kept by the board as moves are played.
  */
 export function evaluate(pos: Position, full = true): number {
   const t = pos.terms;
