@@ -1,12 +1,12 @@
 """Fit the evaluation's numbers (the 58, and optionally the six extension terms) to the scores of
 deeper searches: minimise the mean squared difference in expected score (logistic, 400 cp a factor
 of ten) between the static evaluation and the label, over quiet positions from games and one random
-move away from them. The loss is the C engine's own evaluation (engine9 loss), so rounding and
+move away from them. The loss is the C engine's own evaluation (engine loss), so rounding and
 mobility are exactly as played. Gradients by central differences, a step scaled per number, a line
 search along it; a light pull towards the starting numbers; the held-out positions (other games)
 say whether the fit generalises.
 
-usage: fit_search.py train.lab test.lab start.txt out.txt [--ext] [--lam L] [--iters N]"""
+usage: fit_search.py train.lab test.lab start.txt out.txt [--ext] [--lam L] [--iters N] [--K k]"""
 import sys, os, subprocess, argparse, time
 import numpy as np
 from evalnums import FIXED, C, order_values
@@ -15,7 +15,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('train'); ap.add_argument('test'); ap.add_argument('start'); ap.add_argument('out')
 ap.add_argument('--ext', action='store_true'); ap.add_argument('--lam', type=float, default=1e-4)
 ap.add_argument('--iters', type=int, default=40); ap.add_argument('--procs', type=int, default=4)
-ap.add_argument('--engine', default='./engine11')
+ap.add_argument('--engine', default='./engine')
 ap.add_argument('--K', type=float, default=1.0, help='the evaluation\'s scale against the labels (game results: fit it first)')
 a = ap.parse_args()
 
@@ -24,7 +24,7 @@ theta0 = np.array([float(x) for x in nums[:58]])
 ext0 = np.array([float(x) for x in nums[64:70]]) if len(nums) >= 70 else np.zeros(6)
 x0 = np.concatenate([theta0, ext0])
 N = 64
-free = np.array([i not in FIXED for i in range(58)] + [a.ext] * 6)
+free = np.array([i not in FIXED for i in range(58)] + [a.ext, a.ext, a.ext, False, False, a.ext])   # passed pawns held at 0, as in the strength run
 H = np.concatenate([C / 4, [0.05, 0.05, 1, 0.5, 0.5, 2]])          # finite-difference step
 H[47:58] = 1                                                        # rounded to whole numbers
 S = np.concatenate([C, [0.15, 0.15, 4, 2, 4, 12]])                  # scale of a sensible change

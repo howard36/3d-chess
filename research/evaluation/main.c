@@ -538,6 +538,144 @@ static void mode_loss(const char *path) {
   }
 }
 
+// removal <spec> < lines "board side": what the evaluation (static, mobility included, White's
+// view) says each piece is worth, as the drop when it alone is taken off the board, from its own
+// side's view; per piece type and phase (pieces besides kings and pawns: 1-5, 6-11, 12+), in
+// pawns (the same drop for a pawn), and the phases weighted equally
+static void mode_removal(const char *spec) {
+  static char line[4096], board[256], b2[256];
+  static EvalParams ev;
+  init_eval_spec(&ev, spec);
+  double sum[3][8] = {{0}}, cnt[3][8] = {{0}};
+  while (fgets(line, sizeof line, stdin)) {
+    int side;
+    if (sscanf(line, "%200s %d", board, &side) != 2) continue;
+    int n = 0;
+    for (const char *ch = board; *ch; ch++) if (strchr("NBRUQnbruq", *ch)) n++;
+    if (n == 0) continue;
+    int bucket = n <= 5 ? 0 : n <= 11 ? 1 : 2;
+    parse_board(&gpos, board, side);
+    int e0 = evaluate(&ev, &gpos, 1);
+    double base = side == 0 ? e0 : -e0;
+    for (int c = 0; c < CELLS; c++) {
+      char ch = board[c];
+      if (ch == '.' || ch == 'K' || ch == 'k') continue;
+      int black = ch >= 'a' && ch <= 'z';
+      int t = (int)(strchr(LETTERS, black ? ch - 32 : ch) - LETTERS);
+      memcpy(b2, board, CELLS + 1);
+      b2[c] = '.';
+      parse_board(&gpos, b2, side);
+      int e1 = evaluate(&ev, &gpos, 1);
+      double without = side == 0 ? e1 : -e1;
+      sum[bucket][t] += (black ? -1 : 1) * (base - without);
+      cnt[bucket][t] += 1;
+    }
+  }
+  static const char *NM = "?PNBRUQK";
+  if (getenv("RAW")) {   // the mean drop in centipawns, per phase: P N B R U Q
+    for (int b = 0; b < 3; b++) {
+      printf("raw %d", b);
+      for (int t = PAWN; t <= QUEEN; t++) printf(" %.4f", sum[b][t] / cnt[b][t]);
+      printf("\n");
+    }
+    return;
+  }
+  double mean[8] = {0};
+  for (int b = 0; b < 3; b++) {
+    double pawn = sum[b][PAWN] / cnt[b][PAWN];
+    printf("phase %d: pawn %.1f cp;", b, pawn);
+    for (int t = KNIGHT; t <= QUEEN; t++) {
+      double w = sum[b][t] / cnt[b][t] / pawn;
+      mean[t] += w / 3;
+      printf(" %c %.2f", NM[t], w);
+    }
+    printf("\n");
+  }
+  printf("all:");
+  for (int t = KNIGHT; t <= QUEEN; t++) printf(" %c %.2f", NM[t], mean[t]);
+  printf("\n");
+}
+
+
+// evdump <spec> < lines "board side label": the static evaluation (side to move's view, as the loss
+// takes it), the label, the material difference P N B R U Q (side to move's less the other's), and
+// the phase (pieces besides kings and pawns: 1-5, 6-11, 12+, as 0 1 2; none, -1)
+static void mode_evdump(const char *spec) {
+  static char line[4096], board[256];
+  static EvalParams ev;
+  init_eval_spec(&ev, spec);
+  while (fgets(line, sizeof line, stdin)) {
+    int side, lab = 0;
+    if (sscanf(line, "%200s %d %d", board, &side, &lab) < 2) continue;
+    parse_board(&gpos, board, side);
+    int e = evaluate(&ev, &gpos, 1);
+    int d[8] = {0}, n = 0;
+    for (int c = 0; c < CELLS; c++) {
+      char ch = board[c];
+      if (ch == '.') continue;
+      int black = ch >= 'a' && ch <= 'z';
+      int t = (int)(strchr(LETTERS, black ? ch - 32 : ch) - LETTERS);
+      d[t] += (black == side) ? 1 : -1;
+      if (t >= KNIGHT && t <= QUEEN) n++;
+    }
+    int bucket = n == 0 ? -1 : n <= 5 ? 0 : n <= 11 ? 1 : 2;
+    printf("%d %d %d %d %d %d %d %d %d\n", e, lab, d[1], d[2], d[3], d[4], d[5], d[6], bucket);
+  }
+}
+
+// a row as evdump writes it: the evaluation (side to move's view), a label, the material difference
+// P N B R U Q (side to move's less the other's), the phase (pieces besides kings and pawns: 1-5,
+// 6-11, 12+, as 0 1 2; none, -1)
+static void print_row(int e, int lab, const char *board, int side, int kind) {
+  int d[8] = {0}, n = 0;
+  for (int c = 0; c < CELLS; c++) {
+    char ch = board[c];
+    if (ch == '.') continue;
+    int black = ch >= 'a' && ch <= 'z';
+    int t = (int)(strchr(LETTERS, black ? ch - 32 : ch) - LETTERS);
+    d[t] += (black == side) ? 1 : -1;
+    if (t >= KNIGHT && t <= QUEEN) n++;
+  }
+  int bucket = n == 0 ? -1 : n <= 5 ? 0 : n <= 11 ? 1 : 2;
+  printf("%d %d %d %d %d %d %d %d %d %d\n", e, lab, d[1], d[2], d[3], d[4], d[5], d[6], bucket, kind);
+}
+
+// augment <spec> <seed> <per> < lines "board side label": each position that is quiet by the
+// evaluation's own capture search (not in check, the capture-only search within 50 of the static
+// evaluation), and up to <per> copies of it with one piece besides the kings taken off at random,
+// each still legal (the side not to move not in check) and quiet, so that no copy leaves a piece
+// hanging the evaluation cannot see; rows as evdump with a last column, 0 the position and 1 a copy
+// (whose label is 9999: none)
+static void mode_augment(const char *spec, unsigned long seed, int per) {
+  static char line[4096], board[256], b2[256];
+  static EvalParams ev;
+  init_eval_spec(&ev, spec);
+  Searcher *s = searcher_new(&ev);
+  rng_state = seed * 0x9E3779B97F4A7C15ull + 777;
+  for (int i = 0; i < 5; i++) rnd();
+  int32_t legal[512];
+  int cells[CELLS];
+  while (fgets(line, sizeof line, stdin)) {
+    int side, lab = 0;
+    if (sscanf(line, "%200s %d %d", board, &side, &lab) < 2) continue;
+    parse_board(&gpos, board, side);
+    if (pos_legal_moves(&gpos, legal) == 0 || !is_quiet(&ev, s, &gpos)) continue;
+    print_row(evaluate(&ev, &gpos, 1), lab, board, side, 0);
+    int n = 0;
+    for (int c = 0; c < CELLS; c++) if (board[c] != '.' && board[c] != 'K' && board[c] != 'k') cells[n++] = c;
+    for (int i = n - 1; i > 0; i--) { int j = (int)(rnd() % (unsigned)(i + 1)), t = cells[i]; cells[i] = cells[j]; cells[j] = t; }
+    int made = 0;
+    for (int i = 0; i < n && made < per; i++) {
+      memcpy(b2, board, CELLS + 1);
+      b2[cells[i]] = '.';
+      parse_board(&gpos, b2, side);
+      if (pos_in_check(&gpos, side ^ 1) || pos_legal_moves(&gpos, legal) == 0 || !is_quiet(&ev, s, &gpos)) continue;
+      print_row(evaluate(&ev, &gpos, 1), 9999, b2, side, 1);
+      made++;
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   init_tables();
   if (argc < 2) {
@@ -552,6 +690,12 @@ int main(int argc, char **argv) {
     mode_quiet();
   else if (!strcmp(argv[1], "features"))
     mode_features();
+  else if (!strcmp(argv[1], "augment"))
+    mode_augment(argv[2], strtoul(argv[3], 0, 10), atoi(argv[4]));
+  else if (!strcmp(argv[1], "evdump"))
+    mode_evdump(argv[2]);
+  else if (!strcmp(argv[1], "removal"))
+    mode_removal(argv[2]);
   else if (!strcmp(argv[1], "sample"))
     mode_sample(strtoul(argv[2], 0, 10));
   else if (!strcmp(argv[1], "label"))

@@ -26,3 +26,6 @@ vfeqt36a: 0.661 ± 0.013 (+116 Elo) over 1000 games {'adjudicated': 727, 'mate':
 vfeqt36b: 0.656 ± 0.013 (+112 Elo) over 1000 games {'adjudicated': 692, 'fifty': 118, 'repetition': 94, 'mate': 96}
 vfeqt40b: 0.627 ± 0.014 (+90 Elo) over 1000 games {'adjudicated': 707, 'repetition': 91, 'mate': 91, 'fifty': 111}
 vfnx40: 0.641 ± 0.013 (+101 Elo) over 1000 games {'adjudicated': 677, 'fifty': 106, 'mate': 118, 'repetition': 99}
+## The whole evaluation fitted to results (the strength run's 57 numbers, fitR_ext.txt), 40k
+fitRext40: 0.586 ± 0.014 (+60 Elo) over 1000 games {'adjudicated': 728, 'mate': 109, 'fifty': 112, 'repetition': 51}
+fitRext_vs_final40: @fitR_ext.txt vs @joint_final.txt at 40000 nodes: 0.401 ± 0.018 (-70 Elo) over 600 games {'mate': 76, 'adjudicated': 399, 'fifty': 90, 'repetition': 35}
