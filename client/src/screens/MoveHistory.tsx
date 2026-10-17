@@ -336,8 +336,10 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       focusFromCode(button, { preventScroll: true });
     } else if (ol.contains(document.activeElement) && document.activeElement !== button) {
       // Focus follows the player's own place in the list, ring as the browser
-      // decides: focusFromCode would quiet it after a click, so the next Tab
-      // would only show the ring (ledger 1016:FT1, the owner's call)
+      // decides. Not focusFromCode, which is for focus the page picks with no
+      // input from the player: after the player's own click it would quiet the
+      // ring, and their next Tab would only show it instead of moving on as it
+      // does after any click (ledger 1016:FT1, the owner's call; CLAUDE.md "Gotchas")
       // (the list was scrolled by hand above: a focus's own scroll could move
       // the page under the HUD on a phone, 1016:FT2)
       // eslint-disable-next-line no-restricted-syntax
