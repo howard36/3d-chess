@@ -410,7 +410,7 @@ Key decisions:
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
   while the game is on, `data-analysis` (`running`, `done`, `stopped`) once the review is asked for
   (`analyse`, the button) and `data-best` the better move where the move shown is marked
-  (`Bc1-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
+  (`Bd2-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
   `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
   and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with
