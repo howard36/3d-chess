@@ -2,13 +2,41 @@
   "title": "Perf run 20261016-2036",
   "eyebrow": "3D chess · perf-iteration · run 20261016-2036",
   "heading": "No headline row moved; the bench now serves both sides as players are served",
-  "meta": "<p>This run's one speed change, a year-long cache for a returning phone, is out of the PR. It made the start page usable sooner but the first click slower, on the same visit. A trade between two moments a player waits on is yours to decide, so it is saved as a patch instead (see Needs from me).</p><p>What stays: a fix for a computer that could still search after its game closed, four fixes that make the bench serve both sides of a comparison as the host serves players, and four rules that now fail a build or a test when broken.</p><p>On <code>af6886b</code>, the branch's final code (main <code>b3d7a23</code> merged in), against the base <code>38d62be</code>, 4 pairs: ×1.002 over the 15 headline rows. One row was called worse, reopening a long game (+53%). Three narrower comparisons did not repeat it, and against main this run's code is 7.7% faster there. It is the next run's first thing to measure.</p>",
+  "meta": "<p>This run's one speed change, a year-long cache for a returning phone, is out of the PR. It made the start page usable sooner but the first click slower, on the same visit. That is a trade between two moments a player waits on, so it is saved as a patch and asked below.</p><p>What stays: a fix for a computer that could still search after its game closed, fixes that make the bench serve both sides of a comparison as the host serves players, and rules that now fail a build or a test when broken.</p><p>The target was every headline row 1.2× faster than the base <code>38d62be</code>. It was missed: ×1.002 on <code>af6886b</code> (4 pairs) and ×0.987 on the head <code>a571839</code>, the same app code (8 pairs). The 4-pair run called reopening a long game worse; the 8-pair rerun of the same profile does not.</p>",
   "needs": {
-    "intro": "<p>One item, and it needs no answer yet. 1016:FT1 (the move list's quiet focus) still waits on you from an earlier run, unchanged.</p>",
+    "intro": "<p>Four items. The PR does not wait on 2, 3 or 4.</p>",
     "items": [
       {
-        "title": "The year-long cache for a returning phone is saved as a patch, out of the PR",
-        "body": "<p>Commit <code>98699f5</code> told the host to let browsers keep the built files under <code>/assets/</code> for a year, and made a click on the start page take down a preview that had loaded but not shown. Commit <code>312cf84</code> reverts it. It is kept as <code>bench/loop/patches/assets-cache-click-RC1.patch</code> and ledger row 0930:17.</p><p>On <code>f5615af</code> against <code>38d62be</code>, cold load, 8 pairs (<code>ab-20261016-2036-final.md</code>), a returning phone (4× slower CPU, Fast 4G):</p><ul><li>was usable after 409 ms instead of 553 ms (−27%, called better);</li><li>answered its first click after 57.7 ms instead of 40.7 ms (+39%, called worse);</li><li>showed its board after 636 ms instead of 567 ms (+9.6%, not called).</li></ul><p>The cost comes from the cached 3D code running before the page is ready. Ledger row 1016-2036:RB1 asks for that code only after the page is ready. Two checks must come first in any case: a missing file must not be cached for a year as the app's HTML (AH1), and a test must cover a click that comes before the preview's code (ST1).</p>",
+        "title": "Five headline rows lean slower on the final code; none is called",
+        "body": "<p>The speed rule sends here every headline row that is slower in every pair or more than 3% slower at its median pair.</p><p>On <code>af6886b</code> against <code>38d62be</code>, 4 pairs (<code>ab-20261016-2036-final-af6886b.md</code>):</p><ul><li>reopening a long game, 190 → 273 ms, <b>called worse</b>, every pair slower: 1.40 1.35 2.13 1.35;</li><li>desktop start page usable, ×1.118 at the median pair: 1.14 0.77 1.10 1.14;</li><li>desktop first click, ×1.071: 1.31 0.95 0.90 1.19;</li><li>a picked-up piece, ×1.049: 1.11 0.94 1.05 1.05.</li></ul><p>The same profile rerun on the head <code>a571839</code> (the same app code), 8 pairs (<code>ab-20261016-2036-final-a571839.md</code>), calls nothing. Reopening is 240 → 237 ms, ×1.165, pairs 0.78 0.78 1.71 1.06 1.27 0.69 1.85 1.42, so the call does not hold. The other three are ×1.03, ×0.785 and ×0.985 there. Over the rule on <code>a571839</code> instead, each slower in 5 of 8 pairs:</p><ul><li>phone board on screen ×1.193: 0.97 0.93 1.32 1.32 1.21 1.18 1.27 0.82;</li><li>desktop board on screen ×1.105: 1.33 0.71 0.94 1.42 1.16 1.04 1.32 0.60;</li><li>the computer's first board picture ×1.073: 1.17 1.08 0.98 1.06 1.41 1.09 0.91 1.00;</li><li>the player's move ×1.073: 0.96 1.06 0.99 1.11 0.99 1.09 1.12 1.21;</li><li>reopening ×1.165 (above).</li></ul><p>None of the run's own changes runs in these moments. The rows that lean change from one run to the next on identical app code.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final: a571839 vs 38d62be (primary, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "Every headline row, a571839 against 38d62be, 8 pairs (ab-20261016-2036-final-a571839.md).",
+            "target": 1.2
+          },
+          {
+            "rows": {
+              "change": "final: af6886b vs 38d62be (primary, 4 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "The same rows and the same app code, af6886b against 38d62be, 4 pairs (ab-20261016-2036-final-af6886b.md).",
+            "target": 1.2
+          }
+        ],
+        "recommend": "Merge as is. The next run first measures the head against itself (ledger 1016:AA1 and 1016:RG3), which shows how far these rows lean with no change at all."
+      },
+      {
+        "title": "The target was missed: about ×1.0 against 1.2× on every headline row",
+        "body": "<p>Since main's <code>b3d7a23</code>, the skill asks every headline row to be 1.2× faster than this run's base <code>38d62be</code>, at its median pair. The run got ×1.002 on <code>af6886b</code> and ×0.987 on <code>a571839</code> (charts above: the dashed line is the target). The only row past it is the desktop first click on <code>a571839</code> (×0.785, 13.1 → 10.9 ms). That row has two modes (ledger 1009-1606:Q1) and runs no code this run changed, so it is not a gain.</p><p>Why it was missed:</p><ul><li>The run's one speed change is a trade between two moments, so it is out of the PR (the next item).</li><li>Most of the run went to making the bench measure truthfully, and to fixes and checks.</li><li>This target arrived with <code>b3d7a23</code>, merged at 02:40, after the run had stopped making changes. Until then it worked to the earlier target, 1.2× against the first recorded run, which stands at 2.48×.</li></ul><p>No open ledger idea reaches every row: the cache patch and RB1 touch the returning phone, SP5 the desktop board, Q1 the first click.</p>",
+        "recommend": "Keep the target. Start the next run by relaunching the lenses for new techniques, hot paths and the main thread against the GPU (1, 2 and 5), asking for ideas that move every moment, such as the shared scene chunk and the first frame, before the ledger's single-row items. Or name the rows you want the 1.2× on."
+      },
+      {
+        "title": "Bring back the year-long cache for a returning phone? Usable sooner, first click slower",
+        "body": "<p>Commit <code>98699f5</code> told the host to let browsers keep the built files under <code>/assets/</code> for a year, and made a click on the start page take down a preview that had loaded but not shown. Commit <code>312cf84</code> reverts it. It is saved as <code>bench/loop/patches/assets-cache-click-RC1.patch</code>, which applies to the head, and ledger row 0930:17.</p><p>On <code>f5615af</code> against <code>38d62be</code>, cold load, 8 pairs (<code>ab-20261016-2036-final.md</code>), a returning phone (4× slower CPU, Fast 4G):</p><ul><li>was usable after 409 ms instead of 553 ms (−27%, called better);</li><li>answered its first click after 57.7 ms instead of 40.7 ms (+39%, called worse);</li><li>showed its board after 636 ms instead of 567 ms (+9.6%, not called).</li></ul><p>Two checks come first, as correctness: a missing file must not be cached for a year as the app's HTML (AH1), and a test must cover a click that comes before the preview's code (ST1).</p>",
         "charts": [
           {
             "rows": {
@@ -18,22 +46,40 @@
             "caption": "A returning phone with the patch, f5615af against 38d62be, cold load, 8 pairs (ab-20261016-2036-final.md)."
           }
         ],
-        "recommend": "No answer yet. The next run tries RB1 on top of the patch. If RB1 wins back the click and the board, no trade is left and the patch comes back as a plain speed change. You decide only if a trade remains."
+        "recommend": "Yes, after AH1 and ST1. The page is ready 144 ms sooner, and the click, 17 ms slower, still answers in under 60 ms. The next run would land the two checks, apply the patch, and try RB1 on top (ask for the 3D code only after the page is ready) to win back the click and the board. Say no to keep it parked."
+      },
+      {
+        "title": "After a click in the move list, should the next Tab first show the ring? (1016:FT1)",
+        "body": "<p>When a player has clicked a move in the list and a new move lands, focus follows to the new move. Main does this with a plain <code>.focus()</code>, so the next Tab moves on. The parked form, <code>bench/loop/patches/move-list-quiet-focus-FT1.patch</code>, goes through <code>focusFromCode</code> like every other focus the page moves, so the next Tab only shows the ring and a second Tab moves on. This is a behaviour a player sees, so it is your call. It has waited since run 20261016-0037.</p>",
+        "figure": {
+          "html": "<table class=\"pairs\"><thead><tr><th>A player clicks a move in the list, then a new move lands</th><th>Main, and this PR</th><th>The parked patch</th></tr></thead><tbody><tr><td>Focus follows to the new move</td><td>Yes, no ring</td><td>Yes, no ring</td></tr><tr><td>The player presses Tab</td><td>Focus goes to the next control</td><td>The ring shows on the move; a second Tab goes on</td></tr><tr><td>A player who steps with the arrow keys</td><td>Ring shows</td><td>Ring shows (no change)</td></tr></tbody></table>",
+          "caption": "What a player sees in each version. MoveHistory.tsx, the focus that follows the shown move (ledger 1016:FT1)."
+        },
+        "recommend": "Keep main's behaviour, as the PR does. The extra Tab costs a keyboard player a keystroke, and after a click no ring is the browser's own choice too. Say so if you want the patch applied."
       }
     ]
   },
   "scoreboard": {
-    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. On <code>af6886b</code> against the base <code>38d62be</code>, 4 pairs (<code>ab-20261016-2036-final-af6886b.md</code>): ×1.002 over the 15 rows, none called better, one called worse. Geometries grown over 16 moves stay at 10, and textures at 0. JavaScript memory after reopening a 2,000-ply game is +0.1%. None of the 105 other measurements was called.</p><p><b>Reopening a long game</b> was called worse: 190 → 273 ms (+53%, pairs 1.40 1.35 2.13 1.35). It did not repeat in three narrower comparisons against the base: reopening alone, 6 pairs, −18%; after the start page, the setup and the computer, 4 pairs, −3.0%; after the setup, the moves and the computer, the order the full run uses, 4 pairs, +6.2%. Against main (<code>b3d7a23</code>, 6 pairs) this run's code is −7.7% on that row. A headline row in the reopen section has been called before only in full runs (ledger 1016:RG3).</p><p>Three more rows are more than 3% slower at the median pair, none called: desktop usable ×1.118 (3 of 4 pairs slower; −17% in the narrower run), desktop first click ×1.071 (2 of 4; −2.1% in the narrower run), and a picked-up piece ×1.049 (3 of 4; no code of this run runs there).</p><p>At the start of the run, <code>38d62be</code> against the last run's base <code>f294faf</code> was ×1.050 over the 15 rows, none called (<code>ab-20261016-2036-regress.md</code>). The last measurement against the first recorded run (92ce041) stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure, against a target of 1.2.</p>",
+    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. This run's target: every one 1.2× faster than the base <code>38d62be</code>.</p><p>On the head <code>a571839</code> (app code identical to <code>af6886b</code>), 8 pairs (<code>ab-20261016-2036-final-a571839.md</code>): ×0.987 over the 15 rows, none called better or worse. On <code>af6886b</code>, 4 pairs: ×1.002, one called worse (reopening a long game), which the 8-pair run does not repeat. Three narrower runs against the base did not repeat it either (reopening alone −18%; after the start page, setup and computer −3.0%; in the full run's order +6.2%), and against main this run's code is −7.7% there.</p><p>Memory on <code>a571839</code>: geometries grown over 16 moves 10 → 10; textures 0 → 0.5 at the medians, +1 in the last four pairs only (0 → 0 on <code>af6886b</code>, the same code), over the 5% flag but not called; JavaScript memory after reopening a 2,000-ply game +0.2%. None of the 105 other measurements was called.</p><p>At the start of the run, <code>38d62be</code> against the last run's base <code>f294faf</code> was ×1.050, none called (<code>ab-20261016-2036-regress.md</code>). For the long view, the last measurement against the first recorded run (92ce041) stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure.</p>",
     "items": [
       {
-        "title": "Every headline row on the final code against the base",
+        "title": "Every headline row on the final code against the base and the target",
         "charts": [
+          {
+            "rows": {
+              "change": "final: a571839 vs 38d62be (primary, 8 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "The 15 headline rows, a571839 against 38d62be, 8 pairs (ab-20261016-2036-final-a571839.md).",
+            "target": 1.2
+          },
           {
             "rows": {
               "change": "final: af6886b vs 38d62be (primary, 4 pairs)",
               "only": "PRIMARY"
             },
-            "caption": "The 15 headline rows, af6886b against 38d62be, 4 pairs (ab-20261016-2036-final-af6886b.md)."
+            "caption": "The same app code, af6886b against 38d62be, 4 pairs (ab-20261016-2036-final-af6886b.md).",
+            "target": 1.2
           }
         ]
       },
@@ -78,7 +124,7 @@
     ]
   },
   "changed": {
-    "intro": "<p>No change in the PR is for speed. Each one fixes behaviour, makes the bench serve pages as the host does, or turns a rule into a check.</p>",
+    "intro": "<p>No change in the PR is for speed. Each one fixes behaviour, makes the bench serve pages as the host does, or turns a rule into a check. Each was shown against the base's code or a deliberately broken copy: the fix's new test fails on the base's <code>computer.ts</code>; the old bench served a game's address the start page and a base without the header code no security headers (curl); the old verdict calls a count that should never be called; the old scoreboard tool accepted a head with uncommitted changes, which the new one refuses; the night-colour test fails when either side changes. The run record's \"Commits and evidence\" has each result.</p>",
     "items": [
       {
         "title": "A disposed computer no longer runs a queued search (f5b2c71)",
@@ -111,12 +157,12 @@
     ]
   },
   "choices": {
-    "intro": "<ul><li>I reverted <code>98699f5</code>, the run's only speed change, at the grade. The loop keeps a trade between two player moments out of the PR. To overrule, apply <code>patches/assets-cache-click-RC1.patch</code>.</li><li>I read the final comparison's call on reopening a long game as the bench's, because 14 pairs in three narrower comparisons did not repeat it and this run's code is faster than main there. I did not hold the PR for it.</li><li>I fixed the review's one blocker and five small items it raised. The other 11 items went to the ledger.</li><li>I merged main twice: #163 and #164 before the first checks, and #165 (the skill) before the final ones. The run follows the skill as it was at its base.</li><li>The exploratory bisect reports from the start of the run stay in <code>bench/out/</code>, which git ignores. No decision rests on them.</li></ul>"
+    "intro": "<ul><li>I reverted <code>98699f5</code>, the run's only speed change, at the grade. The loop keeps a trade between two player moments out of the PR. To overrule, apply <code>patches/assets-cache-click-RC1.patch</code>.</li><li>I did not hold the PR for the 4-pair call on reopening a long game: the same profile rerun with 8 pairs does not call it, 14 narrower pairs did not repeat it, and this run's code is faster than main there. The rows that lean are under Needs from me.</li><li>I fixed the review's one blocker and five small items it raised. The other 11 items went to the ledger.</li><li>I merged main twice: #163 and #164 before the first checks, and #165 (the skill) before the final ones. The run followed the skill as it was at its base; this report measures against the merged skill's target (1.2× faster than <code>38d62be</code>).</li><li>The exploratory bisect reports from the start of the run stay in <code>bench/out/</code>, which git ignores. No decision rests on them.</li></ul>"
   },
   "notConfirmed": {
-    "intro": "<ul><li>Why reopening a long game is called worse only in the full run (ledger 1016:RG3).</li><li>Whether the desktop board leans against itself on a cold load: no 8-pair A/A of the cold load since the CPU wait was added (ledger 1016:AA1). On the final comparison it went the other way (−11%).</li><li>A picked-up piece ×1.049 on the final comparison was not rechecked. No code of this run runs on a selection.</li><li>The cache rule on a real Cloudflare Pages deploy (AH1). It matters again only if the patch comes back.</li></ul>"
+    "intro": "<ul><li>Why reopening a long game leans slower only in the full run: called on <code>af6886b</code> (4 pairs), ×1.165 and not called on <code>a571839</code> (8 pairs) (ledger 1016:RG3).</li><li>Whether the start page's board leans against itself on a cold load: no 8-pair A/A since the CPU wait was added (ledger 1016:AA1). The desktop board was −11% on <code>af6886b</code> and ×1.105 on <code>a571839</code>, on the same code.</li><li>Textures grown over 16 moves, 0 → 0.5 on <code>a571839</code> (+1 in pairs 5–8 only, 0 on <code>af6886b</code>): not traced. Nothing in the run's diff makes a texture.</li><li>The cache rule on a real Cloudflare Pages deploy (AH1). It matters again only if the patch comes back.</li></ul>"
   },
   "next": {
-    "intro": "<ol><li>Measure first: 1016:AA1, an 8-pair cold-load A/A on the head, then the full headline profile against itself, 8 pairs, for the reopen call (1016:RG3).</li><li>1016-2036:RB1 on top of the parked cache patch, 8 pairs, returning rows. If it wins back the click and the board, bring 0930:17 back with AH1, AH2, ST1 and NV1.</li><li>1009-1606:Q1: count the first click's two modes, then SP5.</li><li>1016-1616:SWR and IV1, then 1016-0821:CG1 and the other open rows by expected value.</li></ol>"
+    "intro": "<ol><li>Measure first: the full headline profile of the head against itself, 8 pairs, for the start page's board (1016:AA1) and reopening (1016:RG3).</li><li>Relaunch lenses 1, 2 and 5 with the 1.2× target, for ideas that move every moment.</li><li>AH1 and ST1; then, if you say yes, the cache patch (0930:17) with RB1 tried on top, 8 pairs, returning rows.</li><li>1009-1606:Q1: count the first click's two modes, then SP5, SWR, IV1 and CG1.</li></ol>"
   }
 }
