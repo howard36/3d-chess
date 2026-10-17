@@ -1,0 +1,455 @@
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 1f9f3dd..7d9ebde 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -465,7 +465,7 @@ Key decisions:
+   resolution, 4:4:4, cost 12–15% more for no difference to see at the size shown, and is a
+   profile not every AVIF decoder takes). The preview opens on exactly the picture's moment (the opening position
+   from the turn's first angle) and fades in over it in 0.3 s once its first frame is
+-  drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. `landingLens.test.ts`
++  drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. A click on the way out while the preview is still coming in takes it down in the click's own task (`StartScreen`), so its build, its programs' linking and its first frame never run ahead of the next page; the picture it stands behind stays. `landingLens.test.ts`
+   recomputes the baked numbers from the fit and fails when the rings, the opening view
+   or the bands change: bake them again and re-render the pictures
+   (`scripts/landing-pictures.mjs`, through the dev-only `landing-pictures.html`). The
+@@ -1441,8 +1441,10 @@ which only holds what main deployed, so a branch's preview build points it at th
+ preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
+ `public/_headers` sets three headers on every address: other sites may not show the app in
+ a frame, browsers must not guess file types, and a link the player follows sends only the
+-site's name. Nothing there keeps a file, so a returning browser asks for each one again
+-(Pages' default). The bench's `vite preview` sends the same headers
++site's name. The build adds a rule keeping each file it wrote under `/assets/` a year (their
++names carry their hash; `keepHashedFiles` in `vite.config.ts`), one rule a file, so a name the
++deploy lacks is never kept, and `assets/404.html` makes it a 404; anything else a returning
++browser asks for again (Pages' default). The bench's `vite preview` sends the build's headers
+ (`client/bench/preview.config.ts`), so its returning visit is cached as a player's is, and
+ serves a game's address the invitation's page, as `public/_redirects` has the host do.
+ 
+diff --git a/client/bench/preview.config.test.ts b/client/bench/preview.config.test.ts
+index b40e8ad..bdb0a57 100644
+--- a/client/bench/preview.config.test.ts
++++ b/client/bench/preview.config.test.ts
+@@ -33,6 +33,7 @@ test('a _headers line the reader does not handle fails, naming the line', () =>
+ test('the preview server sends every matching rule’s headers, query aside', () => {
+   let middleware: (req: { url?: string }, res: unknown, next: () => void) => void = () => {};
+   const server = {
++    config: { root: process.cwd(), build: { outDir: 'dist' } },
+     middlewares: { use: (fn: typeof middleware) => (middleware = fn) },
+   } as unknown as PreviewServer;
+   const plugin = hostHeaders(resolve(process.cwd(), 'public/_headers'));
+diff --git a/client/bench/preview.config.ts b/client/bench/preview.config.ts
+index f190e50..435eaf8 100644
+--- a/client/bench/preview.config.ts
++++ b/client/bench/preview.config.ts
+@@ -7,7 +7,7 @@ import type { Plugin } from 'vite';
+  * The browser bench serves the build with `vite preview --config` this file,
+  * not the app's own vite.config.ts: it is part of the harness (bench/run.mjs
+  * copies client/bench over a base it compares with), so both sides of an A/B
+- * are served by the same code, each with its own `public/_headers`.
++ * are served by the same code, each with its own `_headers` as built.
+  */
+ 
+ /** One rule of the host's `_headers` file: the paths it matches and the headers it adds. */
+@@ -47,11 +47,12 @@ export function parseHeaders(text: string): HeaderRule[] {
+   return rules;
+ }
+ 
+-/** Sends each matching rule's headers, in the file's order. */
++/** Sends each matching rule's headers, in the file's order (a relative `file` is in the build). */
+ export const hostHeaders = (file: string): Plugin => ({
+   name: 'host-headers',
+   configurePreviewServer(server) {
+-    const rules = parseHeaders(readFileSync(file, 'utf8'));
++    const outDir = resolve(server.config.root, server.config.build.outDir);
++    const rules = parseHeaders(readFileSync(resolve(outDir, file), 'utf8'));
+     server.middlewares.use((req, res, next) => {
+       const path = (req.url ?? '/').split('?')[0];
+       for (const rule of rules)
+@@ -108,10 +109,9 @@ export const hostRedirects = (file: string): Plugin => ({
+   },
+ });
+ 
+-// Run from the side's client/ (the bench starts the server there)
++// Run from the side's client/ (the bench starts the server there). The
++// headers are the build's copy of public/_headers, with whatever rules the
++// build added to it (vite.config.ts, keepHashedFiles)
+ export default defineConfig({
+-  plugins: [
+-    hostHeaders(resolve(process.cwd(), 'public/_headers')),
+-    hostRedirects(resolve(process.cwd(), 'public/_redirects')),
+-  ],
++  plugins: [hostHeaders('_headers'), hostRedirects(resolve(process.cwd(), 'public/_redirects'))],
+ });
+diff --git a/client/scripts/bench-browser.mjs b/client/scripts/bench-browser.mjs
+index da4ff06..fc15f5f 100644
+--- a/client/scripts/bench-browser.mjs
++++ b/client/scripts/bench-browser.mjs
+@@ -1220,7 +1220,7 @@ async function coldSection(browser) {
+     'cold-load',
+     {
+       title: 'Cold load of the start screen',
+-      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The fourth is that phone coming back: its profile has visited the start page once before (until the live preview showed), so its cache holds what the host let it keep (\`vite preview\` sends the host’s \`public/_headers\`, through the harness’s \`bench/preview.config.ts\`; a file they say nothing about is asked for again, as Cloudflare Pages does by default). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
++      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The fourth is that phone coming back: its profile has visited the start page once before (until the live preview showed), so its cache holds what the host let it keep (\`vite preview\` sends the host’s \`_headers\` as built, through the harness’s \`bench/preview.config.ts\`; a file they say nothing about is asked for again, as Cloudflare Pages does by default). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
+       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
+       align: ['l', 'l', 'r', 'r', 'r', 'r'],
+       timeoutMs: QUICK ? 240000 : 480000,
+diff --git a/client/src/screens/StartScreen.test.tsx b/client/src/screens/StartScreen.test.tsx
+index a1a4068..91d8ec2 100644
+--- a/client/src/screens/StartScreen.test.tsx
++++ b/client/src/screens/StartScreen.test.tsx
+@@ -1,9 +1,11 @@
++import React from 'react';
+ import { act, render, screen } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
+ import { afterEach, expect, test, vi } from 'vitest';
+ import { MemoryRouter, Route, Routes } from 'react-router';
+ import StartScreen from './StartScreen';
+ import { EARLY_PICTURE_ID, earlyPicture, placeEarlyPicture } from './earlyPicture';
++import { picturePlacement } from '../three/landingLens';
+ 
+ // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
+ // can say it has faded in over the picture
+@@ -105,6 +107,17 @@ test('the page takes in the picture the built page placed early, while its layou
+   expect(box.querySelectorAll('picture')).toHaveLength(1);
+   expect(placed.isConnected).toBe(false);
+   expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/wide.webp');
++  // Back to a phone, of another size: one picture, the phone's, placed for this window
++  act(() => {
++    vi.stubGlobal('innerWidth', 360);
++    vi.stubGlobal('innerHeight', 640);
++    window.dispatchEvent(new Event('resize'));
++  });
++  expect(box.querySelectorAll('picture')).toHaveLength(1);
++  const img = box.querySelector('img')!;
++  expect(img.getAttribute('src')).toBe('/landing/phone.webp');
++  const { width } = picturePlacement(360, 640);
++  expect(parseFloat(img.style.width)).toBeCloseTo(width, 3);
+   root.remove();
+ });
+ 
+@@ -154,3 +167,81 @@ test('a keyboard player reaches the side choice with the first Tab and Enter', a
+   await userEvent.keyboard('{Enter}');
+   expect(screen.getByText('choose a side')).toBeInTheDocument();
+ });
++
++test('a click while the preview is on its way in takes it down before the next page renders', async () => {
++  reduceMotion(false);
++  let previewAtNext: boolean | undefined;
++  const Next = () => {
++    previewAtNext ??= document.querySelector('[data-testid="preview"]') !== null;
++    return <p>choose a side</p>;
++  };
++  render(
++    <MemoryRouter>
++      <Routes>
++        <Route path="/" element={<StartScreen />} />
++        <Route path="/new" element={<Next />} />
++      </Routes>
++    </MemoryRouter>,
++  );
++  await screen.findByTestId('preview');
++  await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
++  expect(screen.getByText('choose a side')).toBeInTheDocument();
++  expect(previewAtNext).toBe(false);
++});
++
++test('a preview already shown stays until the next page replaces it', async () => {
++  reduceMotion(false);
++  let previewAtNext: boolean | undefined;
++  const Next = () => {
++    previewAtNext ??= document.querySelector('[data-testid="preview"]') !== null;
++    return <p>choose a side</p>;
++  };
++  render(
++    <MemoryRouter>
++      <Routes>
++        <Route path="/" element={<StartScreen />} />
++        <Route path="/new" element={<Next />} />
++      </Routes>
++    </MemoryRouter>,
++  );
++  await screen.findByTestId('preview');
++  act(() => shownPreview!());
++  await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
++  expect(screen.getByText('choose a side')).toBeInTheDocument();
++  expect(previewAtNext).toBe(true);
++});
++
++test('a click before the preview’s code has arrived renders the page no more than it must', async () => {
++  reduceMotion(false);
++  // A fresh page whose preview chunk never arrives (the module-level record
++  // of its arrival starts again)
++  vi.resetModules();
++  vi.doMock('./LandingPreview', () => new Promise(() => {}));
++  try {
++    const { default: Start } = await import('./StartScreen');
++    const renders: string[] = [];
++    render(
++      <MemoryRouter>
++        <Routes>
++          <Route
++            path="/"
++            element={
++              <React.Profiler id="start" onRender={(_, phase) => renders.push(phase)}>
++                <Start />
++              </React.Profiler>
++            }
++          />
++          <Route path="/new" element={<p>choose a side</p>} />
++        </Routes>
++      </MemoryRouter>,
++    );
++    const before = renders.length;
++    await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
++    expect(screen.getByText('choose a side')).toBeInTheDocument();
++    // Nothing was queued: the click navigates, and the start page is not
++    // rendered again on its way out
++    expect(renders.slice(before)).toEqual([]);
++  } finally {
++    vi.doUnmock('./LandingPreview');
++  }
++});
+diff --git a/client/src/screens/StartScreen.tsx b/client/src/screens/StartScreen.tsx
+index d1956c0..571585b 100644
+--- a/client/src/screens/StartScreen.tsx
++++ b/client/src/screens/StartScreen.tsx
+@@ -1,4 +1,5 @@
+ import React from 'react';
++import { flushSync } from 'react-dom';
+ import { useNavigate } from 'react-router';
+ import { useMediaQuery } from '../hooks/useMediaQuery';
+ import { lazyChunk } from '../lib/cachedImport';
+@@ -19,8 +20,12 @@ const tileRim = glassRim((_, pointed) => pointed);
+ // (LandingPicture), and the preview fades in over the picture once it draws;
+ // should it fail to load, or the player ask for less motion, the picture is
+ // all the page shows
++let previewArrived = false;
+ const { Component: LandingPreview } = lazyChunk(() =>
+-  import('./LandingPreview').then((m) => ({ default: m.LandingPreview })),
++  import('./LandingPreview').then((m) => {
++    previewArrived = true;
++    return { default: m.LandingPreview };
++  }),
+ );
+ 
+ // The home page: the tower playing a game by itself, and the ways in. A game
+@@ -31,16 +36,28 @@ const StartScreen: React.FC = () => {
+   // Whether the player asked their system for less motion, following a change
+   const still = useMediaQuery('(prefers-reduced-motion: reduce)');
+   // The live preview: loading (the picture showing), shown over the picture
+-  // (which then goes), or failed to load (the picture stays)
+-  const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed'>('loading');
++  // (which then goes), failed to load (the picture stays), or dropped on the
++  // way out before it showed
++  const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed' | 'left'>('loading');
+   // Motion turned back on brings a new preview, which fades in over the picture again
+   const [wasStill, setWasStill] = React.useState(still);
+   if (wasStill !== still) {
+     setWasStill(still);
+     if (preview === 'shown') setPreview('loading');
+   }
+-  const live = !still && preview !== 'failed';
++  const live = !still && preview !== 'failed' && preview !== 'left';
+   const onShown = React.useCallback(() => setPreview('shown'), []);
++  // A preview whose chunk has arrived but which has not shown yet is taken
++  // down in the click's own task, before the next page renders: its build,
++  // its programs' linking and its first frame, queued ahead of the
++  // navigation, would otherwise all run before the next page shows (a
++  // returning visit, its chunk in the cache, waited ~600 ms). The picture it
++  // stands behind stays, so nothing moves. Before its chunk arrives there is
++  // nothing queued, and the click is not made to render the page again
++  const go = (to: string) => {
++    if (previewArrived && live && preview === 'loading') flushSync(() => setPreview('left'));
++    navigate(to);
++  };
+ 
+   return (
+     <main className="landing" data-testid="landing">
+@@ -65,7 +82,7 @@ const StartScreen: React.FC = () => {
+           </h1>
+         </header>
+         <div className="landing-foot">
+-          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/new')}>
++          <button ref={tileRim} className="landing-mode" onClick={() => go('/new')}>
+             <span className="landing-mode-icon" aria-hidden>
+               <span className="landing-face">
+                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+@@ -74,7 +91,7 @@ const StartScreen: React.FC = () => {
+             </span>
+             <span className="landing-label">Play a friend</span>
+           </button>
+-          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/computer')}>
++          <button ref={tileRim} className="landing-mode" onClick={() => go('/computer')}>
+             <span className="landing-mode-icon landing-mode-icon-wide" aria-hidden>
+               <span className="landing-face">
+                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+@@ -87,7 +104,7 @@ const StartScreen: React.FC = () => {
+         </div>
+         <button
+           className="button-secondary landing-learn"
+-          onClick={() => navigate('/learn')}
++          onClick={() => go('/learn')}
+           // The tutorial's page is a chunk of its own: asked for on the way to the button
+           onPointerEnter={learnScreen.preload}
+           onFocus={learnScreen.preload}
+diff --git a/client/vite.config.test.ts b/client/vite.config.test.ts
+index 5101db8..45964be 100644
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -1,9 +1,16 @@
+-import { readFileSync } from 'node:fs';
+-import { resolve } from 'node:path';
++import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join, resolve } from 'node:path';
+ import type { UserConfig } from 'vite';
+ import { expect, test, vi } from 'vitest';
+ import { picturePlacement } from './src/three/landingLens';
+-import config, { placeLandingPictureEarly, preloadLandingPictureOnStartPage } from './vite.config';
++import { parseHeaders } from './bench/preview.config';
++import config, {
++  KEEP_A_YEAR,
++  keepHashedFiles,
++  placeLandingPictureEarly,
++  preloadLandingPictureOnStartPage,
++} from './vite.config';
+ 
+ test('the built page preloads its picture after the viewport tag, where a phone knows its width', async () => {
+   const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+@@ -63,6 +70,71 @@ test('the build runs the start page’s scripts', () => {
+   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
+   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
+   expect(names).toEqual(
+-    expect.arrayContaining(['preload-landing-picture', 'place-landing-picture-early']),
++    expect.arrayContaining([
++      'preload-landing-picture',
++      'place-landing-picture-early',
++      'keep-hashed-files',
++    ]),
+   );
+ });
++
++/** Runs keepHashedFiles' build step on a build of these files, in a folder of its own. */
++const keepFiles = (names: string[]) => {
++  const dir = mkdtempSync(join(tmpdir(), 'build-'));
++  mkdirSync(join(dir, 'assets'));
++  writeFileSync(join(dir, '_headers'), readFileSync(resolve(process.cwd(), 'public/_headers')));
++  const plugin = keepHashedFiles();
++  (plugin.configResolved as (c: unknown) => void)({ root: dir, build: { outDir: '.' } });
++  const context = {
++    error: (message: string) => {
++      throw new Error(message);
++    },
++  };
++  try {
++    (plugin.writeBundle as (this: unknown, o: unknown, b: unknown) => void).call(
++      context,
++      {},
++      Object.fromEntries(names.map((name) => [name, {}])),
++    );
++    return {
++      rules: parseHeaders(readFileSync(join(dir, '_headers'), 'utf8')),
++      notFound: existsSync(join(dir, 'assets/404.html')),
++    };
++  } finally {
++    rmSync(dir, { recursive: true });
++  }
++};
++
++test('the host keeps a year each file the build wrote under assets/, and nothing else', () => {
++  const { rules, notFound } = keepFiles([
++    'index.html',
++    'assets/index-B2x9_kQe.js',
++    'assets/manrope-latin-600-normal-4f0koTD-.woff2',
++  ]);
++  const cache = (path: string) =>
++    rules
++      .filter((r) => r.path.test(path))
++      .flatMap((r) => r.headers)
++      .find(([name]) => name === 'Cache-Control')?.[1];
++  expect(cache('/assets/index-B2x9_kQe.js')).toBe(KEEP_A_YEAR);
++  expect(cache('/assets/manrope-latin-600-normal-4f0koTD-.woff2')).toBe(KEEP_A_YEAR);
++  // A name this deploy lacks (an old page's chunk) is never kept: the host
++  // answers it from assets/404.html, not with the start page
++  for (const path of ['/assets/index-ZZZZZZZZ.js', '/assets/404.html', '/', '/index.html'])
++    expect(cache(path)).toBeUndefined();
++  for (const path of ['/game/abc', '/landing/phone.avif', '/og.jpg'])
++    expect(cache(path)).toBeUndefined();
++  expect(notFound).toBe(true);
++  // Every file keeps the host's other headers
++  expect(rules.filter((r) => r.path.test('/assets/index-B2x9_kQe.js')).length).toBe(2);
++});
++
++test('the build fails on a file under assets/ with no hash in its name', () => {
++  expect(() => keepFiles(['assets/logo.svg'])).toThrow(/no hash in assets\/logo.svg/);
++  expect(() => keepFiles(['assets/a-B2x9_kQe.js', 'assets/b.js'])).toThrow(/assets\/b.js/);
++});
++
++test('the build fails past the host’s 100 rules', () => {
++  const many = Array.from({ length: 100 }, (_, i) => `assets/c${i}-B2x9_kQe.js`);
++  expect(() => keepFiles(many)).toThrow(/101 rules/);
++});
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index 65f9a12..fd480eb 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -1,3 +1,4 @@
++import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+ import { resolve } from 'node:path';
+ import { gzipSync } from 'node:zlib';
+ import { build, defineConfig, minify } from 'vite';
+@@ -322,6 +323,47 @@ const socialImageOnPreviews = (): Plugin => ({
+   },
+ });
+ 
++/**
++ * Pages keeps nothing by default: a returning browser asks again for every
++ * file. The files the build writes under assets/ carry a hash of their
++ * contents in their names, so the build adds a rule to the host's `_headers`
++ * for each of them, keeping it a year. One rule a file, never `/assets/*`: a
++ * name this deploy does not have (an old page's chunk after a deploy) matches
++ * no rule, so whatever the host answers for it is never kept, and
++ * assets/404.html makes that answer a 404 (Pages serves the nearest 404.html)
++ * rather than the start page. The build fails on a file there whose name has
++ * no hash, and past Pages' 100 rules.
++ */
++export const HASHED_NAME = /^assets\/[\w.-]+-[\w-]{8}\.\w+$/;
++export const KEEP_A_YEAR = 'public, max-age=31536000, immutable';
++export const keepHashedFiles = (): Plugin => {
++  let outDir = 'dist';
++  return {
++    name: 'keep-hashed-files',
++    apply: 'build',
++    configResolved(config) {
++      outDir = resolve(config.root, config.build.outDir);
++    },
++    writeBundle(_options, bundle) {
++      const names = Object.keys(bundle).filter((name) => name.startsWith('assets/'));
++      const unhashed = names.filter((name) => !HASHED_NAME.test(name));
++      if (unhashed.length) this.error(`keep-hashed-files: no hash in ${unhashed.join(', ')}`);
++      const headers = resolve(outDir, '_headers');
++      const rules = names.map((name) => `/${name}\n  Cache-Control: ${KEEP_A_YEAR}\n`);
++      appendFileSync(
++        headers,
++        `\n# The built files, named by their hash (vite.config.ts, keepHashedFiles)\n${rules.join('')}`,
++      );
++      const count = readFileSync(headers, 'utf8').match(/^\//gm)?.length ?? 0;
++      if (count > 100) this.error(`keep-hashed-files: ${count} rules in _headers, past Pages' 100`);
++      writeFileSync(
++        resolve(outDir, 'assets/404.html'),
++        '<!doctype html><title>Not found</title>\n',
++      );
++    },
++  };
++};
++
+ // https://vite.dev/config/
+ export default defineConfig({
+   plugins: [
+@@ -334,6 +376,7 @@ export default defineConfig({
+     keepSceneOutOfEntry(),
+     invitePage(),
+     socialImageOnPreviews(),
++    keepHashedFiles(),
+   ],
+   resolve: {
+     // r3f pins a scheduler of its own (0.28) beside react-dom's (0.27, the
