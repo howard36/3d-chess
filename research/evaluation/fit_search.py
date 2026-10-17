@@ -7,7 +7,7 @@ search along it; a light pull towards the starting numbers; the held-out positio
 say whether the fit generalises.
 
 usage: fit_search.py train.lab test.lab start.txt out.txt [--ext] [--lam L] [--iters N]"""
-import sys, subprocess, argparse, time
+import sys, os, subprocess, argparse, time
 import numpy as np
 from evalnums import FIXED, C, order_values
 
@@ -15,7 +15,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument('train'); ap.add_argument('test'); ap.add_argument('start'); ap.add_argument('out')
 ap.add_argument('--ext', action='store_true'); ap.add_argument('--lam', type=float, default=1e-4)
 ap.add_argument('--iters', type=int, default=40); ap.add_argument('--procs', type=int, default=4)
-ap.add_argument('--engine', default='./engine9')
+ap.add_argument('--engine', default='./engine11')
+ap.add_argument('--K', type=float, default=1.0, help='the evaluation\'s scale against the labels (game results: fit it first)')
 a = ap.parse_args()
 
 nums = open(a.start).read().split()
@@ -40,8 +41,9 @@ def split(path, k):
 class Loss:
     def __init__(self, path, k):
         parts, self.n = split(path, k)
+        env = dict(os.environ, LOSS_K=str(a.K))
         self.ps = [subprocess.Popen([a.engine, 'loss', p], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                    text=True, bufsize=1) for p in parts]
+                                    text=True, bufsize=1, env=env) for p in parts]
     def __call__(self, xs):
         """Mean loss for each of several number vectors, the work shared between the processes."""
         lines = []

@@ -35,3 +35,17 @@ for s in a.score: specs[s] = open(s).read().strip()
 tr = losses('fitk_train.lab', list(specs.values()), K); te = losses('fitk_test.lab', list(specs.values()), K)
 for (name, _), l1, l2 in zip(specs.items(), tr, te):
     print(f'  {name:>24}: training {l1:.5f}, held out {l2:.5f}', flush=True)
+# Paired comparison on the held-out positions: twenty chunks, each evaluation's loss less the
+# game's, the mean and its standard error
+test_lines = lines[:cut]
+chunks = [test_lines[i::20] for i in range(20)]
+diffs = {name: [] for name in specs}
+for i, ch in enumerate(chunks):
+    open(f'fitk_chunk{i}.lab', 'w').writelines(ch)
+    ls = losses(f'fitk_chunk{i}.lab', list(specs.values()), K)
+    for name, l in zip(specs, ls): diffs[name].append(l - ls[0])
+print('held out, against the game\'s evaluation (squared error x 1000, paired by chunk):', flush=True)
+for name, d in diffs.items():
+    if name == 'game': continue
+    d = np.array(d) * 1000
+    print(f'  {name:>24}: {d.mean():+.3f} ± {d.std(ddof=1) / np.sqrt(len(d)):.3f}', flush=True)
