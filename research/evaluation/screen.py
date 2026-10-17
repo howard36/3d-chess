@@ -17,5 +17,6 @@ res, _ = run_jobs(jobs, workers=a.workers, out_path=f'{a.tag}.raw', progress=Fal
 sc = [r['result'] if i % 2 == 0 else 1 - r['result'] for i, r in res.items()]
 m, se = score_stats(sc)
 elo = -400 * math.log10(1 / m - 1) if 0 < m < 1 else float('nan')
-print(f'{a.new} vs {a.old} at {a.nodes} nodes' + (f' (the candidate {nn})' if nn != a.nodes else '') + ': {m:.3f} ± {se:.3f} ({elo:+.0f} Elo) over {len(sc)} games',
+budget = f' (the candidate {nn})' if nn != a.nodes else ''
+print(f'{a.new} vs {a.old} at {a.nodes} nodes{budget}: {m:.3f} ± {se:.3f} ({elo:+.0f} Elo) over {len(sc)} games',
       dict(collections.Counter(r['reason'] for r in res.values())), flush=True)
