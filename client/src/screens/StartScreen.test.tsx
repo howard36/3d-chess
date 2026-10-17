@@ -245,3 +245,63 @@ test('a click before the preview’s code has arrived renders the page no more t
     vi.doUnmock('./LandingPreview');
   }
 });
+
+test('a returning visit asks for the preview once the connection has opened and the page is idle', async () => {
+  reduceMotion(false);
+  vi.resetModules();
+  vi.doMock('./LandingPreview', () => ({
+    LandingPreview: () => <div data-testid="preview" />,
+  }));
+  // The page's code came from the cache, and the early connection is opening
+  vi.spyOn(performance, 'getEntriesByName').mockReturnValue([
+    { transferSize: 0, decodedBodySize: 5000 } as PerformanceResourceTiming,
+  ]);
+  const socket = Object.assign(new EventTarget(), { readyState: WebSocket.CONNECTING });
+  vi.stubGlobal('__earlySocket', { socket, received: [], sent: null });
+  const idle: (() => void)[] = [];
+  vi.stubGlobal('requestIdleCallback', (fn: () => void) => idle.push(fn));
+  vi.stubGlobal('cancelIdleCallback', () => {});
+  try {
+    const { default: Start } = await import('./StartScreen');
+    render(
+      <MemoryRouter>
+        <Start />
+      </MemoryRouter>,
+    );
+    // The picture alone, the buttons in place, until then
+    expect(screen.getByRole('button', { name: 'Play a friend' })).toBeEnabled();
+    expect(idle).toHaveLength(0);
+    socket.dispatchEvent(new Event('open'));
+    expect(idle).toHaveLength(1);
+    expect(screen.queryByTestId('preview')).toBeNull();
+    act(() => idle[0]());
+    expect(await screen.findByTestId('preview')).toBeInTheDocument();
+  } finally {
+    vi.doUnmock('./LandingPreview');
+  }
+});
+
+test('a first visit asks for the preview in its first render', async () => {
+  reduceMotion(false);
+  vi.resetModules();
+  vi.doMock('./LandingPreview', () => ({
+    LandingPreview: () => <div data-testid="preview" />,
+  }));
+  vi.spyOn(performance, 'getEntriesByName').mockReturnValue([
+    { transferSize: 41000, decodedBodySize: 120000 } as PerformanceResourceTiming,
+  ]);
+  const idle = vi.fn();
+  vi.stubGlobal('requestIdleCallback', idle);
+  try {
+    const { default: Start } = await import('./StartScreen');
+    render(
+      <MemoryRouter>
+        <Start />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByTestId('preview')).toBeInTheDocument();
+    expect(idle).not.toHaveBeenCalled();
+  } finally {
+    vi.doUnmock('./LandingPreview');
+  }
+});
