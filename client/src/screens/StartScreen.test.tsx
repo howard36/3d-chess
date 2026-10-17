@@ -4,7 +4,6 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import StartScreen from './StartScreen';
 import { EARLY_PICTURE_ID, earlyPicture, placeEarlyPicture } from './earlyPicture';
-import { picturePlacement } from '../three/landingLens';
 
 // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
 // can say it has faded in over the picture
@@ -106,17 +105,6 @@ test('the page takes in the picture the built page placed early, while its layou
   expect(box.querySelectorAll('picture')).toHaveLength(1);
   expect(placed.isConnected).toBe(false);
   expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/wide.webp');
-  // Back to a phone, of another size: one picture, the phone's, placed for this window
-  act(() => {
-    vi.stubGlobal('innerWidth', 360);
-    vi.stubGlobal('innerHeight', 640);
-    window.dispatchEvent(new Event('resize'));
-  });
-  expect(box.querySelectorAll('picture')).toHaveLength(1);
-  const img = box.querySelector('img')!;
-  expect(img.getAttribute('src')).toBe('/landing/phone.webp');
-  const { width } = picturePlacement(360, 640);
-  expect(parseFloat(img.style.width)).toBeCloseTo(width, 3);
   root.remove();
 });
 
@@ -165,47 +153,4 @@ test('a keyboard player reaches the side choice with the first Tab and Enter', a
   await userEvent.tab();
   await userEvent.keyboard('{Enter}');
   expect(screen.getByText('choose a side')).toBeInTheDocument();
-});
-
-test('a click while the preview is on its way in takes it down before the next page renders', async () => {
-  reduceMotion(false);
-  let previewAtNext: boolean | undefined;
-  const Next = () => {
-    previewAtNext ??= document.querySelector('[data-testid="preview"]') !== null;
-    return <p>choose a side</p>;
-  };
-  render(
-    <MemoryRouter>
-      <Routes>
-        <Route path="/" element={<StartScreen />} />
-        <Route path="/new" element={<Next />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-  await screen.findByTestId('preview');
-  await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
-  expect(screen.getByText('choose a side')).toBeInTheDocument();
-  expect(previewAtNext).toBe(false);
-});
-
-test('a preview already shown stays until the next page replaces it', async () => {
-  reduceMotion(false);
-  let previewAtNext: boolean | undefined;
-  const Next = () => {
-    previewAtNext ??= document.querySelector('[data-testid="preview"]') !== null;
-    return <p>choose a side</p>;
-  };
-  render(
-    <MemoryRouter>
-      <Routes>
-        <Route path="/" element={<StartScreen />} />
-        <Route path="/new" element={<Next />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-  await screen.findByTestId('preview');
-  act(() => shownPreview!());
-  await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
-  expect(screen.getByText('choose a side')).toBeInTheDocument();
-  expect(previewAtNext).toBe(true);
 });

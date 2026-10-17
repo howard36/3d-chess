@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { PreviewServer } from 'vite';
@@ -49,20 +49,6 @@ test('the preview server sends every matching rule’s headers, query aside', ()
   // The bench starts `vite preview --config` this file: it must carry the plugin
   const plugins = (config as { plugins: { name: string }[] }).plugins.map((p) => p.name);
   expect(plugins).toEqual(['host-headers', 'host-redirects']);
-});
-
-test('the host keeps the built files a year, and only those, whose names carry their hash', () => {
-  const rules = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8'));
-  const cache = (path: string) =>
-    rules
-      .filter((r) => r.path.test(path))
-      .flatMap((r) => r.headers)
-      .find(([name]) => name === 'Cache-Control')?.[1];
-  expect(cache('/assets/index-B2x9_kQe.js')).toBe('public, max-age=31536000, immutable');
-  for (const path of ['/', '/index.html', '/game/abc', '/landing/phone.avif', '/og.jpg'])
-    expect(cache(path)).toBeUndefined();
-  // Nothing from public/ lands among them under a name without a hash
-  expect(existsSync(resolve(process.cwd(), 'public/assets'))).toBe(false);
 });
 
 test('the bench serves a game’s address the invitation’s page, as the host does (public/_redirects)', () => {

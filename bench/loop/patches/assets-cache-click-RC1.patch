@@ -1,0 +1,225 @@
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 1a47440..3227721 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -459,7 +459,7 @@ Key decisions:
+   resolution, 4:4:4, cost 12–15% more for no difference to see at the size shown, and is a
+   profile not every AVIF decoder takes). The preview opens on exactly the picture's moment (the opening position
+   from the turn's first angle) and fades in over it in 0.3 s once its first frame is
+-  drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. `landingLens.test.ts`
++  drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. A click on the way out while the preview is still coming in takes it down in the click's own task (`StartScreen`), so its build, its programs' linking and its first frame never run ahead of the next page; the picture it stands behind stays. `landingLens.test.ts`
+   recomputes the baked numbers from the fit and fails when the rings, the opening view
+   or the bands change: bake them again and re-render the pictures
+   (`scripts/landing-pictures.mjs`, through the dev-only `landing-pictures.html`). The
+@@ -1435,8 +1435,8 @@ which only holds what main deployed, so a branch's preview build points it at th
+ preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
+ `public/_headers` sets three headers on every address: other sites may not show the app in
+ a frame, browsers must not guess file types, and a link the player follows sends only the
+-site's name. Nothing there keeps a file, so a returning browser asks for each one again
+-(Pages' default). The bench's `vite preview` sends the same headers
++site's name. The built files under `/assets/`, whose names carry their hash, are kept a
++year; anything else a returning browser asks for again (Pages' default). The bench's `vite preview` sends the same headers
+ (`client/bench/preview.config.ts`), so its returning visit is cached as a player's is.
+ 
+ Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
+diff --git a/client/bench/preview.config.test.ts b/client/bench/preview.config.test.ts
+index d6c6454..52e1e22 100644
+--- a/client/bench/preview.config.test.ts
++++ b/client/bench/preview.config.test.ts
+@@ -1,4 +1,4 @@
+-import { readFileSync } from 'node:fs';
++import { existsSync, readFileSync } from 'node:fs';
+ import { resolve } from 'node:path';
+ import type { PreviewServer } from 'vite';
+ import { expect, test, vi } from 'vitest';
+@@ -49,3 +49,17 @@ test('the preview server sends every matching rule’s headers, query aside', ()
+   const plugins = (config as { plugins: { name: string }[] }).plugins.map((p) => p.name);
+   expect(plugins).toEqual(['host-headers']);
+ });
++
++test('the host keeps the built files a year, and only those, whose names carry their hash', () => {
++  const rules = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8'));
++  const cache = (path: string) =>
++    rules
++      .filter((r) => r.path.test(path))
++      .flatMap((r) => r.headers)
++      .find(([name]) => name === 'Cache-Control')?.[1];
++  expect(cache('/assets/index-B2x9_kQe.js')).toBe('public, max-age=31536000, immutable');
++  for (const path of ['/', '/index.html', '/game/abc', '/landing/phone.avif', '/og.jpg'])
++    expect(cache(path)).toBeUndefined();
++  // Nothing from public/ lands among them under a name without a hash
++  expect(existsSync(resolve(process.cwd(), 'public/assets'))).toBe(false);
++});
+diff --git a/client/public/_headers b/client/public/_headers
+index 24cc9da..ec2f957 100644
+--- a/client/public/_headers
++++ b/client/public/_headers
+@@ -7,3 +7,8 @@
+   Content-Security-Policy: frame-ancestors 'none'
+   X-Content-Type-Options: nosniff
+   Referrer-Policy: strict-origin-when-cross-origin
++
++# Built files whose names carry a hash of their contents (Vite's assets/):
++# a returning player's browser uses its copy without asking again
++/assets/*
++  Cache-Control: public, max-age=31536000, immutable
+diff --git a/client/src/screens/StartScreen.test.tsx b/client/src/screens/StartScreen.test.tsx
+index a1a4068..12fd284 100644
+--- a/client/src/screens/StartScreen.test.tsx
++++ b/client/src/screens/StartScreen.test.tsx
+@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest';
+ import { MemoryRouter, Route, Routes } from 'react-router';
+ import StartScreen from './StartScreen';
+ import { EARLY_PICTURE_ID, earlyPicture, placeEarlyPicture } from './earlyPicture';
++import { picturePlacement } from '../three/landingLens';
+ 
+ // The preview is a WebGL canvas, which jsdom can't provide: a stand-in that
+ // can say it has faded in over the picture
+@@ -105,6 +106,17 @@ test('the page takes in the picture the built page placed early, while its layou
+   expect(box.querySelectorAll('picture')).toHaveLength(1);
+   expect(placed.isConnected).toBe(false);
+   expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/wide.webp');
++  // Back to a phone, of another size: one picture, the phone's, placed for this window
++  act(() => {
++    vi.stubGlobal('innerWidth', 360);
++    vi.stubGlobal('innerHeight', 640);
++    window.dispatchEvent(new Event('resize'));
++  });
++  expect(box.querySelectorAll('picture')).toHaveLength(1);
++  const img = box.querySelector('img')!;
++  expect(img.getAttribute('src')).toBe('/landing/phone.webp');
++  const { width } = picturePlacement(360, 640);
++  expect(parseFloat(img.style.width)).toBeCloseTo(width, 3);
+   root.remove();
+ });
+ 
+@@ -154,3 +166,46 @@ test('a keyboard player reaches the side choice with the first Tab and Enter', a
+   await userEvent.keyboard('{Enter}');
+   expect(screen.getByText('choose a side')).toBeInTheDocument();
+ });
++
++test('a click while the preview is on its way in takes it down before the next page renders', async () => {
++  reduceMotion(false);
++  let previewAtNext: boolean | undefined;
++  const Next = () => {
++    previewAtNext ??= document.querySelector('[data-testid="preview"]') !== null;
++    return <p>choose a side</p>;
++  };
++  render(
++    <MemoryRouter>
++      <Routes>
++        <Route path="/" element={<StartScreen />} />
++        <Route path="/new" element={<Next />} />
++      </Routes>
++    </MemoryRouter>,
++  );
++  await screen.findByTestId('preview');
++  await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
++  expect(screen.getByText('choose a side')).toBeInTheDocument();
++  expect(previewAtNext).toBe(false);
++});
++
++test('a preview already shown stays until the next page replaces it', async () => {
++  reduceMotion(false);
++  let previewAtNext: boolean | undefined;
++  const Next = () => {
++    previewAtNext ??= document.querySelector('[data-testid="preview"]') !== null;
++    return <p>choose a side</p>;
++  };
++  render(
++    <MemoryRouter>
++      <Routes>
++        <Route path="/" element={<StartScreen />} />
++        <Route path="/new" element={<Next />} />
++      </Routes>
++    </MemoryRouter>,
++  );
++  await screen.findByTestId('preview');
++  act(() => shownPreview!());
++  await userEvent.click(screen.getByRole('button', { name: 'Play a friend' }));
++  expect(screen.getByText('choose a side')).toBeInTheDocument();
++  expect(previewAtNext).toBe(true);
++});
+diff --git a/client/src/screens/StartScreen.tsx b/client/src/screens/StartScreen.tsx
+index d1956c0..571585b 100644
+--- a/client/src/screens/StartScreen.tsx
++++ b/client/src/screens/StartScreen.tsx
+@@ -1,4 +1,5 @@
+ import React from 'react';
++import { flushSync } from 'react-dom';
+ import { useNavigate } from 'react-router';
+ import { useMediaQuery } from '../hooks/useMediaQuery';
+ import { lazyChunk } from '../lib/cachedImport';
+@@ -19,8 +20,12 @@ const tileRim = glassRim((_, pointed) => pointed);
+ // (LandingPicture), and the preview fades in over the picture once it draws;
+ // should it fail to load, or the player ask for less motion, the picture is
+ // all the page shows
++let previewArrived = false;
+ const { Component: LandingPreview } = lazyChunk(() =>
+-  import('./LandingPreview').then((m) => ({ default: m.LandingPreview })),
++  import('./LandingPreview').then((m) => {
++    previewArrived = true;
++    return { default: m.LandingPreview };
++  }),
+ );
+ 
+ // The home page: the tower playing a game by itself, and the ways in. A game
+@@ -31,16 +36,28 @@ const StartScreen: React.FC = () => {
+   // Whether the player asked their system for less motion, following a change
+   const still = useMediaQuery('(prefers-reduced-motion: reduce)');
+   // The live preview: loading (the picture showing), shown over the picture
+-  // (which then goes), or failed to load (the picture stays)
+-  const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed'>('loading');
++  // (which then goes), failed to load (the picture stays), or dropped on the
++  // way out before it showed
++  const [preview, setPreview] = React.useState<'loading' | 'shown' | 'failed' | 'left'>('loading');
+   // Motion turned back on brings a new preview, which fades in over the picture again
+   const [wasStill, setWasStill] = React.useState(still);
+   if (wasStill !== still) {
+     setWasStill(still);
+     if (preview === 'shown') setPreview('loading');
+   }
+-  const live = !still && preview !== 'failed';
++  const live = !still && preview !== 'failed' && preview !== 'left';
+   const onShown = React.useCallback(() => setPreview('shown'), []);
++  // A preview whose chunk has arrived but which has not shown yet is taken
++  // down in the click's own task, before the next page renders: its build,
++  // its programs' linking and its first frame, queued ahead of the
++  // navigation, would otherwise all run before the next page shows (a
++  // returning visit, its chunk in the cache, waited ~600 ms). The picture it
++  // stands behind stays, so nothing moves. Before its chunk arrives there is
++  // nothing queued, and the click is not made to render the page again
++  const go = (to: string) => {
++    if (previewArrived && live && preview === 'loading') flushSync(() => setPreview('left'));
++    navigate(to);
++  };
+ 
+   return (
+     <main className="landing" data-testid="landing">
+@@ -65,7 +82,7 @@ const StartScreen: React.FC = () => {
+           </h1>
+         </header>
+         <div className="landing-foot">
+-          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/new')}>
++          <button ref={tileRim} className="landing-mode" onClick={() => go('/new')}>
+             <span className="landing-mode-icon" aria-hidden>
+               <span className="landing-face">
+                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+@@ -74,7 +91,7 @@ const StartScreen: React.FC = () => {
+             </span>
+             <span className="landing-label">Play a friend</span>
+           </button>
+-          <button ref={tileRim} className="landing-mode" onClick={() => navigate('/computer')}>
++          <button ref={tileRim} className="landing-mode" onClick={() => go('/computer')}>
+             <span className="landing-mode-icon landing-mode-icon-wide" aria-hidden>
+               <span className="landing-face">
+                 <PieceGlyph type={PieceType.Knight} color="white" size={24} />
+@@ -87,7 +104,7 @@ const StartScreen: React.FC = () => {
+         </div>
+         <button
+           className="button-secondary landing-learn"
+-          onClick={() => navigate('/learn')}
++          onClick={() => go('/learn')}
+           // The tutorial's page is a chunk of its own: asked for on the way to the button
+           onPointerEnter={learnScreen.preload}
+           onFocus={learnScreen.preload}

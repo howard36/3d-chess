@@ -465,7 +465,7 @@ Key decisions:
   resolution, 4:4:4, cost 12–15% more for no difference to see at the size shown, and is a
   profile not every AVIF decoder takes). The preview opens on exactly the picture's moment (the opening position
   from the turn's first angle) and fades in over it in 0.3 s once its first frame is
-  drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. A click on the way out while the preview is still coming in takes it down in the click's own task (`StartScreen`), so its build, its programs' linking and its first frame never run ahead of the next page; the picture it stands behind stays. `landingLens.test.ts`
+  drawn, nothing moving until it has, and the picture goes. The preview builds its scene (the garden and the board, the most work the page does) in a transition after its canvas is made (`Yielding` in `LandingPreview.tsx`), and links the scene's programs once it is in: React yields to input while it renders, so a click in the first second is answered at once instead of waiting on the build. `landingLens.test.ts`
   recomputes the baked numbers from the fit and fails when the rings, the opening view
   or the bands change: bake them again and re-render the pictures
   (`scripts/landing-pictures.mjs`, through the dev-only `landing-pictures.html`). The
@@ -1441,8 +1441,8 @@ which only holds what main deployed, so a branch's preview build points it at th
 preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 `public/_headers` sets three headers on every address: other sites may not show the app in
 a frame, browsers must not guess file types, and a link the player follows sends only the
-site's name. The built files under `/assets/`, whose names carry their hash, are kept a
-year; anything else a returning browser asks for again (Pages' default). The bench's `vite preview` sends the same headers
+site's name. Nothing there keeps a file, so a returning browser asks for each one again
+(Pages' default). The bench's `vite preview` sends the same headers
 (`client/bench/preview.config.ts`), so its returning visit is cached as a player's is, and
 serves a game's address the invitation's page, as `public/_redirects` has the host do.
 
