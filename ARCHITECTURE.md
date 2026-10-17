@@ -1442,8 +1442,9 @@ preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 `public/_headers` sets three headers on every address: other sites may not show the app in
 a frame, browsers must not guess file types, and a link the player follows sends only the
 site's name. Nothing there keeps a file, so a returning browser asks for each one again
-(Pages' default). `vite preview` sends the same headers (`hostHeaders`), so the bench's
-returning visit is cached as a player's is.
+(Pages' default). The bench's `vite preview` sends the same headers
+(`client/bench/preview.config.ts`), so its returning visit is cached as a player's is, and
+serves a game's address the invitation's page, as `public/_redirects` has the host do.
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs: minor and patch updates grouped, one
 per ecosystem (client npm, server uv, GitHub Actions, the actions pinned to commit SHAs),
@@ -1452,7 +1453,8 @@ update can move the piece set's golden hashes (`golden.test.ts`; `npm run bake:p
 the shapes change), and `datamodel-code-generator`, pinned exactly, whose update may need
 `messages.py` regenerated. `@types/node` majors are ignored: they move with `.nvmrc`.
 
-The client's entry (about 90 KB gzip) holds the start screen, the side choice and the game
+The client's entry (with its CSS, kept under `ENTRY_GZIP_BUDGET` gzipped in `vite.config.ts`:
+the build fails above it, raised only on purpose) holds the start screen, the side choice and the game
 screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
 lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and

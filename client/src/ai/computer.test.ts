@@ -2,7 +2,34 @@ import { SHORT_GAME } from '../game/shortGame';
 import { createComputer } from './computer';
 import type { ThinkReply, ThinkRequest } from './computer';
 
+// The page's own searches, timed (and made to fail once on request), each
+// still the real one
+const searches = vi.hoisted(() => ({ runs: [] as { start: number; end: number }[], fail: false }));
+vi.mock('./choose', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./choose')>();
+  return {
+    ...real,
+    chooseMove: (...args: Parameters<typeof real.chooseMove>) => {
+      const start = performance.now();
+      if (searches.fail) {
+        searches.fail = false;
+        throw new Error('search failed');
+      }
+      try {
+        return real.chooseMove(...args);
+      } finally {
+        searches.runs.push({ start, end: performance.now() });
+      }
+    },
+  };
+});
+
 afterEach(() => vi.unstubAllGlobals());
+// A search that never reached the mock leaves no flag for the next test
+beforeEach(() => {
+  searches.runs.length = 0;
+  searches.fail = false;
+});
 
 /** A stand-in Worker: answers each request with a fixed move, or fails to load. */
 class FakeWorker {
@@ -124,19 +151,38 @@ it('runs every computer’s searches on the page one at a time, a frame between 
   FakeWorker.mode = 'fail-load';
   vi.stubGlobal('Worker', FakeWorker);
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  searches.runs = [];
   // A review's computers, each asked while its worker fails
-  const answered: number[] = [];
-  await Promise.all(
-    [0, 1, 2].map(() =>
-      createComputer()
-        .think([], 'easy')
-        .then(() => answered.push(performance.now())),
-    ),
-  );
+  const moves = await Promise.all([0, 1, 2].map(() => createComputer().think([], 'easy')));
   warn.mockRestore();
-  expect(answered).toHaveLength(3);
-  // Each waits for the page to draw after the one before
-  for (let i = 1; i < 3; i++) expect(answered[i] - answered[i - 1]).toBeGreaterThanOrEqual(25);
+  expect(moves.every((m) => m?.move)).toBe(true);
+  expect(searches.runs).toHaveLength(3);
+  // Each starts a wait for the page to draw after the one before has ended
+  for (let i = 1; i < 3; i++)
+    expect(searches.runs[i].start - searches.runs[i - 1].end).toBeGreaterThanOrEqual(25);
+});
+
+it('a search left waiting by a computer since disposed never runs; the next one does', async () => {
+  vi.stubGlobal('Worker', undefined);
+  searches.runs = [];
+  const left = createComputer();
+  const answered = vi.fn();
+  left.think([], 'easy').then(answered);
+  left.dispose();
+  const live = createComputer();
+  expect((await live.think([], 'easy'))?.move).toBeTruthy();
+  expect(searches.runs).toHaveLength(1);
+  expect(answered).not.toHaveBeenCalled();
+});
+
+it('a search that fails rejects its own question, and the queue goes on', async () => {
+  vi.stubGlobal('Worker', undefined);
+  searches.fail = true;
+  const computer = createComputer();
+  const failed = computer.think([], 'easy');
+  const next = computer.think([], 'easy');
+  await expect(failed).rejects.toThrow('search failed');
+  expect((await next)?.move).toBeTruthy();
 });
 
 it('never answers once disposed', async () => {

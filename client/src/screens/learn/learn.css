@@ -15,7 +15,7 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: #010205;
+  background: var(--night);
   color: var(--hud-fg);
   font-family: var(--hud-font);
   letter-spacing: var(--hud-tracking);

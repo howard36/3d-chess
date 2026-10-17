@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { build, defineConfig, minify } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -68,55 +68,6 @@ export const placeLandingPictureEarly = (): Plugin => ({
     if (!html.includes(root))
       throw new Error('place-landing-picture-early: no #root in index.html');
     return html.replace(root, `${root}\n    <script>${code.trim()}</script>`);
-  },
-});
-
-/** One rule of the host's `_headers` file: the paths it matches and the headers it adds. */
-interface HeaderRule {
-  path: RegExp;
-  headers: [string, string][];
-}
-
-/**
- * Cloudflare Pages' `_headers` format: a path (`*` matches anything) on a
- * line of its own, then its headers indented under it, `#` for a comment.
- */
-export function parseHeaders(text: string): HeaderRule[] {
-  const rules: HeaderRule[] = [];
-  for (const line of text.split('\n')) {
-    if (!line.trim() || line.trim().startsWith('#')) continue;
-    if (/^\S/.test(line)) {
-      const parts = line
-        .trim()
-        .split('*')
-        .map((p) => p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
-      rules.push({ path: new RegExp(`^${parts.join('.*')}$`), headers: [] });
-    } else {
-      const at = line.indexOf(':');
-      rules.at(-1)!.headers.push([line.slice(0, at).trim(), line.slice(at + 1).trim()]);
-    }
-  }
-  return rules;
-}
-
-/**
- * `vite preview` sends the host's headers too (public/_headers), so the
- * bench's returning visit is cached as a player's is (each file revalidated
- * where the host says nothing: sirv's no-cache, Pages' max-age=0).
- */
-export const hostHeaders = (): Plugin => ({
-  name: 'host-headers',
-  configurePreviewServer(server) {
-    const rules = parseHeaders(
-      readFileSync(resolve(import.meta.dirname, 'public/_headers'), 'utf8'),
-    );
-    server.middlewares.use((req, res, next) => {
-      const path = (req.url ?? '/').split('?')[0];
-      for (const rule of rules)
-        if (rule.path.test(path))
-          for (const [name, value] of rule.headers) res.setHeader(name, value);
-      next();
-    });
   },
 });
 
@@ -256,6 +207,14 @@ const r3fCatalogue = (): Plugin => {
  */
 const SCENE_MODULE =
   /\/node_modules\/(three|@react-three)\/|\/src\/ai\/(?!levels\.ts$|computer\.ts$)/;
+/**
+ * The start page's own code and styles (the entry and what it imports
+ * statically), gzipped at the highest level: bytes a phone on a mobile network
+ * waits on (CLAUDE.md "Performance"). The build fails above this, so a change
+ * or a dependency's update that adds to them says so; raise it on purpose,
+ * naming the cost in the PR. A tripwire for growth, not the host's size.
+ */
+const ENTRY_GZIP_BUDGET = 121_000;
 const SHOWN_BEFORE_SCENE = [
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/ComputerGameScreen.tsx',
@@ -284,6 +243,25 @@ const keepSceneOutOfEntry = (): Plugin => ({
     // Those pages load as chunks of their own, never in the entry (a static
     // import would put them there, and the walk below would find it seen)
     const entry = new Set(seen);
+    const css = new Set(
+      [...entry].flatMap((f) => [...(chunks.get(f)!.viteMetadata?.importedCss ?? [])]),
+    );
+    const gz = (text: string | Uint8Array) => gzipSync(text, { level: 9 }).length;
+    // The start page always imports index.css: no CSS, or a name the bundle
+    // lacks, means Vite's metadata changed and the sum would quietly shrink
+    if (!css.size) this.error('keep-scene-out-of-entry: the entry imports no CSS');
+    const bytes =
+      [...entry].reduce((t, f) => t + gz(chunks.get(f)!.code), 0) +
+      [...css].reduce((t, f) => {
+        const asset = bundle[f];
+        if (asset?.type !== 'asset') this.error(`keep-scene-out-of-entry: no asset ${f}`);
+        return t + gz(asset.source);
+      }, 0);
+    if (bytes > ENTRY_GZIP_BUDGET)
+      this.error(
+        `keep-scene-out-of-entry: the start page's code and styles are ${bytes} bytes gzipped, ` +
+          `over ENTRY_GZIP_BUDGET (${ENTRY_GZIP_BUDGET}): name the cost in the PR and raise it`,
+      );
     for (const page of SHOWN_BEFORE_SCENE) {
       const chunk = [...chunks.values()].find((c) =>
         c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(page)),
@@ -356,7 +334,6 @@ export default defineConfig({
     keepSceneOutOfEntry(),
     invitePage(),
     socialImageOnPreviews(),
-    hostHeaders(),
   ],
   resolve: {
     // r3f pins a scheduler of its own (0.28) beside react-dom's (0.27, the
