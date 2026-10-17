@@ -300,9 +300,9 @@ Key decisions:
   ("Move taken back. Your move."). The flag and the arrow are disabled while the connection is down or not yet
   back in the game, and a resignation or offer queued meanwhile is dropped, like a move. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
-  silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns:
-  queen 10, knight and bishop 3, rook 2.5, unicorn 1.5, measured for this board by
-  self-play, not 2D chess's); one above the other at the top left in a short window. The camera fit keeps their row clear
+  silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns, to the tenth:
+  queen 9.9, knight and bishop 2.8, rook 2.5, unicorn 1.2, measured for this board by
+  self-play, not 2D chess's: see Piece values); one above the other at the top left in a short window. The camera fit keeps their row clear
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
   apply: "Reconnecting…" (the pill and the captures dim), the refusal that still stands and the
@@ -1234,9 +1234,9 @@ draw, and so does one repeated inside the line searched (it can always be repeat
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` scores material at this
-board's values as measured by self-play (queen 9.8, knight 3.2, bishop 2.95, rook 2.45,
-unicorn 1.4; the captured pieces' "+N", `game/material.ts`, rounds them), development and
+side behind takes a repetition when it is offered. `evaluate.ts` scores material at its own
+values (queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4, which play with the
+terms that follow; the captured pieces' "+N" counts material alone, see Piece values), development and
 centralisation in the cube, pawns' progress towards their last square (worth more as the
 board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
 active king in the endgame, mobility (left out of the quiescence search where it cannot
@@ -1286,6 +1286,40 @@ ahead) that it hardly changes the result: a mistake past 7 pawns, an inaccuracy 
 self-play (`chooseMove` games, each position reviewed), per 100 moves: Easy 13.6
 inaccuracies, 6.6 mistakes and 5.8 blunders, Medium 10.5, 2.1 and 2.9, Hard 2.0, 0 and 0.3
 (16 Easy, 12 Medium and 8 Hard sides).
+
+### Piece values
+
+What a piece is worth here, in pawns, is measured rather than borrowed from chess: queen
+9.9, knight and bishop 2.8, rook 2.5, unicorn 1.2 (`game/material.ts`, the captured pieces'
+"+N": the difference is meant to say who is winning, from which pieces stand alone). They
+come from self-play of test bots (`research/piece-values/`, its README for the detail): a C
+port of `src/ai` that searches node for node as the game does, with pruning added that
+gains about 200 Elo at equal work, every move searched to a fixed number of positions rather
+than by the clock. Material was taken away at random, never by a bot's choice, so no
+imbalance came with compensation: from the starting position (eight varied plies
+following), and from quiet, level positions of played games in three phases (12 or more
+pieces besides kings and pawns; 6–11; 1–5 with pawns on both sides), each imbalance played
+twice with it swapped between the sides; then a logistic fit of the results on the
+difference in each kind of piece, a pawn fixed at 1, over some 16,000 games:
+
+- The pieces' worth against one another held at every budget and phase: a knight the same
+  as a bishop (1.00 ± 0.01), a rook 0.89, a unicorn 0.42, a queen 3.6.
+- A bishop's worth in pawns fell as the bots looked further: 3.4 at 5,000 positions a move,
+  3.1 at 20,000, 2.76 ± 0.13 at 80,000 (about 7 plies, near Hard). A piece's own pull on
+  the result hardly moved; a pawn is converted more surely the better it is played. The
+  values are the deepest measured, and stronger play would likely put the pieces a little
+  lower still.
+- The bots' own values hardly matter: the same 3,000 games played with the old ones came
+  out the same.
+- In endings without pawns no lone piece mates, so an extra piece there nearly always
+  draws; the "+N" cannot show that.
+
+Where these and the old values (queen 10, knight and bishop 3, rook 2.5, unicorn 1.5) read
+a game differently, the side these put ahead scored 57% (80,000 positions a move) and 55%
+(20,000). The computer keeps its own values (`ai/evaluate.ts`: queen 9.8, knight 3.2,
+bishop 2.95, rook 2.45, unicorn 1.4): they play together with its positional terms (an
+advanced pawn alone is worth up to 1.5 more), and its search with these instead scored 46%
+against them over 800 games at equal work (−29 Elo).
 
 ## The tutorial
 
@@ -1368,6 +1402,7 @@ server/bench/    Server benchmarks: store operations, live WebSocket load, adver
 bench/           The benchmark runner (run.mjs) and the primary rows (primary.mjs); reports go to bench/out/.
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
+research/piece-values/  How the piece values were measured: test bots (a C port of src/ai) and scripts.
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).
