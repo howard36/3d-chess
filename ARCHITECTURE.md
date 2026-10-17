@@ -505,7 +505,7 @@ Key decisions:
 - **Words centred by their capitals.** A label in a box (a button, the turn pill, a menu
   item, the offer's words, the share link) is centred as it looks, whatever font draws it
   (`.caps` in `index.css`): it is a block trimmed to its capitals (`text-box: trim-both cap
-  alphabetic`, which applies to blocks only, so a button's words are a span of their own),
+alphabetic`, which applies to blocks only, so a button's words are a span of their own),
   the capitals' fraction of a pixel set over them, so it stands `round(1cap, 1px)` tall with
   its baseline on a whole pixel. A box that centres one grows a pixel where its height and
   the capitals' differ in parity (`calc(H + var(--caps-odd))`, every H even; a browser
@@ -1272,8 +1272,8 @@ the way a person does; its own moves this turn are always all considered.
 Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
 Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
 
-**A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
-the machine's cores and at most three, one position each at a time, handed out from the
+**A finished game's review** ("Review", see HUD) asks workers of its own, one per core
+and at most four (one on a machine of two cores: the page only waits on them), one position each at a time, handed out from the
 start (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
 in from the first move on and the page's going stops it; each position is a search of its
 own, so the marks are the same however the positions are split: Hard's depth and quiescence,
