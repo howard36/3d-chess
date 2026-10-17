@@ -200,6 +200,13 @@ export const ANALYSIS_NODES = 120_000;
 export const ANALYSIS_MS = 1500;
 
 /**
+ * What a review makes of the starting position, the first of every game's:
+ * written down, so no review searches it (choose.test.ts checks it against
+ * the search, and fails when the search or the evaluation changes it).
+ */
+export const START_ANALYSIS: PositionAnalysis = { best: { from: 'Ad1', to: 'Cc1' }, score: 40 };
+
+/**
  * The best move after `records` and what it is worth, for a review of the
  * game: Hard's depth and quiescence, as assessPosition, but bounded by
  * positions searched (ANALYSIS_NODES) rather than time, so it comes out the
@@ -209,6 +216,8 @@ export function analysePosition(
   records: readonly WireMove[],
   options: Pick<ChooseOptions, 'now' | 'maxNodes'> = {},
 ): PositionAnalysis {
+  if (records.length === 0 && options.maxNodes === undefined && options.now === undefined)
+    return { ...START_ANALYSIS, best: { ...START_ANALYSIS.best! } };
   const { maxDepth, quiescence } = LEVELS.hard;
   const result = new Searcher(Position.fromRecords(records)).search({
     maxDepth,
