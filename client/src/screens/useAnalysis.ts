@@ -45,15 +45,13 @@ const stopAll = (workers: React.RefObject<Computer[]>) => {
 /**
  * How many workers a review searches in: the positions are independent (a
  * fresh search each, bounded by nodes), so the marks are the same however
- * many there are. The page only waits on them, so they take every core, at
- * most four (one is left to the page on a machine of two).
+ * many there are; one core is left to the page.
  */
-const reviewWorkers = () => {
+const reviewWorkers = () =>
   // Without workers the searches run on the page itself: one at a time
-  if (typeof Worker === 'undefined') return 1;
-  const cores = globalThis.navigator?.hardwareConcurrency ?? 2;
-  return cores <= 2 ? 1 : Math.min(4, cores);
-};
+  typeof Worker === 'undefined'
+    ? 1
+    : Math.max(1, Math.min(3, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1));
 
 /**
  * A finished game's review, asked for by the player ("Review", or a step

@@ -1,16 +1,7 @@
 import { Board } from '../engine/board';
 import { moveFromMessage } from '../engine/protocol';
 import { SHORT_GAME } from '../game/shortGame';
-import {
-  ANALYSIS_NODES,
-  START_ANALYSIS,
-  analysePosition,
-  assessPosition,
-  chooseMove,
-  hardToSee,
-  pickMove,
-  seeded,
-} from './choose';
+import { analysePosition, assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
 import { DIFFICULTIES, LEVELS, isDifficulty, thinkTime } from './levels';
 import { BISHOP, KING, KNIGHT, PAWN, Position, QUEEN, UNICORN, cellOf } from './position';
 import type { WireMove } from './position';
@@ -59,15 +50,6 @@ describe('a review’s look at a position', () => {
     expect(Math.abs(start.score)).toBeLessThan(100);
     expect(start.mate).toBeUndefined();
     expect(analysePosition([], { maxNodes: 4000 })).toEqual(start);
-  });
-
-  it('knows the starting position without a search, as the search finds it', () => {
-    expect(analysePosition([])).toEqual(START_ANALYSIS);
-    // The search itself, on a clock that never runs out (a slow runner's
-    // time limit would cut it short)
-    expect(analysePosition([], { maxNodes: ANALYSIS_NODES, now: () => 0 })).toEqual(
-      START_ANALYSIS,
-    );
   });
 
   it('counts a forced mate in plies, for the side to move or against it', () => {

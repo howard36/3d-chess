@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-/** The machine's cores, which set how many workers a review takes (every one, at most 4; 1 of 2). */
+/** The machine's cores, which set how many workers a review takes (one fewer, at most 3). */
 const cores = (n: number) =>
   Object.defineProperty(navigator, 'hardwareConcurrency', { value: n, configurable: true });
 // A browser with workers (jsdom has none): the review's computers are stood in for above
@@ -118,11 +118,11 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
 });
 
 it('searches in several workers at once, the marks the same whatever order they finish in', async () => {
-  cores(3);
+  cores(8);
   const { result } = renderHook(() => useAnalysis(historyOf(MATE.slice(0, 3), true)));
   act(() => result.current.start());
   await act(async () => {});
-  // Three workers (every core), the positions handed out from the start
+  // Three workers (one core left to the page), the positions handed out from the start
   expect(worker.made).toBe(3);
   expect(worker.asked).toEqual([0, 1, 2]);
   const [first, second, third] = worker.answers.splice(0);
@@ -177,19 +177,10 @@ it('says where a search fails, and asked again goes on from the positions it has
   expect(result.current.grades).toEqual([null, 'blunder', 'blunder', null]);
 });
 
-it('takes every core, at most four, and leaves one to the page on a machine of two', async () => {
-  cores(8);
-  const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
-  act(() => result.current.start());
-  await act(async () => {});
-  expect(worker.made).toBe(4);
-  expect(worker.asked).toEqual([0, 1, 2, 3]);
-});
-
 it('stays stopped when a search still under way finishes after another failed', async () => {
   // As on the page itself (no worker), where disposing cannot stop a search
   vi.spyOn(console, 'warn').mockImplementation(() => {});
-  cores(3);
+  cores(8);
   const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
   act(() => result.current.start());
   await act(async () => {});
