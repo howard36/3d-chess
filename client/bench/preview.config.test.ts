@@ -33,6 +33,7 @@ test('a _headers line the reader does not handle fails, naming the line', () => 
 test('the preview server sends every matching rule’s headers, query aside', () => {
   let middleware: (req: { url?: string }, res: unknown, next: () => void) => void = () => {};
   const server = {
+    config: { root: process.cwd(), build: { outDir: 'dist' } },
     middlewares: { use: (fn: typeof middleware) => (middleware = fn) },
   } as unknown as PreviewServer;
   const plugin = hostHeaders(resolve(process.cwd(), 'public/_headers'));
