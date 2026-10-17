@@ -29,8 +29,6 @@ export const BLACK_SIDE = 1;
 export const SIZE = 5;
 export const CELLS = SIZE * SIZE * SIZE;
 export const cellOf = (x: number, y: number, z: number) => z * 25 + x * 5 + y;
-const inBoard = (x: number, y: number, z: number) =>
-  x >= 0 && x < SIZE && y >= 0 && y < SIZE && z >= 0 && z < SIZE;
 
 /** Each cell's file, rank and level. */
 export const CX = new Int8Array(CELLS);
@@ -41,6 +39,9 @@ for (let c = 0; c < CELLS; c++) {
   CX[c] = Math.floor(c / 5) % 5;
   CY[c] = c % 5;
 }
+
+const inBoard = (x: number, y: number, z: number) =>
+  x >= 0 && x < SIZE && y >= 0 && y < SIZE && z >= 0 && z < SIZE;
 
 // --- Precomputed reach -------------------------------------------------------
 
@@ -106,9 +107,104 @@ for (let c = 0; c < CELLS; c++) {
   }
 }
 
+/** LINE[king * 125 + cell]: the direction from `king` along which `cell` lies (-1 if none). */
+const LINE = new Int8Array(CELLS * CELLS).fill(-1);
+for (let c = 0; c < CELLS; c++) {
+  for (let d = 0; d < DIRS; d++) {
+    for (let n = 0; n < RAY_LEN[c * DIRS + d]; n++)
+      LINE[c * CELLS + RAY[(c * DIRS + d) * 4 + n]] = d;
+  }
+}
+
 /** Where `side`'s pawns promote: rank 5 of level E for White, rank 1 of level A for Black. */
 export const promotes = (cell: number, side: number) =>
   side === WHITE_SIDE ? CY[cell] === 4 && CZ[cell] === 4 : CY[cell] === 0 && CZ[cell] === 0;
+
+// --- What evaluate() adds up ---------------------------------------------------
+//
+// The judgement's sums over the pieces (evaluate.ts): their values, the
+// piece-square tables and how near each cell is to a king. The board keeps
+// these sums as each move is played (Position.terms), so a position is
+// judged without visiting its pieces. Here, beside the board, so its hot
+// loops read them as its own.
+//
+// Material at the engine's own values (queen 9.8, knight 3.2, bishop 2.95,
+// rook 2.45, unicorn 1.4; game/material.ts's "+N" measures its own). On top of it,
+// what a club player looks for: pieces brought out towards the middle of the
+// cube, pawns pushed on towards their last square (counted more as the board
+// empties), the king kept home behind its pawns while queens and knights are
+// about and brought out once they are gone.
+
+export const VALUE = new Int16Array(8);
+VALUE[PAWN] = 100;
+VALUE[KNIGHT] = 320;
+VALUE[BISHOP] = 295;
+VALUE[ROOK] = 245;
+VALUE[UNICORN] = 140;
+VALUE[QUEEN] = 980;
+VALUE[KING] = 0;
+
+/** Each piece's weight in the game's phase: the opening's 24 down to the endgame's 0. */
+export const PHASE = [0, 0, 1, 1, 1, 1, 4, 0];
+export const PHASE_MAX = 24;
+
+/** From the middle of the cube (0) to a corner (6), in steps along the axes. */
+export const CENTRE = new Int8Array(CELLS);
+/** Chebyshev distance between two cells. */
+export const DIST = new Uint8Array(CELLS * CELLS);
+/** How near a piece on one cell is to a king on another: 4 less the distance, or 0. */
+export const NEAR = new Uint8Array(CELLS * CELLS);
+for (let c = 0; c < CELLS; c++) {
+  CENTRE[c] = Math.abs(CX[c] - 2) + Math.abs(CY[c] - 2) + Math.abs(CZ[c] - 2);
+  for (let d = 0; d < CELLS; d++) {
+    DIST[c * CELLS + d] = Math.max(
+      Math.abs(CX[c] - CX[d]),
+      Math.abs(CY[c] - CY[d]),
+      Math.abs(CZ[c] - CZ[d]),
+    );
+    NEAR[c * CELLS + d] = Math.max(0, 4 - DIST[c * CELLS + d]);
+  }
+}
+
+/** A pawn's worth for how far along it is (rank + level, 0..8; 8 is its last square). */
+const PAWN_STEP_MG = [0, 0, 6, 14, 24, 36, 52, 75, 0];
+const PAWN_STEP_EG = [0, 0, 10, 24, 42, 66, 100, 150, 0];
+
+// Piece-square tables, material included, from White's side: middlegame and
+// endgame, per piece code and cell. Black's are White's turned through the
+// centre of the cube.
+export const MG = new Int16Array(16 * CELLS);
+export const EG = new Int16Array(16 * CELLS);
+const mirror = (c: number) => CELLS - 1 - c; // (x, y, z) -> (4 - x, 4 - y, 4 - z)
+for (let c = 0; c < CELLS; c++) {
+  const centre = CENTRE[c];
+  const x = CX[c];
+  const y = CY[c];
+  const z = CZ[c];
+  // White's home is rank 1 and level A: how far out a piece has come
+  const out = y + z;
+  const set = (type: number, mg: number, eg: number) => {
+    MG[type * CELLS + c] = VALUE[type] + mg;
+    EG[type * CELLS + c] = VALUE[type] + eg;
+    MG[(type | BLACK) * CELLS + mirror(c)] = -(VALUE[type] + mg);
+    EG[(type | BLACK) * CELLS + mirror(c)] = -(VALUE[type] + eg);
+  };
+  const fileBonus = x === 2 ? 6 : x === 1 || x === 3 ? 3 : 0;
+  set(PAWN, PAWN_STEP_MG[out] + fileBonus, PAWN_STEP_EG[out]);
+  // Developed: off the home rank and level
+  const home = y === 0 && z === 0 ? -14 : 0;
+  set(KNIGHT, 28 - 8 * centre + home, 18 - 6 * centre);
+  set(BISHOP, 16 - 4 * centre + home, 10 - 3 * centre);
+  set(UNICORN, 12 - 3 * centre + (y <= 1 && z === 0 ? -8 : 0), 8 - 2 * centre);
+  set(ROOK, 6 - centre, 4 - centre);
+  // The queen wants the middle, but not too soon (the knights and bishops first)
+  set(QUEEN, 6 - 2 * centre, 10 - 3 * centre);
+  // Home and behind its pawns while there is an attack to fear; to the middle after
+  set(KING, -14 * out - 4 * Math.abs(x - 2), 24 - 8 * centre);
+}
+
+/** How much a piece near the enemy king threatens it (pawns and kings: nothing). */
+export const TROPISM_WEIGHT = [0, 0, 3, 2, 1, 2, 6, 0];
 
 // --- Moves -------------------------------------------------------------------
 
@@ -180,6 +276,22 @@ for (let i = 0; i < 16 * CELLS; i++) {
 const SIDE_LO = nextZ();
 const SIDE_HI = nextZ();
 
+/**
+ * What evaluate() adds up over the pieces, kept per ply as moves are played
+ * (Position.terms, TERMS numbers a ply): the piece-square sums (middlegame,
+ * endgame), the phase, and per side (White's, then Black's) its material,
+ * its pieces' value (no pawns or kings), its bishops, and its pieces'
+ * pressure on the enemy king.
+ */
+export const T_MG = 0;
+export const T_EG = 1;
+export const T_PHASE = 2;
+export const T_MATERIAL = 3;
+export const T_PIECES = 5;
+export const T_BISHOPS = 7;
+export const T_PRESSURE = 9;
+export const TERMS = 11;
+
 /** Plies of history kept at first; the record grows as a game goes on. */
 const HISTORY_PLIES = 256;
 
@@ -206,6 +318,10 @@ export class Position {
    * position before the last of those can stand again.
    */
   private clocks = new Int16Array(HISTORY_PLIES);
+  /** The sums evaluate() reads, TERMS a ply (T_MG and on): see TERMS. */
+  terms = new Int32Array(HISTORY_PLIES * TERMS);
+  /** checks[ply]: whether the side to move is in check there (1, 0, or -1 not yet known). */
+  private checks = new Int8Array(HISTORY_PLIES);
   /** The index of the current position in `history` (moves played since reset). */
   ply = 0;
 
@@ -265,6 +381,41 @@ export class Position {
     this.history[0] = lo;
     this.history[1] = hi;
     this.clocks[0] = halfmoves;
+    this.checks[0] = -1;
+    const t = this.terms;
+    t.fill(0, 0, TERMS);
+    for (let c = 0; c < CELLS; c++) {
+      const p = this.board[c];
+      if (!p) continue;
+      const type = p & 7;
+      const s = p >> 3;
+      t[T_MG] += MG[p * CELLS + c];
+      t[T_EG] += EG[p * CELLS + c];
+      t[T_PHASE] += PHASE[type];
+      t[T_MATERIAL + s] += VALUE[type];
+      if (type !== PAWN && type !== KING) t[T_PIECES + s] += VALUE[type];
+      if (type === BISHOP) t[T_BISHOPS + s]++;
+    }
+    t[T_PRESSURE] = this.pressure(WHITE_SIDE);
+    t[T_PRESSURE + 1] = this.pressure(BLACK_SIDE);
+  }
+
+  /** `side`'s pieces' pressure on the other side's king (TROPISM_WEIGHT by nearness). */
+  private pressure(side: number): number {
+    const king = this.king[side ^ 1];
+    if (king < 0) return 0;
+    const board = this.board;
+    let sum = 0;
+    for (let w = side << 2; w < (side << 2) + 4; w++) {
+      let bits = this.occ[w];
+      while (bits !== 0) {
+        const low = bits & -bits;
+        bits ^= low;
+        const c = ((w & 3) << 5) | (31 - Math.clz32(low));
+        sum += NEAR[c * CELLS + king] * TROPISM_WEIGHT[board[c] & 7];
+      }
+    }
+    return sum;
   }
 
   /** The plies played since the last capture or pawn move (a hundred draw). */
@@ -282,10 +433,19 @@ export class Position {
       const clocks = new Int16Array(this.clocks.length * 2);
       clocks.set(this.clocks);
       this.clocks = clocks;
+      const terms = new Int32Array(this.terms.length * 2);
+      terms.set(this.terms);
+      this.terms = terms;
+      const checks = new Int8Array(this.checks.length * 2);
+      checks.set(this.checks);
+      this.checks = checks;
     }
     this.history[ply * 2] = this.hashLo;
     this.history[ply * 2 + 1] = this.hashHi;
     this.clocks[ply] = clock;
+    this.checks[ply] = -1;
+    const t = this.terms;
+    t.copyWithin(ply * TERMS, (ply - 1) * TERMS, ply * TERMS);
   }
 
   /** The legal move matching a wire move, or 0. */
@@ -348,8 +508,37 @@ export class Position {
 
   /** Whether `side`'s king is attacked. */
   inCheck(side: number = this.side): boolean {
-    const k = this.king[side];
-    return k >= 0 && this.attacked(k, side ^ 1);
+    if (side !== this.side) {
+      const k = this.king[side];
+      return k >= 0 && this.attacked(k, side ^ 1);
+    }
+    let known = this.checks[this.ply];
+    if (known < 0) {
+      const k = this.king[side];
+      known = this.checks[this.ply] = k >= 0 && this.attacked(k, side ^ 1) ? 1 : 0;
+    }
+    return known === 1;
+  }
+
+  /**
+   * Whether `from`, just emptied, opened a line from `king` (of `side`, not in
+   * check before) to an enemy slider: the only way a move other than the
+   * king's can leave it in check.
+   */
+  private exposed(king: number, from: number, side: number): boolean {
+    const d = LINE[king * CELLS + from];
+    if (d < 0) return false;
+    const board = this.board;
+    const colour = side === BLACK_SIDE ? 0 : BLACK;
+    const base = (king * DIRS + d) * 4;
+    for (let n = 0, len = RAY_LEN[king * DIRS + d]; n < len; n++) {
+      const p = board[RAY[base + n]];
+      if (!p) continue;
+      if ((p & BLACK) !== colour) return false;
+      const t = p & 7;
+      return t === QUEEN || t === SLIDER_OF[d] || (n === 0 && t === KING);
+    }
+    return false;
   }
 
   /**
@@ -425,6 +614,9 @@ export class Position {
     const captured = moveCaptured(move);
     const promo = movePromotion(move);
     const side = this.side;
+    const type = piece & 7;
+    // Not in check, a move but the king's can only expose it along one line
+    const safe = type !== KING && this.king[side] >= 0 && !this.inCheck();
     const placed = promo ? promo | (piece & BLACK) : piece;
     let lo = this.hashLo ^ ZOBRIST_LO[piece * CELLS + from] ^ ZOBRIST_LO[placed * CELLS + to];
     let hi = this.hashHi ^ ZOBRIST_HI[piece * CELLS + from] ^ ZOBRIST_HI[placed * CELLS + to];
@@ -439,13 +631,47 @@ export class Position {
     occ[(side << 2) | (from >> 5)] ^= 1 << (from & 31);
     occ[(side << 2) | (to >> 5)] ^= 1 << (to & 31);
     if (captured) occ[((side ^ 1) << 2) | (to >> 5)] ^= 1 << (to & 31);
-    if ((piece & 7) === KING) this.king[side] = to;
+    if (type === KING) this.king[side] = to;
     this.side = side ^ 1;
     this.hashLo = lo ^ SIDE_LO;
     this.hashHi = hi ^ SIDE_HI;
-    this.push(captured || (piece & 7) === PAWN ? 0 : this.clocks[this.ply] + 1);
+    this.push(captured || type === PAWN ? 0 : this.clocks[this.ply] + 1);
+
+    // The sums evaluate() reads, the move's change to them
+    const t = this.terms;
+    const o = this.ply * TERMS;
+    const enemy = side ^ 1;
+    t[o + T_MG] += MG[placed * CELLS + to] - MG[piece * CELLS + from];
+    t[o + T_EG] += EG[placed * CELLS + to] - EG[piece * CELLS + from];
+    if (promo) {
+      t[o + T_PHASE] += PHASE[promo];
+      t[o + T_MATERIAL + side] += VALUE[promo] - VALUE[PAWN];
+      t[o + T_PIECES + side] += VALUE[promo];
+      if (promo === BISHOP) t[o + T_BISHOPS + side]++;
+    }
+    const enemyKing = this.king[enemy];
+    if (captured) {
+      const ct = captured & 7;
+      t[o + T_MG] -= MG[captured * CELLS + to];
+      t[o + T_EG] -= EG[captured * CELLS + to];
+      t[o + T_PHASE] -= PHASE[ct];
+      t[o + T_MATERIAL + enemy] -= VALUE[ct];
+      if (ct !== PAWN && ct !== KING) t[o + T_PIECES + enemy] -= VALUE[ct];
+      if (ct === BISHOP) t[o + T_BISHOPS + enemy]--;
+      if (ct === KING) t[o + T_PRESSURE + side] = 0;
+      else if (type !== KING && this.king[side] >= 0)
+        t[o + T_PRESSURE + enemy] -= NEAR[to * CELLS + this.king[side]] * TROPISM_WEIGHT[ct];
+    }
+    if (enemyKing >= 0)
+      t[o + T_PRESSURE + side] +=
+        NEAR[to * CELLS + enemyKing] * TROPISM_WEIGHT[placed & 7] -
+        NEAR[from * CELLS + enemyKing] * TROPISM_WEIGHT[type];
+    // The king moved: every enemy piece is nearer it or farther
+    if (type === KING) t[o + T_PRESSURE + enemy] = this.pressure(enemy);
+
     const k = this.king[side];
-    return k < 0 || !this.attacked(k, side ^ 1);
+    if (k < 0) return true;
+    return safe ? !this.exposed(k, from, side) : !this.attacked(k, enemy);
   }
 
   /** Takes back `move`, the last move made. */

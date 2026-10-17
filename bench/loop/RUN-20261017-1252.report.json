@@ -1,0 +1,169 @@
+{
+ "title": "Perf run 20261017-1252",
+ "eyebrow": "3D chess · perf-iteration · run 20261017-1252 · speed run, breakthrough",
+ "heading": "A returning phone's start page is usable 28% sooner, and the computer's search does the same work in less time",
+ "meta": "<p>Two changes are kept. First, the host now lets a browser keep each built file for a year, and a click on the start page takes down a live preview that has loaded but not yet shown (ledger 0930:17, the change you approved with conditions). On a returning phone (4× slower CPU, Fast 4G) the start page is usable after 432 ms instead of 599 ms. The final A/B on <code>734d6d8</code> calls this better, with every pair between 0.67 and 0.82.</p><p>Second, the computer's board keeps the sums its evaluation reads as moves are made, and it tests whether a move leaves the king in check along only one line. Every search result is identical. The search-speed row went 52.9 → 32.3 ms, called better on <code>244a8a2</code>. On the final commit it was −42% (8 pairs) and −44% (12 pairs, every pair faster), but the bench's rule did not call it either time (see Scoreboard). A review of a finished game took 2.81 s instead of 3.24 s, faster in every pair, not called.</p><p>All 15 headline rows were measured on the final code against the base; none was called worse. The 1.2× target was met on 2 of them. The run ran from 12:53 to about 19:40 UTC for its first seven steps, about 6.8 hours against a budget of 6, and a follow-up of about an hour measured the game rows, memory and Hard's moves.</p><p>The fundamental-breakthrough round did not run. When the second round ended at 18:20 the run had used about 5.5 of its 6 hours, and each untried lead needs 1.5 hours or more with its A/B, so the run went on to verify. It stopped on its budget, not because the ideas ran out; the leads are the next run's first items.</p>",
+ "needs": {
+  "intro": "<p>Nothing here blocks the PR. All three items are information; item 2 has a recommendation.</p>",
+  "items": [
+   {
+    "title": "The 1.2× target was met on 2 of 15 rows (information)",
+    "body": "<p>On the final code, against the base <code>1f207f0</code>, 8 pairs: returning phone usable ×1.41 and search speed ×1.75 at the median pair met it; the review reached ×1.13 (<code>ab-20261017-1252-final.md</code>). The seven game rows (<code>ab-20261017-1252-final-game.md</code>) came out ×1.011 together, none called: reopening −24% and both move rows −9% leaned faster; the rest leaned slower (next item).</p>"
+   },
+   {
+    "title": "Hard may now play differently, because it searches to a clock (information)",
+    "body": "<p>The Hard level thinks for 1.8 s a move, so a faster search can change what it plays. A probe on 23 positions (Hard at its own clock; base, head and base again): 16 searches came out identical on both sides; the head went one iteration deeper in 3. The chosen move differed between head and base in 1 of 23, and between two runs of the base in 2 of 23. So Hard's moves change no more than its own clock already changes them. Its strength was not measured. Easy and Medium are limited by depth, so they only answer sooner.</p>",
+    "recommend": "No action from you. A general run plays new Hard against old Hard at equal time (ledger 1017-1252:HS1)."
+   },
+   {
+    "title": "Rows slower without a call, and the recorded costs of 0930:17 (information)",
+    "body": "<ul><li><b>Start page usable, phone, first visit</b>: 728 → 756 ms, median pair ×1.034, 5 of 8 pairs slower (1.08 0.98 0.93 1.04 1.05 1.20 0.97 1.03). Nothing in the diff runs on a first visit before the page is usable. An A/A on identical code leaned up to ±6% on a third of the rows.</li><li><b>Returning phone, your recorded cost</b>: board on screen 584 → 674 ms (+8.3%, not called; pairs 0.94 1.33 1.23 0.91 0.98 0.96 1.17 1.22, <code>ab-20261017-1252-final.md</code>); first contentful paint +16%; connection open +15%; the instant first click 47.6 → 62.7 ms (within your +25 ms and under 100 ms). The returning script time until ready doubled (called worse, a diagnostic): the scene's chunk now comes from the cache and runs earlier. Winning these back is ledger RB1.</li><li><b>The game rows, leaning slower without a call</b> (<code>ab-20261017-1252-final-game.md</code>): each is more than 3% worse at the median pair, none in every pair. Pairs, head ÷ base, in run order:<ul><li>the shared game's page, first screen: ×1.121, 5 of 8 worse: 2.19 1.08 1.16 1.26 0.85 0.92 1.31 0.41</li><li>joining's first board picture: ×1.094, 6 of 8 worse: 1.20 0.99 1.17 1.06 0.98 1.13 1.33 1.05</li><li>the computer's first board picture: ×1.269, 7 of 8 worse: 1.17 1.43 1.21 1.33 1.37 1.43 0.87 1.11</li><li>a picked-up piece: ×1.127, 6 of 8 worse: 1.12 1.13 1.15 0.98 1.13 0.89 1.16 1.11</li></ul>The computer's row was measured again, 8 pairs: +2.6%, 3 of 8 worse (<code>ab-20261017-1252-final-computer.md</code>), so it is a lean for the next run to re-measure, not a regression. The click's takedown alone leaned the computer's picture +5.6% and joining's +14%, neither called (<code>ab-20261017-1252-ck1-split.md</code>, ledger CK1). The other rows touch no code of this run.</li><li><b>Memory</b>: the JavaScript heap after reopening 2,000 plies 14.30 → 14.35 MiB (+0.4%); live geometries and textures grew by the same 10 and 0 over 16 plies on both sides. No flag. The search's own tables live in its worker, which the bench does not sample.</li></ul>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 734d6d8 vs 1f207f0 (ai + cold-load + review, 8 pairs)",
+       "only": "returning"
+      },
+      "caption": "The returning phone's rows on the final commit, 734d6d8 against 1f207f0, 8 pairs (ab-20261017-1252-final.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Target: each 1.2× faster than the base <code>1f207f0</code> (the dashed line). On the final code the head is ×1.166 as fast over the 8 rows of the first re-check (1 called better) and ×1.011 over the 7 game rows of the second (none called); no row called worse.</p><p>The bench calls a change only when every pair agrees and the change is larger than the pairs' range divided by their mean. On the 12-pair search re-check every pair was faster (0.35–0.65), but one very fast pair made that range 55% against a 44% change, so the row was not called. That rule is logged as ledger 1017-1252:VR1 for a later run; it was not changed here, because changing it in the run whose win it would call is gaming the bench.</p><p>For the long view, the last measurement against the first recorded run (92ce041) stands: <code>e02a235</code> was 2.48 times as fast over the 11 rows both can measure.</p>",
+  "items": [
+   {
+    "title": "The final commit against the base and the target",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 734d6d8 vs 1f207f0 (ai + cold-load + review, 8 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "Headline rows, 734d6d8 against 1f207f0, 8 pairs (ab-20261017-1252-final.md).",
+      "target": 1.2
+     },
+     {
+      "rows": {
+       "change": "final game: be7be98 vs 1f207f0 (computer, setup, move-latency, select, reopen, 8 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "The game rows, be7be98 (the same app code) against 1f207f0, 8 pairs (ab-20261017-1252-final-game.md).",
+      "target": 1.2
+     },
+     {
+      "rows": {
+       "change": "final search: 734d6d8 vs 1f207f0 (ai, 12 pairs)"
+      },
+      "caption": "Search speed alone, 734d6d8 against 1f207f0, client tier, 12 pairs (ab-20261017-1252-final-search.md)."
+     }
+    ]
+   },
+   {
+    "title": "The base against the last code change's base, at the start of the run",
+    "body": "<p>×1.045 over the 15 rows, none called, 0 of 105 diagnostics called. The phone's board leaned slower (×1.164, 6 of 8), as it did last run (×1.086): ledger PB1.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regress: 9b58714 (app = 5362029) vs 38d62be (primary, 8 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "Headline rows, 1f207f0 (app = 5362029) against 38d62be, 8 pairs (ab-20261017-1252-regress.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>Each change below is a commit on the PR, with the A/B that called it.</p>",
+  "items": [
+   {
+    "title": "A returning visit keeps the built files a year; a click takes down a preview that has arrived (c40494d, f16b8b5)",
+    "body": "<p>The build writes a one-year <code>immutable</code> cache rule into <code>_headers</code> for each hashed file under <code>assets/</code> (27 rules of the host's 100), adds <code>assets/404.html</code>, and fails on a file there with no hash or past 100 rules. A returning phone then loads the scripts from its cache without asking the server: 18 requests become 2. A click on the start page also takes down a live preview whose code has arrived but which has not shown, so its build does not run ahead of the next page. The bench fix <code>c40494d</code> makes the bench's server send the <code>_headers</code> the build wrote, as the host does; without it the change could not be measured.</p><p>Returning phone usable 581 → 427 ms, called better (<code>ab-20261017-1252-cache.md</code>); 599 → 432 ms, called better, on the final commit. Your three conditions held: the returning phone called better, the instant click +17 ms and under 100 ms, no first-visit row called worse.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "0930:17 (cache + click, AH1, ST1): 1f207f0+patch (= f16b8b5) vs 1f207f0 (cold-load, 8 pairs)",
+       "only": "returning"
+      },
+      "caption": "The returning phone's rows, 1f207f0 with the patch against 1f207f0, 8 pairs (ab-20261017-1252-cache.md)."
+     }
+    ]
+   },
+   {
+    "title": "The search keeps its evaluation's sums and tests legality along one line (e8d7472, 244a8a2)",
+    "body": "<p>The computer's evaluation used to add up material, piece tables, game phase, bishops and king pressure over every piece at every position. The board now keeps these sums per move, updated by each move's change. A move other than the king's, made while not in check, can only expose the king along the line through the square it left, so legality is tested along that line only. Every search result is identical: the bench's fingerprint of the searches holds, and a 33-position fingerprint of move, score, depth and node count is unchanged. New tests compare the kept sums and each move's legality with a fresh count over about 50,000 moves of 12 random games.</p><p>Search speed 52.9 → 32.3 ms, called better; review 3.21 → 2.68 s, every pair better, not called (<code>ab-20261017-1252-search.md</code>, 244a8a2 against 2c97a27).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1017-0532:EV1+ (search: kept sums, line legality): 244a8a2 vs 2c97a27 (ai + review, 8 pairs)"
+      },
+      "caption": "244a8a2 against 2c97a27, ai and review, 8 pairs (ab-20261017-1252-search.md)."
+     }
+    ]
+   },
+   {
+    "title": "A test that could not fail now can (734d6d8)",
+    "body": "<p>Each new check was run against a deliberately broken copy of the code. One break passed: removing the line that clears the mover's king pressure when it captures the king. The test's capturing rook stood four cells from the king, where the pressure is zero. It now stands two cells away, and that break and a stale recount after a king move both fail it. Removing only the click's <code>flushSync</code> also fails no test: React Router 8 already navigates in a transition, so the preview is taken down first anyway. The code is kept as measured; ledger CK1 decides the click half.</p>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<ul><li><code>bench/loop/patches/assets-cache-click-0930-17.patch</code>: the patch is now code on the branch (f16b8b5). The ledger rows that cited it point to the commit.</li><li>Every rejected idea's code was reverted on the branch (RW1, M9); no code was removed from the app.</li></ul>"
+ },
+ "rejected": {
+  "intro": "<p>The results are also in the ledger's Rejected table. Probes ran under node on a bundled copy of the search, interleaved with the base, median of 3.</p>",
+  "items": [
+   {
+    "title": "RW1: the review on every core (at most four), with the start position's analysis written down",
+    "body": "<p>2.47 → 2.11 s (−13%), 6 of 8 pairs better, not called (<code>ab-20261017-1252-review.md</code>). The four workers alone: −8.2%, 6 of 8, longest freeze during the review up. Reverted; <code>patches/review-cores-start-RW1.patch</code>.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1017-1252:RW1 (review: 4 workers + start position written down): 1ce05af vs cd091c5 (review, 8 pairs)"
+      },
+      "caption": "1ce05af against cd091c5, review, 8 pairs (ab-20261017-1252-review.md)."
+     }
+    ]
+   },
+   {
+    "title": "M9: one set of search tables a thread, not 3.3 MB allocated per search",
+    "body": "<p>Search speed 31.7 → 29.1 ms (−11%), every pair better (0.74–0.99), but two pairs under 5%, so not called; review −5.4%, mixed (<code>ab-20261017-1252-tables.md</code>). Exact and a memory saving, so a general run can keep it: <code>patches/search-tables-per-thread-M9.patch</code>.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1014:M9 (search tables one set a thread): 0715f45 vs 1e0488c (ai + review, 8 pairs)"
+      },
+      "caption": "0715f45 against 1e0488c, ai and review, 8 pairs (ab-20261017-1252-tables.md)."
+     }
+    ]
+   },
+   {
+    "title": "Bet 2: the review skips a deepening it predicts cannot finish",
+    "body": "<p>Killed on its probe by the criterion written before it. Over 101 positions, any rule that saves useful work changes answers: at the mildest setting 4 answers changed for −7% of positions searched. The next iteration can cost as little as a third of the last, because the transposition table carries work over.</p>"
+   },
+   {
+    "title": "MD1: mobility kept per move",
+    "body": "<p>Exact, but the review's work moved only −1% to −5% over two variants, under the 8% kill line. <code>patches/mobility-delta-MD1.patch</code>.</p>"
+   },
+   {
+    "title": "FG1, TT1 and a plain copy loop",
+    "body": "<p>FG1 (the move generator counts mobility on its walk): no gain, one case slower. TT1 (the table's move searched before the rest are generated): −1%, and not exact. A plain loop in place of <code>copyWithin</code>: no change.</p>"
+   },
+   {
+    "title": "RS1: a picked-up piece slower since 38d62be (closed as drift)",
+    "body": "<p>Three traced picks on each side showed no style recalculation or layout in any pick; the time is animation callbacks and waits on the GPU, with spikes on both sides. The 8-pair regression A/B leaned the other way (279 → 229 ms).</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>Took 0930:17 as measured, including a test extension the old ledger row said to drop (now ledger ST2), because you asked for the patch as measured.</li><li>Kept the click's <code>flushSync</code>, although no test needs it, so the shipped code is the measured code.</li><li>Ran the search re-check a second time with 12 pairs after the first's pair 1 read 1.00, decided before running to report it whatever it said. Both are committed; neither calls the row; the keep rests on the A/B that did.</li><li>Left the bench's calling rule unchanged (VR1).</li><li>Logged the review's other points (docs, hygiene, more checks, Hard's strength match) for a general run instead of doing them in this speed PR.</li><li>Measured the computer's way in a second time after its first reading leaned ×1.27, and the click's takedown on its own, before reporting it.</li><li>Budget: about 6.8 hours against about 6.</li></ul>"
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>That Cloudflare Pages answers a missing <code>/assets/</code> name with <code>assets/404.html</code> and a 404, as ARCHITECTURE.md says. The live host was unreachable from here (ledger AH3).</li><li>The bundled node probe behind e8d7472's −18% on the review's work: its source was lost with the stage's scratch files and is not committed.</li><li>Hard's strength after the faster search (HS1): its moves were compared, not its results.</li><li>The search worker's memory: the bench samples only the page's heap.</li><li>Whether the click's takedown pays on its own (CK1); the flushSync in it is redundant.</li><li>The search-speed row on the final code: every pair faster in both re-checks, but not called; the call is on 244a8a2, whose search code is the final one.</li></ul>"
+ },
+ "next": {
+  "intro": "<ol><li>HS1: Hard's strength match after the faster search.</li><li>PB1: the phone board's lean since 38d62be; then CK1 (the click half alone) and RB1 (the returning board).</li><li>VR1: a calling rule one outlying pair cannot block, proved on the A/As.</li><li>The fundamental-breakthrough leads: frames that redraw only the changed part of the screen for the move rows (0930:5, a shimmer-rect probe first), the phone board's stamp (lens 28), hashed landing pictures (SWR).</li></ol>"
+ }
+}
