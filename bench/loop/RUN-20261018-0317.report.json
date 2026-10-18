@@ -1,11 +1,26 @@
 {
  "title": "Perf run 20261018-0317",
  "eyebrow": "3D chess · perf-iteration · run 20261018-0317 · speed run",
- "heading": "A phone leans toward showing the start page's board sooner: each change called alone, leaned but not called on the final commit",
- "meta": "<p>This run kept two changes to the start page's picture of the board, and one fix to how the bench times it. Each change was called better by its own A/B: a returning phone's board 576 → 356 ms (SWR), a first-visit phone's board 796 → 564 ms (SP3, measured on a draft tree without SWR). On the branch's final app (<code>8e26575</code>) against the base <code>db54330</code>, over 11 interleaved pairs, those rows leaned the same way but were <strong>not called</strong>: a phone's board 864 → 588 ms (−27%, 10 of 11 pairs faster) and a returning phone's 620 → 340 ms (−44%, 11 of 11). The machine was noisy, so the pairs disagreed by more than the A/B's rule allows. All 16 headline rows were measured, and none was called better or worse.</p><p>The PR also carries the loop state: the ledger, the scoreboard and this run's record. Origin/main (2be67f6, 8bcb6a1) was merged in before the final checks.</p>",
+ "heading": "A returning phone shows the start page's board sooner: called alone, leaned on the final commit; the phone's cut parked after grading",
+ "meta": "<p>This run keeps one change to the start page's picture of the board (SWR) and one fix to how the bench times it (PB1). SWR was called better by its own A/B: a returning phone's board 576 → 356 ms. A second change, a phone's own cut of the picture (SP3), was kept at first and <strong>parked after grading</strong>: on the landed code it leaned the phone's board faster but was not called, and it leaned the desktop's first click slower in 11 of 12 pairs, a trade-off the keep rule does not allow (see Needs from me).</p><p>The final A/B ran on <code>8e26575</code>, which still had SP3, against the base <code>db54330</code>, over 11 interleaved pairs: the returning phone's board 620 → 340 ms (−44%, 11 of 11 pairs faster), not called. All 16 headline rows were measured there, and none was called better or worse. The branch's app now is 8e26575's without SP3 (<code>ecfd0bc</code>); no A/B of every row was run on it.</p><p>The PR also carries the loop state: the ledger, the scoreboard and this run's record. Origin/main (2be67f6, 8bcb6a1) was merged in before the final checks.</p>",
  "needs": {
-  "intro": "<p>Nothing here blocks the PR. Both items are information, each with a recommendation.</p>",
+  "intro": "<p>Nothing here blocks the PR. All three items are information, each with a recommendation.</p>",
   "items": [
+   {
+    "title": "SP3 parked after grading (information)",
+    "body": "<p>The grader left SP3 unsettled: its only called A/B ran on a draft tree, the desktop board leaned slower in every A/B with it, and nobody had looked at upright phones. So SP3 was measured as landed: <code>f0431f6</code> against <code>f0431f6</code> with SP3 reverted (<code>e2a2e03</code>, the same tree as the branch's <code>ecfd0bc</code>), cold load, 12 pairs (<code>ab-20261018-0317-sp3-landed.md</code>). Nothing was called. Median pair, head ÷ base:</p><ul><li>Phone board ×0.665, 11 of 12 better (920 → 612 ms). One pair at 2.43 blocks the call.</li><li>Desktop board ×1.20, 8 of 12 worse; identical code gave ×1.233.</li><li>Desktop first click ×1.41, 11 of 12 worse (13.3 → 19.8 ms). The draft-tree A/B had no lean here.</li><li>Phone bytes 417 → 235 KiB, not called.</li></ul><p>The look was clean: each tree built and shown at 360x740, 390x844, 430x932, 844x390 and 1280x800, picture, handover and live preview. Upright phones see the same framing and sharpness; the handover has no jump or ghosting; landscape and desktop are pixel-identical.</p><p>The keep rule needs the look clean, the phone board better in at least 10 of 12 pairs at a median pair of 0.85 or less, and no desktop board, usable or first-click row with a median pair over 1.05 and three quarters of its pairs worse. The desktop first click fails the last. SP3 was reverted (<code>ecfd0bc</code>) and kept as <code>patches/phone-tall-cut-SP3.patch</code>, pictures included.</p>",
+    "recommend": "Retry SP3 only after DL1: a 16-pair A/A of the desktop rows, then SP3's head script alone.",
+    "charts": [
+     {
+      "rows": {
+       "change": "1015:SP3 landed",
+       "only": "PRIMARY"
+      },
+      "caption": "SP3 as landed: f0431f6 against f0431f6 without SP3 (e2a2e03), cold load, 12 pairs (ab-20261018-0317-sp3-landed.md).",
+      "target": 1.2
+     }
+    ]
+   },
    {
     "title": "The 1.2× target was not met (information)",
     "body": "<p>Over all 16 headline rows the branch is ×1.104 as fast as the base (<code>ab-20261018-0317-final.md</code>). The rows for a phone's start page moved most: board ×0.69 at the median pair, returning board ×0.59, usable −7.4%. The other rows' code did not change, so they were not expected to move. Meeting the target needs wins on the computer's, joining's and review's rows. This run's focus was the start page. The one idea for the computer's row (RT1) leaned 17% faster but was not called.</p>",
@@ -22,9 +37,9 @@
     ]
    },
    {
-    "title": "Four rows lean slower, none called (information)",
-    "body": "<p>The speed rule lists every headline row more than 3% worse at its median pair. In the final A/B (11 pairs, head ÷ base):</p><ul><li>Desktop usable ×1.096, 7 of 11 worse: 1.52 0.65 1.43 0.61 0.89 1.19 1.06 1.10 1.22 0.29 4.43.</li><li>Desktop board ×1.043, 6 of 11: 1.95 1.10 0.96 0.31 0.56 0.82 1.06 1.04 2.94 1.39 0.53.</li><li>Desktop first click ×1.055, 7 of 11: 2.06 1.16 1.06 0.93 0.99 1.03 1.80 0.73 1.23 0.70 8.19.</li><li>Search speed ×1.035, 6 of 11: 1.03 1.50 1.66 0.20 1.32 0.99 0.98 0.88 1.43 0.37 2.67. The branch changes no search code.</li></ul><p>Identical code compared with itself leaned as far: the A/A at the start of the run gave desktop usable ×1.033 (3 of 3) and desktop board ×1.233 (3 of 3). The first chart shows the final pairs; the next two show the same desktop rows in the two A/As on identical code. Earlier in the run the desktop board leaned ×1.251 with SP3 alone (9 of 12 worse). On a desktop, SP3 changes only the small script in the page's head that starts the picture's download (439 → 2,564 bytes). No mechanism for a slower desktop has been found.</p>",
-    "recommend": "Keep both changes. The ledger's DL1 measures the desktop board's A/A spread first, then the head script alone.",
+    "title": "Four rows leaned slower on the final commit, none called (information)",
+    "body": "<p>The speed rule lists every headline row more than 3% worse at its median pair. In the final A/B (11 pairs, head ÷ base):</p><ul><li>Desktop usable ×1.096, 7 of 11 worse: 1.52 0.65 1.43 0.61 0.89 1.19 1.06 1.10 1.22 0.29 4.43.</li><li>Desktop board ×1.043, 6 of 11: 1.95 1.10 0.96 0.31 0.56 0.82 1.06 1.04 2.94 1.39 0.53.</li><li>Desktop first click ×1.055, 7 of 11: 2.06 1.16 1.06 0.93 0.99 1.03 1.80 0.73 1.23 0.70 8.19.</li><li>Search speed ×1.035, 6 of 11: 1.03 1.50 1.66 0.20 1.32 0.99 0.98 0.88 1.43 0.37 2.67. The branch changes no search code.</li></ul><p>Identical code compared with itself leaned as far: the A/A at the start of the run gave desktop usable ×1.033 (3 of 3) and desktop board ×1.233 (3 of 3). The final commit still had SP3. The first chart shows the final pairs; the next two show the same desktop rows in the two A/As on identical code. Earlier in the run the desktop board leaned ×1.251 with SP3 alone (9 of 12 worse). On a desktop, SP3 changes only the small script in the page's head that starts the picture's download (439 → 2,564 bytes). No mechanism for a slower desktop has been found. On the landed code the desktop board leaned ×1.20 with SP3 (8 of 12) and the first click ×1.41 (11 of 12); SP3 is now parked.</p>",
+    "recommend": "Keep SWR. The ledger's DL1 measures the desktop rows' A/A spread (board, usable, first click) with 16 pairs.",
     "charts": [
      {
       "rows": {
@@ -56,7 +71,7 @@
   "items": [
    {
     "title": "The branch's final app against the base",
-    "body": "<p><code>8e26575</code> (the final app code; later commits change only <code>bench/loop/</code>) against <code>db54330</code>, every headline row, 11 interleaved pairs. The run was stopped by the session's 2-hour limit during pair 12, so the report was rendered from the 11 complete pairs' saved output. Result: ×1.104 over 16 rows, 0 called better, 0 called worse.</p>",
+    "body": "<p><code>8e26575</code> (the final app code then, with SWR and SP3; later commits change only <code>bench/loop/</code>, ARCHITECTURE.md's wrapping, and SP3's revert in <code>ecfd0bc</code>) against <code>db54330</code>, every headline row, 11 interleaved pairs. The run was stopped by the session's 2-hour limit during pair 12, so the report was rendered from the 11 complete pairs' saved output. Result: ×1.104 over 16 rows, 0 called better, 0 called worse.</p>",
     "charts": [
      {
       "rows": {
@@ -70,7 +85,7 @@
    },
    {
     "title": "Each change on its own",
-    "body": "<p>SWR alone, on the bench fix PB1, 12 pairs: the returning phone's board 576 → 356 ms, called better. SP3 alone, as a draft on the same commit, 12 pairs: the phone's board 796 → 564 ms, called better. Together, 6 pairs: the returning phone's board called better again; the phone's board −22%, 5 of 6 pairs better.</p>",
+    "body": "<p>SWR alone, on the bench fix PB1, 12 pairs: the returning phone's board 576 → 356 ms, called better. SP3 alone, as a draft on the same commit, 12 pairs: the phone's board 796 → 564 ms, called better. Together, 6 pairs: the returning phone's board called better again; the phone's board −22%, 5 of 6 pairs better. SP3 as landed: see Needs from me.</p>",
     "charts": [
      {
       "rows": {
@@ -106,15 +121,11 @@
   ]
  },
  "changed": {
-  "intro": "<p>Two changes to the start page and one fix to the bench. Each was called better in its own A/B; on the final app the same rows leaned faster but were not called (Scoreboard).</p>",
+  "intro": "<p>One change to the start page and one fix to the bench. SWR was called better in its own A/B; on the final commit its row leaned faster but was not called (Scoreboard). SP3 was kept, then parked after grading (Needs from me, Tried and rejected).</p>",
   "items": [
    {
     "title": "A returning phone shows the board sooner (SWR, 7799513)",
     "body": "<p>The start page's pictures are now asked for with a version in the address (<code>?v=</code> and a hash of the pictures), and the host keeps them for a year. A returning phone takes the picture from its cache without first asking the server whether it changed. Re-rendered pictures get a new hash, so a new address. Alone: returning phone board 576 → 356 ms, called better, every pair 0.52–0.75; requests 2 → 1. On the final app: 620 → 340 ms, every pair better (0.39–0.71), not called.</p>"
-   },
-   {
-    "title": "A phone shows the board sooner on a first visit (SP3, 14cdae3)",
-    "body": "<p>Most phones held upright now get a cut of the phone picture shaped like their screen: 2.2 million pixels instead of 6.8 million, with the same scale and the same pixels where they overlap. Smaller files download and decode sooner. Once a picture shows, it stays while it still covers the window, so the browser's bars coming and going never fetch the other cut. Alone, on a draft tree without SWR: phone board 796 → 564 ms, called better, every pair 0.66–0.80. As landed, on SWR: 882 → 620 ms, 5 of 6 pairs (re-check together); final app 864 → 588 ms, 10 of 11. Neither was called.</p>"
    },
    {
     "title": "The bench times the picture when the browser paints it (PB1, bcaa032)",
@@ -122,16 +133,20 @@
    },
    {
     "title": "Each new check fails when its code is broken",
-    "body": "<p>Verify broke each kept change on purpose and ran its tests. Seven breaks, all caught: the version left out of the inline scripts, the year rule missing, the version ignoring the files' contents, the shown picture not kept, coverage always true, and two ways for the head's download to disagree with the page. With the paint timing broken, the bench's count of untimed pictures read 2 of 2 loads.</p>"
+    "body": "<p>Verify broke each kept change on purpose and ran its tests. Seven breaks, all caught: the version left out of the inline scripts, the year rule missing, the version ignoring the files' contents, and, for SP3 (now parked), the shown picture not kept, coverage always true, and two ways for the head's download to disagree with the page. With the paint timing broken, the bench's count of untimed pictures read 2 of 2 loads.</p>"
    }
   ]
  },
  "removed": {
-  "intro": "<ul><li><code>bench/loop/patches/landing-picture-version-SWR.patch</code> and <code>phone-tall-cut-SP3.patch</code>: both changes are now in the code.</li><li>The ledger rows for SWR, SP3 and PB1 (kept).</li><li><code>preloadLandingPicture</code>'s hand-written copy of the layout rule in <code>landingLayout.ts</code> (21 lines) and its source test (39 lines): the head script is now built from <code>earlyPicture.ts</code> with the same lens as the page.</li><li>The computer section's raw way-in steps (7dcca62, 10 lines of the bench): they fed no row and served only RT1, which is parked. They wait as <code>bench/loop/patches/way-in-steps-RT1.patch</code>.</li></ul><p>Net, the app and its tests grew by 208 lines (+367 −159 in <code>client/src</code> and <code>vite.config</code>), about half of it tests; the bench harness grew by 29 lines.</p>"
+  "intro": "<ul><li><code>bench/loop/patches/landing-picture-version-SWR.patch</code>: the change is now in the code. <code>phone-tall-cut-SP3.patch</code> was removed when SP3 landed and is back, rebuilt from 14cdae3 with its pictures, now that SP3 is parked.</li><li>The ledger rows for SWR and PB1 (kept). SP3's row is back as parked.</li><li>The computer section's raw way-in steps (7dcca62, 10 lines of the bench): they fed no row and served only RT1, which is parked. They wait as <code>bench/loop/patches/way-in-steps-RT1.patch</code>.</li><li>229f71a's rewrap of two ARCHITECTURE.md paragraphs (no words changed), reverted.</li></ul>"
  },
  "rejected": {
-  "intro": "<p>One idea was tried and parked with its patch.</p>",
+  "intro": "<p>Two ideas were tried and parked with their patches.</p>",
   "items": [
+   {
+    "title": "SP3: a phone's own cut of the start page's picture",
+    "body": "<p>Upright phones got a cut of the phone picture shaped like their screen: 2.2 million pixels instead of 6.8 million, same scale and composition. Alone on a draft tree: phone board 796 → 564 ms, called better. As landed, 12 pairs: phone board ×0.665 (11 of 12), not called; desktop first click ×1.41 (11 of 12 worse). It looked the same as before on every window. Parked by the keep rule, reverted in <code>ecfd0bc</code>, kept as <code>patches/phone-tall-cut-SP3.patch</code> with its pictures. Its head script grows from 439 to 2,564 bytes on every page, the first suspect for the desktop lean.</p>"
+   },
    {
     "title": "RT1: render an already-loaded chunk at once",
     "body": "<p>React holds back revealing a lazily loaded part until 300 ms after its placeholder first showed, even when the part's code is already loaded. On every base load, the computer's game screen arrived about 300 ms after its address. RT1 renders a loaded chunk directly. Against its parent, 12 pairs on the computer's section: the first board picture 1.37 → 1.14 s, ×0.83 at the median pair, 10 of 12 pairs better. Not called, because two pairs went the other way. Parked as <code>patches/lazy-chunk-no-throttle-RT1.patch</code>, with a test that fails on the base.</p>"
@@ -139,12 +154,12 @@
   ]
  },
  "choices": {
-  "intro": "<ul><li>Did not bisect the computer's lean (CL1). The new way-in steps showed React's 300 ms hold on every base load, a likelier cause than any one commit, and the time went to RT1.</li><li>Measured SP3 alone on a draft tree, as asked, then merged it onto SWR. The scoreboard rows for that A/B are labelled with that tree.</li><li>Kept SP3, though its row was not called on the tree as landed. Its code is the draft's but for one build setting a first-visit phone does not reach, and on the landed tree its row leaned the same way in both re-checks. Did not treat the desktop lean as a trade-off between player moments: it is not called in any A/B, and identical code leaned as far.</li><li>Ran step 2 as a short A/A, because the base's app code is the last base's byte for byte.</li><li>Merged origin/main before the final checks. In the CLAUDE.md conflict, kept this branch's landing-pictures line and main's readme-image line.</li><li>Rendered the final A/B from its 11 complete pairs after the 2-hour limit stopped pair 12. Then stopped a cold-load-only 12-pair re-check after one pair: the machine had slowed to about 8 minutes a side, so it needed about 3.3 hours.</li><li>Did not rewrite the kept commits' messages. Their percentages are from their own A/Bs; this page and the PR say what holds on the final commit.</li><li>After the grade, tried once more for a called result on the phone's board rows: a 10-pair cold-load re-check of the final tree. The machine slowed until most sides timed out, and the 2-hour limit stopped it in pair 9; only two pairs were whole, so no report was kept. Worded the headline as leaned, not called.</li><li>Dropped the raw way-in steps (7dcca62) and kept them as a patch beside RT1's.</li></ul>"
+  "intro": "<ul><li>Did not bisect the computer's lean (CL1). The new way-in steps showed React's 300 ms hold on every base load, a likelier cause than any one commit, and the time went to RT1.</li><li>Measured SP3 alone on a draft tree, as asked, then merged it onto SWR. The scoreboard rows for that A/B are labelled with that tree.</li><li>Kept SP3 at first, though its row was not called on the tree as landed. After grading, SP3 was measured on the landed code and parked by the orchestrator's keep rule (Needs from me).</li><li>Ran step 2 as a short A/A, because the base's app code is the last base's byte for byte.</li><li>Merged origin/main before the final checks. In the CLAUDE.md conflict, kept this branch's landing-pictures line and main's readme-image line.</li><li>Rendered the final A/B from its 11 complete pairs after the 2-hour limit stopped pair 12. Then stopped a cold-load-only 12-pair re-check after one pair: the machine had slowed to about 8 minutes a side, so it needed about 3.3 hours.</li><li>Did not rewrite the kept commits' messages. Their percentages are from their own A/Bs; this page and the PR say what holds on the final commit.</li><li>After the grade, tried once more for a called result on the phone's board rows: a 10-pair cold-load re-check of the final tree. The machine slowed until most sides timed out, and the 2-hour limit stopped it in pair 9; only two pairs were whole, so no report was kept. Worded the headline as leaned, not called.</li><li>Dropped the raw way-in steps (7dcca62) and kept them as a patch beside RT1's.</li></ul>"
  },
  "notConfirmed": {
-  "intro": "<ul><li>Why the desktop board leans slower with SP3: no trace was taken (ledger DL1, DD1).</li><li>RT1's 300 ms hold: read from raw output that is not committed, from a bench patch now parked with RT1 (ledger BR1 would put the steps in the reports).</li><li>A called result for the phone's two board rows on the final app: the re-check leaned them faster but did not call them.</li><li>How the picture's cache rule behaves on the real host: the bench serves the built <code>_headers</code> through <code>vite preview</code> over HTTP/1.1.</li></ul>"
+  "intro": "<ul><li>Why the desktop board and first click lean slower with SP3: no trace was taken (ledger DL1, SP3).</li><li>An A/B of every row on the branch as it now is (<code>ecfd0bc</code>, SWR without SP3).</li><li>RT1's 300 ms hold: read from raw output that is not committed, from a bench patch now parked with RT1 (ledger BR1 would put the steps in the reports).</li><li>A called result for the returning phone's board on the final app: it leaned faster in 11 of 11 pairs but was not called.</li><li>How the picture's cache rule behaves on the real host: the bench serves the built <code>_headers</code> through <code>vite preview</code> over HTTP/1.1.</li></ul>"
  },
  "next": {
-  "intro": "<ol><li>DL1: measure the desktop board's A/A spread (16 pairs), then the head script alone.</li><li>RT1 again with 16 or more pairs.</li><li>BR1: the way-in steps and the picture's stamps as report rows.</li><li>AT1's decode probe and DD1's desktop trace.</li><li>For a general run: PS1 (a picture swap shows a stretched or empty frame), EP1, LV2, CK2.</li></ol>"
+  "intro": "<ol><li>DL1: measure the desktop rows' A/A spread (16 pairs: board, usable, first click), then SP3's head script alone; SP3's retry waits on it.</li><li>RT1 again with 16 or more pairs.</li><li>BR1: the way-in steps and the picture's stamps as report rows.</li><li>AT1's decode probe and DD1's desktop trace.</li><li>For a general run: LV2, CK2 (PS1 and EP1 wait with SP3).</li></ol>"
  }
 }
