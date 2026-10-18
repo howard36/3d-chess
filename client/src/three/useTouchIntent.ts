@@ -331,6 +331,9 @@ export function useTouchIntent(
     if (aim.current) endAim(false);
     else if (lensNow.current) show(null);
   }, [endAim, show]);
+  // A resized canvas leaves the magnifier where the old one had it: closed
+  const size = useThree((s) => s.size);
+  useEffect(closeLens, [size.width, size.height, closeLens]);
 
   /**
    * A tap the board heard (`direct`: what its ray hit, if anything the

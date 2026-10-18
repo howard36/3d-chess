@@ -107,6 +107,9 @@ const GameCanvas = ({
           width: '100%',
           touchAction: 'none',
           WebkitTapHighlightColor: 'transparent',
+          // A finger held still aims (the magnifier): never the system's callout or a selection
+          WebkitTouchCallout: 'none',
+          userSelect: 'none',
           opacity: `var(${INTRO_SCENE_VAR}, 1)`,
         }}
         camera={{ position: layout.viewDirection, fov: 36 }}
