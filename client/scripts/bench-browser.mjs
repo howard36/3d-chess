@@ -552,13 +552,10 @@ const BENCH_INIT = () => {
       '#landing-early img, [data-testid="landing-picture"] img',
     );
     if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
-      b.pictureSeen = now();
+      b.pictureSeen = true;
       // (a picture that fails to decode is never painted: not timed, but counted)
       picture.decode().then(
-        () => {
-          b.pictureDecoded = now();
-          requestAnimationFrame(() => (f.landingPicture = now()));
-        },
+        () => requestAnimationFrame(() => (f.landingPicture = now())),
         () => (b.pictureFailed = true),
       );
     }
@@ -1331,34 +1328,11 @@ async function coldSection(browser) {
             await cdp.send('Network.enable');
             await cdp.send('Network.emulateNetworkConditions', c.net);
           }
-          // BENCH_TRACE_COLD=<dir>: a Chrome trace of each of these loads,
-          // from the navigation to the live preview, into <dir> (the network,
-          // the scripts, the picture's decode, each frame); its stamps go in
-          // the raw JSON beside it
-          const traceDir = process.env.BENCH_TRACE_COLD;
-          const trace = traceDir && path.join(traceDir, `cold-${c.key}-${Date.now()}.json`);
-          if (trace) {
-            fs.mkdirSync(traceDir, { recursive: true });
-            await browser.startTracing(page, {
-              categories: [
-                'devtools.timeline',
-                'disabled-by-default-devtools.timeline',
-                'disabled-by-default-devtools.timeline.frame',
-                'v8.execute',
-                'loading',
-                'blink.user_timing',
-              ],
-            });
-          }
-          try {
-            await page.goto(`${BASE}/`, { waitUntil: 'commit', timeout: 60000 });
-            await page.waitForFunction(() => window.__bench.firsts.previewLive, null, {
-              polling: 20,
-              timeout: 120000,
-            });
-          } finally {
-            if (trace) fs.writeFileSync(trace, await browser.stopTracing());
-          }
+          await page.goto(`${BASE}/`, { waitUntil: 'commit', timeout: 60000 });
+          await page.waitForFunction(() => window.__bench.firsts.previewLive, null, {
+            polling: 20,
+            timeout: 120000,
+          });
           // (awaited here, before the context closes under it)
           const run = await page.evaluate(() => {
             const { firsts, pictureFailed = false, earlyPicture = false } = window.__bench;
@@ -1369,28 +1343,6 @@ async function coldSection(browser) {
               .getEntriesByType('resource')
               .filter((e) => new URL(e.name).pathname.startsWith('/landing/'))
               .map((e) => new URL(e.name).pathname);
-            // Where the board's time went (raw only): the page, its styles,
-            // the entry and the picture arriving (Resource Timing), the
-            // picture seen loaded by the page, decoded, and painted
-            const res = performance.getEntriesByType('resource');
-            const nav = performance.getEntriesByType('navigation')[0];
-            const file = (re) => res.find((e) => re.test(new URL(e.name).pathname));
-            const img = file(/^\/landing\//);
-            const at = (t) => (t ? t - t0 : null);
-            const steps = {
-              html: nav.responseEnd,
-              css: file(/\.css$/)?.responseEnd ?? null,
-              entry: file(/^\/assets\/index-[\w-]+\.js$/)?.responseEnd ?? null,
-              pictureAsked: img?.requestStart ?? null,
-              pictureFirstByte: img?.responseStart ?? null,
-              pictureArrived: img?.responseEnd ?? null,
-              // (bytes over the wire: the file, its headers alone for a revalidated copy, 0 from the cache)
-              pictureTransfer: img?.transferSize ?? null,
-              pictureSeen: at(window.__bench.pictureSeen),
-              pictureDecoded: at(window.__bench.pictureDecoded),
-              picturePainted: Number.isFinite(picture) ? picture : null,
-              fcp: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
-            };
             return {
               board: Math.min(picture, live),
               preview: live,
@@ -1398,10 +1350,9 @@ async function coldSection(browser) {
               fetched,
               pictureFailed,
               earlyPicture,
-              steps,
             };
           });
-          return trace ? { ...run, trace } : run;
+          return run;
         } finally {
           await ctx.close();
         }
