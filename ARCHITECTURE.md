@@ -306,9 +306,8 @@ Key decisions:
   ("Move taken back. Your move."). The flag and the arrow are disabled while the connection is down or not yet
   back in the game, and a resignation or offer queued meanwhile is dropped, like a move. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
-  silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns, to the tenth:
-  queen 11.2, knight and bishop 3.1, rook 2.8, unicorn 1.2, measured for this board by
-  self-play, not 2D chess's: see Piece values); one above the other at the top left in a short window. The camera fit keeps their row clear
+  silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns:
+  knight and bishop 3, rook 2.5, unicorn 1.5, queen 9; see Piece values); one above the other at the top left in a short window. The camera fit keeps their row clear
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
   apply: "Reconnecting…" (the pill and the captures dim), the refusal that still stands and the
@@ -1300,39 +1299,23 @@ inaccuracies, 6.6 mistakes and 5.8 blunders, Medium 10.5, 2.1 and 2.9, Hard 2.0,
 
 ### Piece values
 
-What a piece is worth here, in pawns, is measured rather than borrowed from chess: queen 11.2,
-knight 3.1, bishop 3.1, rook 2.8, unicorn 1.2 (`game/material.ts`, the captured pieces' "+N", meant
-to say who is winning from which pieces stand alone, in every phase of the game). They come from
-self-play of test bots (`research/piece-values/`, its README for the detail): a C port of `src/ai`
-that searches node for node as the game does, with pruning added that is worth about 200 Elo at
-the same work, every move searched to a fixed number of positions. Material was taken away at
-random, never by a bot's choice, so no imbalance came with compensation, from the starting
-position and from quiet, level positions of played games in three phases (12 or more pieces
-besides kings and pawns; 6–11; 1–5 with pawns on both sides), leaving the start quiet (nothing
-hanging, no check); each imbalance was played twice, swapped between the sides. In each phase
-every piece's effect on the odds of winning was fitted, the pawn's included, and one set fitted
-to predict well in all phases at once, each weighted equally; the pawn was set to 1 last. Over
-some 15,000 games at three strengths:
+The captured pieces' "+N" (`game/material.ts`) counts a knight or a bishop as 3 pawns, a rook
+2.5, a unicorn 1.5 and a queen 9: half pawns, to read at a glance. Two measurements for this
+board stand behind them, both by self-play of a C port of `src/ai` that searches node for node
+as the game does:
 
-- A knight is worth a bishop; a rook about nine tenths of one, a unicorn two fifths, a queen
-  three and a half; the same at every strength and in every phase but one: in endings a rook is
-  worth more against pawns.
-- The values hold once the bots play reasonably: replaying the same games at 20,000, 80,000 and
-  320,000 positions a move gives a bishop 3.14, 3.20 and 3.08 pawns (only at 5,000, 3.4, is
-  play weak enough to shift them). Each of those steps is worth 300 to 375 Elo; the game's Hard
-  sits about 205 Elo above the 80,000 bots, so the 320,000 bots play about 100 Elo above Hard.
-  The values are fitted to the games at 80,000 and 320,000 together.
-- Against the old values (queen 10, knight and bishop 3, rook 2.5, unicorn 1.5), these predict
-  results better in every phase, and where the two read a game differently, the side these
-  put ahead scored 54% (680 games).
-- In endings without pawns no lone piece mates, so an extra piece there nearly always draws;
-  the "+N" cannot show that.
-
-The computer keeps its own values (`ai/evaluate.ts`: queen 9.8, knight 3.2, bishop 2.95, rook
-2.45, unicorn 1.4): they play together with its positional terms, and at equal work its search
-did no better with the measured values (scaled so its positional credits keep their share: 44–46%
-in 1,000 games), with evaluations fitted to self-play results (29% or worse), or with constants
-tuned for strength (51.3% ± 1.4%).
+- What predicts the winner from material alone (`research/piece-values/`, its README for the
+  detail): material taken away at random, from the start and from quiet positions of played
+  games in three phases (12 or more pieces besides kings and pawns; 6–11; 1–5), each imbalance
+  played twice with the sides swapped, some 15,000 games by bots about 100 Elo above Hard, and
+  each piece's effect on the odds of winning fitted with the phases weighted equally: queen
+  11.2, knight 3.1, bishop 3.1, rook 2.8, unicorn 1.2. In endings without pawns no lone piece
+  mates, so an extra piece there nearly always draws; no count can show that.
+- What the engine plays best with: its own values (`ai/evaluate.ts`: queen 9.8, knight 3.2,
+  bishop 2.95, rook 2.45, unicorn 1.4) work together with its positional terms. At equal work
+  its search did no better with the measured values (scaled so its positional credits keep
+  their share: 44–46% in 1,000 games), with evaluations fitted to self-play results (29% or
+  worse), or with constants tuned for strength (51.3% ± 1.4%).
 
 ## The tutorial
 

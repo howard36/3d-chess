@@ -12,24 +12,20 @@ import { otherSide } from './sides';
 import type { Turn } from './history';
 
 /**
- * Each piece's worth in tenths of a pawn (so sums stay exact), for this
- * board, not 2D chess's: measured by engine self-play of imbalances imposed
- * at random, from the start and from positions of played games, as a guide
- * to who is winning (ARCHITECTURE.md "Piece values"). A knight and a bishop
- * are worth the same, a rook nine tenths of either: on a 5-wide board it sees
- * 12 squares from anywhere and cannot mate alone. The unicorn, held to a
- * quarter of the board, is worth well under half a bishop, and the queen, the
- * only piece that mates alone, half as much again as its rook, bishop and
- * unicorn together.
+ * What the "+N" counts each piece as, in pawns: knight and bishop 3, rook
+ * 2.5, unicorn 1.5, queen 9 (ARCHITECTURE.md "Piece values"). On a 5-wide
+ * board a rook sees 12 squares from anywhere and cannot mate alone; the
+ * unicorn is held to a quarter of the board; the queen is the only piece that
+ * mates alone.
  */
-const PIECE_TENTHS: Record<PieceType, number> = {
+const PIECE_VALUE: Record<PieceType, number> = {
   [PieceType.King]: 0,
-  [PieceType.Queen]: 112,
-  [PieceType.Knight]: 31,
-  [PieceType.Bishop]: 31,
-  [PieceType.Rook]: 28,
-  [PieceType.Unicorn]: 12,
-  [PieceType.Pawn]: 10,
+  [PieceType.Queen]: 9,
+  [PieceType.Knight]: 3,
+  [PieceType.Bishop]: 3,
+  [PieceType.Rook]: 2.5,
+  [PieceType.Unicorn]: 1.5,
+  [PieceType.Pawn]: 1,
 };
 
 // Most valuable first, the order taken pieces are shown and said in (a king
@@ -56,26 +52,21 @@ export function groupTaken(types: readonly PieceType[]): TakenGroup[] {
   );
 }
 
-/** A side's material on the board, in tenths of a pawn. */
-function tenthsOf(board: Board, side: Turn): number {
+/** A side's material on the board, in pawns. */
+export function materialOf(board: Board, side: Turn): number {
   let sum = 0;
   for (let z = 0; z < LEVELS.length; z++)
     for (let x = 0; x < FILES.length; x++)
       for (let y = 0; y < RANKS.length; y++) {
         const piece = board.getPiece({ x, y, z });
-        if (piece?.color === side) sum += PIECE_TENTHS[piece.type];
+        if (piece?.color === side) sum += PIECE_VALUE[piece.type];
       }
   return sum;
 }
 
-/** A side's material on the board, in pawns. */
-export function materialOf(board: Board, side: Turn): number {
-  return tenthsOf(board, side) / 10;
-}
-
-/** How far `side` is ahead on material, in pawns (negative: behind), to a tenth. */
+/** How far `side` is ahead on material, in pawns (negative: behind). */
 export function materialLead(board: Board, side: Turn): number {
-  return (tenthsOf(board, side) - tenthsOf(board, otherSide(side))) / 10;
+  return materialOf(board, side) - materialOf(board, otherSide(side));
 }
 
 const NAME: Record<PieceType, string> = {

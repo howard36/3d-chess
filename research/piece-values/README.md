@@ -1,7 +1,8 @@
 # Measuring the piece values
 
-How the values behind the captured pieces' "+N" (`client/src/game/material.ts`) were measured,
-and the tools to measure them again after a rule change. None of this ships: the bots here exist
+What predicts the winner from material on this board, how it was measured, and the tools to
+measure it again after a rule change. The captured pieces' "+N" (`client/src/game/material.ts`)
+counts half pawns chosen with this in hand: knight and bishop 3, rook 2.5, unicorn 1.5, queen 9. None of this ships: the bots here exist
 only to play test games. ARCHITECTURE.md "Piece values" has the results in brief.
 
 The question: which single value per piece makes White's total minus Black's best predict who
@@ -69,7 +70,7 @@ Pawn = 1, quiet starts only, each phase weighted equally (`final_values.py`,
 | 320k                          | 1,526 | 3.13 ± 0.17 | 2.93 ± 0.17 | 2.89 ± 0.11 | 1.30 ± 0.12 | –          |
 | **80k and 320k (the values)** | 6,758 | 3.13 ± 0.08 | 3.07 ± 0.08 | 2.84 ± 0.07 | 1.20 ± 0.05 | 11.2 ± 0.8 |
 
-The shipped values are the last row rounded: queen 11.2, knight and bishop 3.1, rook 2.8,
+The measured values are the last row rounded: queen 11.2, knight and bishop 3.1, rook 2.8,
 unicorn 1.2 (the 320k games have no queen imbalance; its value comes from 80k).
 
 - **Strength.** On identical games (`an_paired3.py`) a bishop is 3.14, 3.20 and 3.08 pawns at

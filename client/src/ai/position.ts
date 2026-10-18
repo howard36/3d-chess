@@ -129,7 +129,7 @@ export const promotes = (cell: number, side: number) =>
 // loops read them as its own.
 //
 // Material at the engine's own values (queen 9.8, knight 3.2, bishop 2.95,
-// rook 2.45, unicorn 1.4; game/material.ts's "+N" measures its own). On top of it,
+// rook 2.45, unicorn 1.4; game/material.ts's "+N" counts its own). On top of it,
 // what a club player looks for: pieces brought out towards the middle of the
 // cube, pawns pushed on towards their last square (counted more as the board
 // empties), the king kept home behind its pawns while queens and knights are
