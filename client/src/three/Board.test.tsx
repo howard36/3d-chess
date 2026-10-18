@@ -2,6 +2,8 @@ import React from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
+import type { MagnifierProps } from './Magnifier';
+import { toLens } from './tapIntent';
 import { layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
@@ -45,6 +47,7 @@ const drawn = vi.hoisted(() => ({
   betters: [] as { from: MarkerProps; to: MarkerProps }[],
   captures: [] as CaptureFxProps[],
   selectionMounts: 0,
+  lens: null as MagnifierProps | null,
 }));
 vi.mock('./scene/pieces', () => ({
   PieceBody: (props: PieceBodyProps) => {
@@ -91,6 +94,13 @@ vi.mock('./scene/selection', () => ({
     return <group userData={{ selectionRing: true }} position={floor} />;
   },
 }));
+// The magnifier draws through the renderer and the page: here, only what Board hands it
+vi.mock('./Magnifier', () => ({
+  Magnifier: (props: MagnifierProps) => {
+    drawn.lens = props;
+    return null;
+  },
+}));
 vi.mock('./scene/grid', () => ({
   Grid: (props: GridProps) => {
     drawn.grids.push(props);
@@ -114,6 +124,7 @@ beforeEach(() => {
   drawn.betters.length = 0;
   drawn.captures.length = 0;
   drawn.selectionMounts = 0;
+  drawn.lens = null;
 });
 
 // Where the board's layout (the tower) puts a cell's centre and its floor
@@ -265,7 +276,23 @@ async function mountBoard(props: Partial<BoardProps> = {}) {
   const { camera, gl, scene } = three!;
   const rect = { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0 };
   vi.spyOn(gl.domElement, 'getBoundingClientRect').mockReturnValue(rect as DOMRect);
-  return { renderer, camera, canvas: gl.domElement, scene, width: rect.width, height: rect.height };
+  /** Renders the board again with other props, keeping it mounted. */
+  const rerender = (next: Partial<BoardProps>) =>
+    renderer.update(
+      <>
+        <Grab />
+        <Board board={createTestBoard()} currentTurn="white" {...next} />
+      </>,
+    );
+  return {
+    renderer,
+    camera,
+    canvas: gl.domElement,
+    scene,
+    width: rect.width,
+    height: rect.height,
+    rerender,
+  };
 }
 
 describe('Board', () => {
@@ -1650,14 +1677,14 @@ describe('Board and what it hands the scene', () => {
   });
 });
 
-// Tap assist, end to end through Board's handlers: the board seen through a
-// fixed camera on an 800x600 canvas, and clicks carrying a pointer type and
-// a position, as a browser sends them.
-describe('Board tap assist', () => {
+// A finger's taps, end to end through Board's handlers: the board seen
+// through a fixed camera on an 800x600 canvas, and clicks carrying a pointer
+// type and a position, as a browser sends them.
+describe("Board: a finger's taps", () => {
   const W = 800;
   const H = 600;
   async function tapBoard(props: Partial<BoardProps> = {}) {
-    const { renderer, camera, scene } = await mountBoard(props);
+    const { renderer, camera, scene, rerender } = await mountBoard(props);
     const cam = camera as PerspectiveCamera;
     cam.fov = 40;
     cam.aspect = W / H;
@@ -1681,6 +1708,7 @@ describe('Board tap assist', () => {
     });
     return {
       renderer,
+      rerender,
       pixel,
       /** A tap whose ray hits an empty square: the grid's own click. */
       onEmptySquare: (x: number, y: number, pointerType?: string) =>
@@ -1825,6 +1853,86 @@ describe('Board tap assist', () => {
     const [x, y] = beside(board.pixel);
     await board.onPiece(black, x, y);
     expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
+  });
+
+  // The rook on Aa1 picked up, and the two of its destinations closest on
+  // screen, with a tap halfway between them
+  async function between(onMove = vi.fn()) {
+    const board = await tapBoard({ board: captureBoard(), onMove });
+    await press(findPiece(board.renderer, PieceType.Rook, 'white'));
+    const marks = highlightedCells(board.renderer).map((cell) => {
+      const [x, y, z] = cell.props.position as [number, number, number];
+      return { zxy: cell.props.userData.zxy as string, at: board.pixel([x, y + FLOOR_Y, z]) };
+    });
+    let pair = [marks[0], marks[1]];
+    const apart = (a: (typeof marks)[0], b: (typeof marks)[0]) =>
+      Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]);
+    for (const a of marks) {
+      for (const b of marks) if (a !== b && apart(a, b) < apart(pair[0], pair[1])) pair = [a, b];
+    }
+    const mid = [(pair[0].at[0] + pair[1].at[0]) / 2, (pair[0].at[1] + pair[1].at[1]) / 2] as const;
+    return { board, onMove, pair, mid };
+  }
+
+  it('asks which move a tap between two close destinations meant, and plays the one chosen', async () => {
+    const { board, onMove, pair, mid } = await between();
+    await board.onNothing(...mid);
+    expect(onMove).not.toHaveBeenCalled();
+    const lens = drawn.lens!.state!;
+    expect(lens.mode).toBe('ask');
+    expect(lens.candidates.map((c) => c.id).sort()).toEqual(pair.map((p) => p.zxy).sort());
+    // The second, in the magnifier
+    const chosen = lens.candidates.find((c) => c.id === pair[1].zxy)!;
+    await act(async () => drawn.lens!.onTap(toLens(chosen.centre, lens.lens)));
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove.mock.calls[0][0].to).toEqual(fromZXY(pair[1].zxy));
+    expect(drawn.lens!.state).toBe(null);
+  });
+
+  it('closes the magnifier for a tap outside it, the piece still held', async () => {
+    const { board, onMove, mid } = await between();
+    await board.onNothing(...mid);
+    const { frame } = drawn.lens!.state!.lens;
+    await act(async () => drawn.lens!.onTap([frame.x - 20, frame.y + frame.height + 20]));
+    expect(drawn.lens!.state).toBe(null);
+    expect(onMove).not.toHaveBeenCalled();
+    expect(highlightedCells(board.renderer).length).toBeGreaterThan(0);
+  });
+
+  it('leaves the magnifier open for a tap in it beside every candidate', async () => {
+    const { board, mid } = await between();
+    await board.onNothing(...mid);
+    const { frame } = drawn.lens!.state!.lens;
+    await act(async () => drawn.lens!.onTap([frame.x + 4, frame.y + 4]));
+    expect(drawn.lens!.state).not.toBe(null);
+  });
+
+  it('plays a mouse click on a mark at once, however close its neighbour', async () => {
+    const { board, onMove, pair } = await between();
+    const cell = highlightedCells(board.renderer).find(
+      (c) => c.props.userData.zxy === pair[0].zxy,
+    )!;
+    const [x, y] = pair[0].at;
+    await act(async () => {
+      cell.props.onClick({
+        stopPropagation: () => {},
+        delta: 0,
+        nativeEvent: { type: 'click', pointerType: 'mouse', button: 0, clientX: x, clientY: y },
+      });
+    });
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(drawn.lens!.state).toBe(null);
+  });
+
+  it('closes the magnifier when the position changes under it', async () => {
+    const { board, mid } = await between();
+    await board.onNothing(...mid);
+    expect(drawn.lens!.state).not.toBe(null);
+    const mounted = drawn.lens!;
+    await act(async () => board.rerender({ board: captureBoard(), currentTurn: 'black' }));
+    expect(drawn.lens!.state).toBe(null);
+    // The same magnifier, closed: the board was not mounted again
+    expect(drawn.lens!.onTap).toBe(mounted.onTap);
   });
 });
 

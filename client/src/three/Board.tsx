@@ -26,8 +26,9 @@ import { prefersReducedMotion } from './motion';
 import { MATE_TUNING } from '../lib/mate';
 import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
-import { useTapAssist } from './useTapAssist';
-import type { AssistedTap } from './useTapAssist';
+import { useTouchIntent } from './useTouchIntent';
+import type { Actionable, DirectHit } from './useTouchIntent';
+import { Magnifier } from './Magnifier';
 import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { HoverHit } from './hover';
@@ -120,6 +121,8 @@ export interface BoardProps {
    * Without it, a later position always glides its last move in.
    */
   review?: boolean;
+  /** The canvas's top band, for a canvas `height` high, that the magnifier keeps clear of (a HUD over it). */
+  lensTop?: (height: number) => number;
 }
 
 /** How the shown position arrived: a piece gliding into it. */
@@ -330,14 +333,17 @@ const Board = (props: BoardProps) => {
     choose(coord, board.generateLegalMoves(coord));
   };
 
-  // A tap on a piece the player can act on (pick up, put down, capture) acts
-  // on it; a finger's tap on any other piece goes to what it was meant for
-  // (tap assist, below), if anything
+  // A click on a piece acts on it; a finger's tap on it goes to what it was
+  // meant for (useTouchIntent, below), its piece among the likeliest. A
+  // capture's victim stands for its destination.
   const handlePieceTap = (coord: Coord, event: MouseEvent) => {
-    const actionable = canPick(coord) || (!!selected && isHighlighted(coord));
-    const meant = actionable ? null : assisted(event);
-    if (meant) actOn(meant);
-    else handlePieceClick(coord);
+    const kind = isHighlighted(coord) && !canPick(coord) ? 'destination' : 'piece';
+    if (!touch.tap(event, { cell: toZXY(coord), kind })) handlePieceClick(coord);
+  };
+  // A click on a destination's mark plays its move; a finger's tap on it goes
+  // to what it was meant for
+  const handleMarkTap = (coord: Coord, event: MouseEvent) => {
+    if (!touch.tap(event, { cell: toZXY(coord), kind: 'destination' })) handleCubeClick(coord);
   };
 
   // Same reason as worldPositions: each piece gets a handler whose identity
@@ -347,7 +353,7 @@ const Board = (props: BoardProps) => {
   useLayoutEffect(() => {
     latestPieceTap.current = handlePieceTap;
     latestCanPick.current = canPick;
-    latestCubeClick.current = handleCubeClick;
+    latestMarkTap.current = handleMarkTap;
   });
   const pieceHandlers = useMemo(
     () =>
@@ -387,7 +393,7 @@ const Board = (props: BoardProps) => {
   // renders for things no cell shows (the board disabled while a move goes
   // to the server, a hover), which would each draw a frame identical to the
   // last. Its click plays the move through the latest closure.
-  const latestCubeClick = useRef<(cell: Coord) => void>(() => {});
+  const latestMarkTap = useRef<(cell: Coord, event: MouseEvent) => void>(() => {});
   const cellProps = useMemo(
     () =>
       new Map(
@@ -400,7 +406,7 @@ const Board = (props: BoardProps) => {
               destination: { highlight: true, cube: true, zxy },
               onClick: (e: ThreeEvent<MouseEvent>) => {
                 e.stopPropagation();
-                if (isTap(e) && take(e.nativeEvent)) latestCubeClick.current(cell);
+                if (isTap(e) && take(e.nativeEvent)) latestMarkTap.current(cell, e.nativeEvent);
               },
             },
           ];
@@ -535,25 +541,37 @@ const Board = (props: BoardProps) => {
   useLayoutEffect(() => {
     latestProbe.current = probe;
   });
-  // --- Tap assist: a finger's tap that reaches nothing the player can act on
-  // goes to the nearest thing they can (an own piece, a destination) within a
-  // finger's reach (tapAssist.ts). A mouse click is never assisted.
-  const assistTap = useTapAssist(grid, (o) => cellAt.get(o.position.toArray().join(',')));
-  const assisted = (event: MouseEvent | undefined) =>
-    assistTap(event, {
-      pieces: new Set(
-        pieces.filter(({ coord }) => canPick(coord)).map(({ coord }) => toZXY(coord)),
-      ),
-      destinations: destinationKeys,
-      holding: !!selected,
-    });
-  const actOn = ({ cell, kind }: AssistedTap) =>
-    kind === 'destination' ? handleCubeClick(fromZXY(cell)) : handlePieceClick(fromZXY(cell));
+  // --- A finger's taps: each goes to what it was meant for, or, when it
+  // could mean more than one move, the magnifier asks which (tapIntent.ts,
+  // useTouchIntent.ts). A mouse click keeps exactly the hit it makes.
+  const touch = useTouchIntent(
+    grid,
+    (o) => cellAt.get(o.position.toArray().join(',')),
+    {
+      actionable: (): Actionable => ({
+        pieces: new Set(
+          pieces.filter(({ coord }) => canPick(coord)).map(({ coord }) => toZXY(coord)),
+        ),
+        destinations: destinationKeys,
+        held: held.current && toZXY(held.current),
+      }),
+      act: (cell, kind) =>
+        kind === 'destination' ? handleCubeClick(fromZXY(cell)) : handlePieceClick(fromZXY(cell)),
+      // Meant for nothing: a piece hit shakes its head (if it is not the
+      // player's to pick up), and anything else puts the held piece down
+      miss: (direct: DirectHit | null) => {
+        if (direct?.kind === 'piece') handlePieceClick(fromZXY(direct.cell));
+        else if (held.current) choose(null);
+      },
+    },
+    props.lensTop,
+  );
+  // A new position, turn or selection closes the magnifier
+  const { closeLens } = touch;
+  useEffect(closeLens, [board, props.currentTurn, disabled, selected, closeLens]);
   // A click that reached nothing the player can act on
   const handleEmptyTap = (event: MouseEvent | undefined) => {
-    const meant = assisted(event);
-    if (meant) actOn(meant);
-    else if (selected) choose(null);
+    if (!touch.tap(event, null) && selected) choose(null);
   };
   const latestEmptyTap = useRef(handleEmptyTap);
   useLayoutEffect(() => {
@@ -591,6 +609,7 @@ const Board = (props: BoardProps) => {
   return (
     <>
       <HoverProbe probe={latestProbe} onHover={onHover} />
+      <Magnifier state={touch.lens} onTap={touch.lensTap} />
       <group
         ref={grid}
         name="board-grid"

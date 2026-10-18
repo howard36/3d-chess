@@ -149,6 +149,8 @@ const GameCanvas = ({
             gameOver={gameOver}
             // The position steps back and on through the move history
             review
+            // The magnifier keeps clear of the pill and the pieces taken under it
+            lensTop={hudTop}
           />
           {/* The only camera control is turning the view about the
             board's centre, which never moves (no pan by mouse, touch or
