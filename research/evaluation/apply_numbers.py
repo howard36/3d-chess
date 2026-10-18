@@ -1,4 +1,5 @@
-"""Put an evaluation file's numbers into the game (client/src/ai/position.ts and evaluate.ts), rounded
+"""Put an evaluation file's numbers into the game as the expert's (EXPERT_NUMBERS in
+client/src/ai/numbers.ts), rounded
 as the game holds them (tables to tenths, the weights per move and of pressure to whole numbers, the
 danger shares to hundredths, the shield and threat to tenths, the move's bonus to whole centipawns),
 and write those rounded numbers as an evaluation file, for checking the port (ref.ts) against them.
@@ -24,38 +25,36 @@ tempo = round(y[2])
 vals = order_values(t)
 f = lambda v: f'{v:g}' if v == int(v) else f'{v:.1f}'
 
-pos = open(f'{ai}/position.ts').read()
-for i, name in enumerate(['PAWN', 'KNIGHT', 'BISHOP', 'ROOK', 'UNICORN', 'QUEEN']):
-    pos, k = re.subn(rf'VALUE\[{name}\] = -?\d+;', f'VALUE[{name}] = {vals[i]};', pos); assert k == 1
-pos, k = re.subn(r'const PAWN_MG = \[[^\]]*\];', 'const PAWN_MG = [' + ', '.join(f(v) for v in t[0:9]) + '];', pos); assert k == 1
-pos, k = re.subn(r'const PAWN_EG = \[[^\]]*\];', 'const PAWN_EG = [' + ', '.join(f(v) for v in t[9:18]) + '];', pos); assert k == 1
-pos, k = re.subn(r'const file = x === 2 \? [-\d.]+ : x === 1 \|\| x === 3 \? [-\d.]+ : 0;',
-                 f'const file = x === 2 ? {f(t[18])} : x === 1 || x === 3 ? {f(t[19])} : 0;', pos); assert k == 1
-def term(c, v, var):   # " - 5.3 * centre" / " + 0.1 * centre"
-    return f' {"-" if v < 0 else "+"} {f(abs(v))} * {var}'
-for name, b, homevar in (('KNIGHT', 20, 'home'), ('BISHOP', 25, 'home'), ('UNICORN', 30, 'unicornHome')):
-    line = (f'set({name}, {f(t[b])}{term(0, t[b + 1], "centre")}{term(0, t[b + 2], homevar)}, '
-            f'{f(t[b + 3])}{term(0, t[b + 4], "centre")});')
-    pos, k = re.subn(rf'set\({name}, [^;]*\);', line, pos); assert k == 1, name
-for name, b in (('ROOK', 35), ('QUEEN', 39)):
-    line = f'set({name}, {f(t[b])}{term(0, t[b + 1], "centre")}, {f(t[b + 2])}{term(0, t[b + 3], "centre")});'
-    pos, k = re.subn(rf'set\({name}, [^;]*\);', line, pos); assert k == 1, name
-line = f'set(KING, {f(t[43])} * out{term(0, t[44], "Math.abs(x - 2)")}, {f(t[45])}{term(0, t[46], "centre")});'
-pos, k = re.subn(r'set\(KING, [^;]*\);', line, pos); assert k == 1
-trop = [int(t[52]), int(t[53]), int(t[54]), int(t[55]), int(t[56])]   # N B R U Q
-pos, k = re.subn(r'export const TROPISM_WEIGHT = \[[^\]]*\];',
-                 f'export const TROPISM_WEIGHT = [0, 0, {trop[0]}, {trop[1]}, {trop[2]}, {trop[3]}, {trop[4]}, 0];', pos); assert k == 1
-open(f'{ai}/position.ts', 'w').write(pos)
-
-ev = open(f'{ai}/evaluate.ts').read()
 mob = [int(t[47]), int(t[48]), int(t[49]), int(t[50]), int(t[51])]   # N B R U Q
-ev, k = re.subn(r'const MOBILITY_WEIGHT = \[[^\]]*\];', f'const MOBILITY_WEIGHT = [0, 0, {mob[0]}, {mob[1]}, {mob[2]}, {mob[3]}, {mob[4]}, 0];', ev); assert k == 1
-for name, v in (('BISHOP_PAIR', f(t[57])), ('DANGER_FORCE', f'{xa:g}'), ('DANGER_QUEEN', f'{xb:g}'),
-                ('SHIELD', f(shield)), ('PAWN_THREAT', f(threat)), ('TEMPO', f'{tempo}')):
-    ev, k = re.subn(rf'const {name} = -?[\d.]+;', f'const {name} = {v};', ev)
-    assert k == 1 or name == 'TEMPO', name
-    if k == 0: print('note: evaluate.ts has no TEMPO yet; add it by hand')
-open(f'{ai}/evaluate.ts', 'w').write(ev)
+trop = [int(t[52]), int(t[53]), int(t[54]), int(t[55]), int(t[56])]   # N B R U Q
+lst = lambda vs: '[' + ', '.join(f(v) for v in vs) + ']'
+# The table numbers' places: knight 20-24, bishop 25-29, unicorn 30-34 (middlegame, per step
+# out, at home; endgame, per step out), rook 35-38 and queen 39-42 (no home), king 43-46
+p5 = lambda b: f'piece({f(t[b])}, {f(t[b + 1])}, {f(t[b + 2])}, {f(t[b + 3])}, {f(t[b + 4])})'
+p4 = lambda b: f'piece({f(t[b])}, {f(t[b + 1])}, 0, {f(t[b + 2])}, {f(t[b + 3])})'
+block = f"""export const EXPERT_NUMBERS: EvalNumbers = {{
+  value: {lst(vals)},
+  pawnMg: {lst(t[0:9])},
+  pawnEg: {lst(t[9:18])},
+  pawnFile: [{f(t[18])}, {f(t[19])}],
+  knight: {p5(20)},
+  bishop: {p5(25)},
+  unicorn: {p5(30)},
+  rook: {p4(35)},
+  queen: {p4(39)},
+  king: {{ out: {f(t[43])}, file: {f(t[44])}, eg: {f(t[45])}, egCentre: {f(t[46])} }},
+  mobility: {lst(mob)},
+  tropism: {lst(trop)},
+  bishopPair: {f(t[57])},
+  dangerForce: {xa:g},
+  dangerQueen: {xb:g},
+  shield: {f(shield)},
+  pawnThreat: {f(threat)},
+  tempo: {tempo},
+}};"""
+num = open(f'{ai}/numbers.ts').read()
+num, k = re.subn(r'export const EXPERT_NUMBERS: EvalNumbers = \{.*?\n\};', lambda m: block, num, flags=re.S); assert k == 1
+open(f'{ai}/numbers.ts', 'w').write(num)
 
 with open(out, 'w') as fo:
     fo.write(' '.join(f'{v:.1f}' for v in t) + ' ' + ' '.join(map(str, vals)) + ' ' +

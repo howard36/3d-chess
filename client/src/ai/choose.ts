@@ -5,11 +5,12 @@
 // repeated exactly (the tests do).
 
 import { LEVELS, OPENING_PLIES } from './levels';
-import type { Difficulty, Level, MoveFeel } from './levels';
+import type { Level, MoveFeel, Player } from './levels';
 import {
   CX,
   CY,
   CZ,
+  EXPERT_WEIGHTS,
   KNIGHT,
   PAWN,
   KING,
@@ -82,19 +83,20 @@ const gaussian = (u: number, v: number) =>
   Math.sqrt(-2 * Math.log(1 - u)) * Math.cos(2 * Math.PI * v);
 
 /**
- * The computer's move after `records` (the game so far, as on the wire) at
- * `difficulty`; null if it has no legal move.
+ * The computer's move after `records` (the game so far, as on the wire) as
+ * `player` (a level, or a player the game does not offer); null if it has no
+ * legal move.
  */
 export function chooseMove(
   records: readonly WireMove[],
-  difficulty: Difficulty,
+  player: Player,
   seed: number,
   options: ChooseOptions = {},
 ): ComputerMove | null {
-  const pos = Position.fromRecords(records);
+  const level: Level = { ...LEVELS[player], ...options.level };
+  const pos = Position.fromRecords(records, level.expert ? EXPERT_WEIGHTS : undefined);
   const ply = records.length;
   const opening = ply < OPENING_PLIES;
-  const level: Level = { ...LEVELS[difficulty], ...options.level };
   // Freer in the opening, so no two games begin alike
   const margin = opening ? Math.max(level.margin, 40) : level.margin;
   const temperature = opening ? Math.max(level.temperature, 14) : level.temperature;
@@ -108,6 +110,7 @@ export function chooseMove(
     maxDepth: level.maxDepth,
     timeMs: level.timeMs,
     maxNodes: options.maxNodes,
+    nodes: level.nodes,
     margin,
     quiescence: level.quiescence,
     hidden,

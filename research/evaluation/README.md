@@ -14,7 +14,8 @@ positions, and the port must reproduce them byte for byte. An evaluation is a fi
 `eval_features`), the six values the search orders captures and counts the lead by, and
 optionally six extension terms and eleven fractional weights (`engine.h`, `EvalParams`).
 `PV_EVAL=@file` makes the `moves` and `search` modes use it, for checking a port;
-`gen_eval_ts.py` writes `evaluate.ts` from a numbers file, rounded as the game holds them.
+`apply_numbers.py` writes a numbers file into the game as the expert's (`client/src/ai/numbers.ts`),
+rounded as the game holds them.
 
 Every match is the game's own search (a fresh table each move, no added pruning) at a fixed
 number of nodes a move, each opening (eight plies chosen at random among the near-best) played
@@ -118,7 +119,7 @@ The second round's evaluation (`round2_final.txt`, below), 81 Elo stronger than 
 within 0.05 of it on every piece but the queen (0.1 to 0.15 lower): what it gained is in its other
 numbers (the bonus for the move, the threats, the shield), not in what the pieces are worth. It
 also predicts these positions' results a little better than the hand-set evaluation, each with its
-own fitted scale: squared error lower by 0.0006 ± 0.0003 (the game's numbers now, `round3_final.txt`,
+own fitted scale: squared error lower by 0.0006 ± 0.0003 (the expert's numbers, `round3_final.txt`,
 the same), where the first round's was lower by 0.0002 ± 0.0002 (bootstrap over positions).
 
 The projection does not depend on the positions chosen. `engine augment` keeps each position that
@@ -172,7 +173,7 @@ player's own values.
 
 SPSA with all of them (`spsa72.py`, `jx_start.txt`, two runs to 13,696 pairs) raised the side to
 move to about 22, the threats to about 10, the defended pieces from 4 to 7.5 and the pawn chains
-from 2 to 4, and kept the king's surroundings near 2.4. Only the side to move is in the game.
+from 2 to 4, and kept the king's surroundings near 2.4. Only the side to move is in the expert's numbers.
 
 Against the second round's evaluation (`terms2/`: `round2_final.txt` with one term added; 1,000
 games at 20k):
@@ -184,16 +185,16 @@ games at 20k):
 | The same, at 40k                         | 52.4% ± 1.4% |
 | Isolated pawns, −8 cp                    | 50.8% ± 1.4% |
 
-Pawn chains gain at equal nodes: on top of the game's numbers (`round3_final.txt`, below;
+Pawn chains gain at equal nodes: on top of the expert's numbers (`round3_final.txt`, below;
 `terms2/round3_chain4.txt`) they scored 53.8% ± 0.7% against the second round's numbers (4,000
 games at 40k), where the numbers alone scored 51.8% ± 0.8% (3,000 games), about 13 Elo more. They
-are not in the game, because they cost about as much in time. `pawn_chains.patch` keeps them in the
+are not in the expert's numbers, because they cost about as much in time. `pawn_chains.patch` keeps them in the
 board as moves are played: a pawn's move or capture changes only the pawns near it, and
 `position.test.ts` and `ref.ts` pass with it. The JS search runs at 0.96× with it on the same tree
 (paired, interleaved runs; 0.91× counting each side's pawns afresh after a pawn's move), and here
 1% fewer positions costs about 2.3 Elo (the first round's equal-time match, below), so they would
 net about 4 Elo at equal time. Counted as pairs instead (a pawn two pawns defend counts twice:
-`CHAIN_PAIRS=1` for `engine`), they gain the same on top of the game's numbers (51.6% ± 1.4%
+`CHAIN_PAIRS=1` for `engine`), they gain the same on top of the expert's numbers (51.6% ± 1.4%
 against 51.7% ± 1.4% counted as pawns, the same 1,000 openings at 40k), and the board can keep
 the count by looking at the same few cells as for a pawn's threats, but that costs as much
 (0.97×).
@@ -203,21 +204,21 @@ averaged, `polyak.py`), against the tuned evaluation at 40k: continuing as befor
 pairs, 53.9% ± 1.0% (2,000 games); with the side to move's bonus (`jt_start.txt`, two runs to
 13,696 and 9,696 pairs, averaged from 7,696; every eighth step in `jt_a_traj.jsonl` and
 `jt_b_traj.jsonl`), 61.4% ± 1.3% (1,000 games), with the bonus at 19 cp as tuned, and 61.0% ±
-1.3% with it set to 15. These were the game's numbers (`round2_final.txt`) until the runs went
+1.3% with it set to 15. These were the tuned numbers (`round2_final.txt`) until the runs went
 on. Averaging the first run's later half instead of taking its last step scored 51.4% ± 1.4%: a
 run's end is only one point of a wandering path.
 
 **The runs continued** (jtA to 17,696 pairs, jtB to 13,696), averaged from 11,696 and 9,696
-(`jt_avg3.txt`; as the game holds it, `round3_final.txt`): 51.8% ± 0.8% against the second round's
-numbers (3,000 games at 40k, +13 Elo). These are the game's numbers now. Alone, the first run's own
+(`jt_avg3.txt`; rounded as the game holds it, `round3_final.txt`): 51.8% ± 0.8% against the second round's
+numbers (3,000 games at 40k, +13 Elo). These are the expert's numbers in the game (`EXPERT_NUMBERS`, `client/src/ai/numbers.ts`; the levels keep theirs, `handset.txt`). Alone, the first run's own
 later half scored 60.7% ± 1.0% against the first round's (2,000 games), as the second round's did;
 the run without the bonus, continued as far (contA), 55.2% ± 1.0%. The five values read off it
 barely move: removal 3.26, 2.92, 2.37, 1.35, 8.56.
 
 ## The result
 
-The game's numbers (`round3_final.txt`, the second round's runs continued, as `position.ts` and
-`evaluate.ts` hold them: `apply_numbers.py` writes both from a numbers file) against the hand-set
+The expert's numbers (`round3_final.txt`, the second round's runs continued, as `numbers.ts`
+holds them: `apply_numbers.py` writes them from a numbers file) against the hand-set
 evaluation:
 
 | Budget                                                                   | Games | Score        | Elo  |
@@ -289,16 +290,16 @@ python3 curves/analyse.py .
 cp jt_start.jsonl jtA.traj
 python3 spsa72.py --start jt_start.txt --tag jtA --fix 61,62,64,65,67,68,69,70,71 --pairs 13696 --resume
 python3 polyak.py jtA.traj jtA_avg.txt --from 7696
-# the game's numbers: both runs, continued, pooled from 11,696 and 9,696
+# the expert's numbers: both runs, continued, pooled from 11,696 and 9,696
 python3 polyak.py jtA.traj jtB.traj jt_avg3.txt --from 11696 9696
-# into the game (client/src/ai), rounded as it holds them; then check the port with ref.ts
+# into the game as the expert's (client/src/ai/numbers.ts), rounded as it holds them; then check
+# the port with ref.ts (EXPERT=1 for the expert's numbers)
 python3 apply_numbers.py jt_avg3.txt ../../client/src/ai round3_final.txt
-# evaluate.ts from a numbers file, and the port against the JS engine (from client/, after npm ci)
-python3 gen_eval_ts.py numbers.txt ../../client/src/ai/evaluate.ts joint_final.txt
+# the port against the JS engine (from client/, after npm ci): the levels' numbers, then the expert's
 npx vite-node ../research/evaluation/ref.ts moves 3000 0 in.txt js.txt
-PV_EVAL=@joint_final.txt ../research/evaluation/engine moves < in.txt | cmp - js.txt
-npx vite-node ../research/evaluation/ref.ts search 150 30000 in.txt js.txt
-PV_EVAL=@joint_final.txt ../research/evaluation/engine search 30000 64 < in.txt | cmp - js.txt
+PV_EVAL=@handset.txt ../research/evaluation/engine moves < in.txt | cmp - js.txt
+EXPERT=1 npx vite-node ../research/evaluation/ref.ts search 150 30000 in.txt js.txt
+PV_EVAL=@round3_final.txt ../research/evaluation/engine search 30000 64 < in.txt | cmp - js.txt
 ```
 
 A match of 1,000 games takes about 20 minutes at 40k nodes on 4 cores, and twice that for each

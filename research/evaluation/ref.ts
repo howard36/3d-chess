@@ -1,5 +1,14 @@
-// Reference outputs from the JS engine for the C port's verification.
-import { Position, moveFrom, moveTo, movePromotion } from '../../client/src/ai/position';
+// Reference outputs from the JS engine for the C port's verification, by the
+// levels' numbers, or the expert's with EXPERT=1 (check them against the C
+// port with handset.txt and round3_final.txt).
+import {
+  EXPERT_WEIGHTS,
+  LEVEL_WEIGHTS,
+  Position,
+  moveFrom,
+  moveTo,
+  movePromotion,
+} from '../../client/src/ai/position';
 import { Searcher } from '../../client/src/ai/search';
 import { evaluate } from '../../client/src/ai/evaluate';
 import { writeFileSync } from 'node:fs';
@@ -7,6 +16,7 @@ import { writeFileSync } from 'node:fs';
 const mode = process.argv[2];
 const count = Number(process.argv[3] ?? 200);
 const nodes = Number(process.argv[4] ?? 20000);
+const weights = process.env.EXPERT === '1' ? EXPERT_WEIGHTS : LEVEL_WEIGHTS;
 let seed = 12345;
 const rand = () => {
   seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -16,7 +26,7 @@ const lines: string[] = [];
 const out: string[] = [];
 const buf = new Int32Array(1024);
 for (let g = 0; g < count; g++) {
-  const pos = Position.start();
+  const pos = Position.start(weights);
   const len = Math.floor(rand() * (mode === 'search' ? 60 : 160));
   const rec: number[] = [];
   let ok = true;
