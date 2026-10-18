@@ -1,0 +1,117 @@
+{
+ "title": "Perf run 20261018-0317",
+ "eyebrow": "3D chess · perf-iteration · run 20261018-0317 · speed run",
+ "heading": "A phone shows the start page's board sooner: about a quarter sooner on a first visit, close to half on a return",
+ "meta": "<p>This run kept two changes to the start page's picture of the board, and one fix to how the bench times it. On the branch's final commit, measured against the base <code>db54330</code> over 11 interleaved pairs, a phone shows the board 27% sooner on a first visit (864 → 588 ms) and 44% sooner on a return (620 → 340 ms). Each change was called better by its own A/B. On the final commit neither row was called, because the machine was noisy, but 10 of 11 pairs and 11 of 11 pairs were faster. All 16 headline rows were measured, and none was called worse.</p><p>The PR also carries the loop state: the ledger, the scoreboard and this run's record. Origin/main (2be67f6, 8bcb6a1) was merged in before the final checks.</p>",
+ "needs": {
+  "intro": "<p>Nothing here blocks the PR. Both items are information, each with a recommendation.</p>",
+  "items": [
+   {
+    "title": "The 1.2× target was not met (information)",
+    "body": "<p>Over all 16 headline rows the branch is ×1.104 as fast as the base (<code>ab-20261018-0317-final.md</code>). The rows for a phone's start page moved most: board ×0.69 at the median pair, returning board ×0.59, usable −7.4%. The other rows' code did not change, so they were not expected to move. Meeting the target needs wins on the computer's, joining's and review's rows. This run's focus was the start page. The one idea for the computer's row (RT1) leaned 17% faster but was not called.</p>",
+    "recommend": "Retry RT1 with 16 or more pairs in the next speed run."
+   },
+   {
+    "title": "Desktop rows lean slower, none called (information)",
+    "body": "<p>Final A/B, 11 pairs, median pair and pairs worse: desktop usable ×1.096 (7 of 11), desktop board ×1.043 (6 of 11), desktop first click ×1.055 (7 of 11), search speed ×1.035 (6 of 11). The branch changes no search code, and the desktop pairs range from 0.29 to 8.19, so the machine was noisy. Earlier in the run the desktop board leaned more: ×1.251 with SP3 alone (9 of 12 worse). But an A/A at the start of the run, identical code on both sides, also gave ×1.233 (3 of 3). On a desktop, SP3 changes only the small script in the page's head that starts the picture's download (439 → 2,564 bytes). No mechanism for a slower desktop board has been found.</p>",
+    "recommend": "Keep both changes. The ledger's DL1 measures the desktop board's A/A spread first, then the head script alone."
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code> (16 rows). Target: each 1.2× faster than the base <code>db54330</code> (the dashed line). Each bar is the geometric mean of the pairs; each dot is one pair. The long view against the first recorded run (92ce041) was not measured again this run: the last figure, from run 20261016-2036, was 2.48 times as fast over 11 rows.</p>",
+  "items": [
+   {
+    "title": "The branch's final app against the base",
+    "body": "<p><code>8e26575</code> (the final app code; later commits change only <code>bench/loop/</code>) against <code>db54330</code>, every headline row, 11 interleaved pairs. The run was stopped by the session's 2-hour limit during pair 12, so the report was rendered from the 11 complete pairs' saved output. Result: ×1.104 over 16 rows, 0 called better, 0 called worse.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 8e26575 vs db54330, --primary, 11 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "All 16 headline rows, 8e26575 against db54330, 11 pairs (ab-20261018-0317-final.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "Each change on its own",
+    "body": "<p>SWR alone, on the bench fix PB1, 12 pairs: the returning phone's board 576 → 356 ms, called better. SP3 alone, as a draft on the same commit, 12 pairs: the phone's board 796 → 564 ms, called better. Together, 6 pairs: the returning phone's board called better again; the phone's board −22%, 5 of 6 pairs better.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1016-1616:SWR",
+       "only": "PRIMARY"
+      },
+      "caption": "SWR alone: the start page rows, bcaa032 + SWR against db54330, 12 pairs (ab-20261018-0317-swr.md).",
+      "target": 1.2
+     },
+     {
+      "rows": {
+       "change": "1015:SP3",
+       "only": "PRIMARY"
+      },
+      "caption": "SP3 alone: the start page rows, bcaa032 + SP3 (a draft) against db54330, 12 pairs (ab-20261018-0317-sp3.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "The base against the last run's base",
+    "body": "<p>The base's app code is the last base's byte for byte, so this was an A/A: cold load and the computer, 3 pairs. No row was called worse; no regression to chase. Identical code still leaned on four rows, which is the spread to read the desktop lean against.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: db54330 (app identical to fbac15f) vs fbac15f, an A/A",
+       "only": "PRIMARY"
+      },
+      "caption": "Headline rows, db54330 against fbac15f (identical app code), cold load and the computer, 3 pairs (ab-20261018-0317-regress.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>Two changes to the start page and one fix to the bench. The percentages are from each change's own A/B; the final A/B is under Scoreboard.</p>",
+  "items": [
+   {
+    "title": "A returning phone shows the board 37% sooner (SWR, 7799513)",
+    "body": "<p>The start page's pictures are now asked for with a version in the address (<code>?v=</code> and a hash of the pictures), and the host keeps them for a year. A returning phone takes the picture from its cache without first asking the server whether it changed. Re-rendered pictures get a new hash, so a new address. Returning phone board 576 → 356 ms, every pair better (0.52–0.75); requests 2 → 1.</p>"
+   },
+   {
+    "title": "A phone shows the board 28% sooner on a first visit (SP3, 14cdae3)",
+    "body": "<p>Most phones held upright now get a cut of the phone picture shaped like their screen: 2.2 million pixels instead of 6.8 million, with the same scale and the same pixels where they overlap. Smaller files download and decode sooner. Once a picture shows, it stays while it still covers the window, so the browser's bars coming and going never fetch the other cut. Phone board 796 → 564 ms, every pair better (0.66–0.80).</p>"
+   },
+   {
+    "title": "The bench times the picture when the browser paints it (PB1, bcaa032)",
+    "body": "<p>The board rows now use the browser's own paint time for the picture (Element Timing) instead of a script's view of it, which waited on the page's main thread. Both sides of every later A/B measure this way. An A/A showed its spread is no worse than the old stamp's.</p>"
+   },
+   {
+    "title": "Each new check fails when its code is broken",
+    "body": "<p>Verify broke each kept change on purpose and ran its tests. Seven breaks, all caught: the version left out of the inline scripts, the year rule missing, the version ignoring the files' contents, the shown picture not kept, coverage always true, and two ways for the head's download to disagree with the page. With the paint timing broken, the bench's count of untimed pictures read 2 of 2 loads.</p>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<ul><li><code>bench/loop/patches/landing-picture-version-SWR.patch</code> and <code>phone-tall-cut-SP3.patch</code>: both changes are now in the code.</li><li>The ledger rows for SWR, SP3 and PB1 (kept).</li><li><code>preloadLandingPicture</code>'s hand-written copy of the layout rule in <code>landingLayout.ts</code> (21 lines) and its source test (39 lines): the head script is now built from <code>earlyPicture.ts</code> with the same lens as the page.</li></ul><p>Net, the app and its tests grew by 208 lines (+367 −159 in <code>client/src</code> and <code>vite.config</code>), about half of it tests; the bench harness grew by 39 lines.</p>"
+ },
+ "rejected": {
+  "intro": "<p>One idea was tried and parked with its patch.</p>",
+  "items": [
+   {
+    "title": "RT1: render an already-loaded chunk at once",
+    "body": "<p>React holds back revealing a lazily loaded part until 300 ms after its placeholder first showed, even when the part's code is already loaded. On every base load, the computer's game screen arrived about 300 ms after its address. RT1 renders a loaded chunk directly. Against its parent, 12 pairs on the computer's section: the first board picture 1.37 → 1.14 s, ×0.83 at the median pair, 10 of 12 pairs better. Not called, because two pairs went the other way. Parked as <code>patches/lazy-chunk-no-throttle-RT1.patch</code>, with a test that fails on the base.</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>Did not bisect the computer's lean (CL1). The new way-in steps showed React's 300 ms hold on every base load, a likelier cause than any one commit, and the time went to RT1.</li><li>Measured SP3 alone on a draft tree, as asked, then merged it onto SWR. The scoreboard rows for that A/B are labelled with that tree.</li><li>Kept SP3 despite the desktop lean: no headline row was called worse in any A/B, and the phone's board is the focus row.</li><li>Ran step 2 as a short A/A, because the base's app code is the last base's byte for byte.</li><li>Merged origin/main before the final checks. In the CLAUDE.md conflict, kept this branch's landing-pictures line and main's readme-image line.</li><li>Rendered the final A/B from its 11 complete pairs after the 2-hour limit stopped pair 12. Then stopped a cold-load-only 12-pair re-check after one pair: the machine had slowed to about 8 minutes a side, so it needed about 3.3 hours.</li><li>Did not rewrite the kept commits' messages. Their percentages are from their own A/Bs; this page and the PR say what holds on the final commit.</li></ul>"
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>Why the desktop board leans slower with SP3: no trace was taken (ledger DL1, DD1).</li><li>RT1's 300 ms hold and the computer's way-in steps: read from raw output that is not committed (ledger BR1 would put them in the reports).</li><li>How the picture's cache rule behaves on the real host: the bench serves the built <code>_headers</code> through <code>vite preview</code> over HTTP/1.1.</li></ul>"
+ },
+ "next": {
+  "intro": "<ol><li>DL1: measure the desktop board's A/A spread (16 pairs), then the head script alone.</li><li>RT1 again with 16 or more pairs.</li><li>BR1: the way-in steps and the picture's stamps as report rows.</li><li>AT1's decode probe and DD1's desktop trace.</li><li>For a general run: PS1 (a picture swap shows a stretched or empty frame), EP1, LV2, CK2.</li></ol>"
+ }
+}
