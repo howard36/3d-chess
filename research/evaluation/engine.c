@@ -697,13 +697,18 @@ static int evaluate_ext(const EvalParams *e, const Pos *p, int full) {
   }
   if (e->ext2 && (e->yprot != 0 || e->ychain != 0 || e->yiso != 0)) {
     static uint8_t mark[CELLS];
+    // CHAIN_PAIRS=1: pawn chains as defender-defended pairs instead of pawns defended
+    static int chain_pairs = -1;
+    if (chain_pairs < 0) chain_pairs = getenv("CHAIN_PAIRS") && atoi(getenv("CHAIN_PAIRS"));
     for (int s = 0; s < 2; s++) {
       int prot = 0, chain = 0, iso = 0;
       for (int i = 0; i < np[s]; i++) {
         int c = pawns[s][i];
         for (int k = 0, len = PAWN_CAP_LEN[s][c]; k < len; k++) {
           int t = PAWN_CAP[s][c * 5 + k], q = board[t];
-          if (!q || (q >> 3) != s || (q & 7) == KING || mark[t]) continue;
+          if (!q || (q >> 3) != s || (q & 7) == KING) continue;
+          if (chain_pairs && (q & 7) == PAWN) { chain++; continue; }   // each defending pawn counts
+          if (mark[t]) continue;
           mark[t] = 1;
           if ((q & 7) == PAWN) chain++; else prot++;
         }

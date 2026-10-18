@@ -192,7 +192,11 @@ board as moves are played: a pawn's move or capture changes only the pawns near 
 `position.test.ts` and `ref.ts` pass with it. The JS search runs at 0.96× with it on the same tree
 (paired, interleaved runs; 0.91× counting each side's pawns afresh after a pawn's move), and here
 1% fewer positions costs about 2.3 Elo (the first round's equal-time match, below), so they would
-net about 4 Elo at equal time.
+net about 4 Elo at equal time. Counted as pairs instead (a pawn two pawns defend counts twice:
+`CHAIN_PAIRS=1` for `engine`), they gain the same on top of the game's numbers (51.6% ± 1.4%
+against 51.7% ± 1.4% counted as pawns, the same 1,000 openings at 40k), and the board can keep
+the count by looking at the same few cells as for a pawn's threats, but that costs as much
+(0.97×).
 
 **A second tuning** (from the tuned evaluation at 5,696 pairs; the later half of each run
 averaged, `polyak.py`), against the tuned evaluation at 40k: continuing as before, to 17,696
