@@ -7,8 +7,8 @@
 // own danger, the enemy's pieces and above all its queen: home behind its
 // pawns while there is an attack to fear, to the middle after. On top: pieces
 // with room to move and near the enemy king, the bishop pair, pawns beside
-// their king, pieces a pawn attacks, and, a side ahead, trading down and
-// driving the bare king to a corner. The numbers were tuned for playing
+// their king, pieces a pawn attacks, having the move, and, a side ahead,
+// trading down and driving the bare king to a corner. The numbers were tuned for playing
 // strength by self-play (research/evaluation/).
 
 import {
@@ -41,14 +41,16 @@ export { DIST, VALUE } from './position';
 
 /** Positional terms beyond the tables, weighted per piece type. */
 const MOBILITY_WEIGHT = [0, 0, 1, 1, 2, 3, 0, 0];
-const BISHOP_PAIR = 26;
+const BISHOP_PAIR = 28;
 /** The king's danger: shares of the game's phase, the enemy's pieces and the enemy's queen. */
-const DANGER_FORCE = 0.29;
+const DANGER_FORCE = 0.27;
 const DANGER_QUEEN = 0.32;
 /** Each own pawn beside the king, at the king's danger. */
-const SHIELD = 9.9;
+const SHIELD = 12.5;
 /** Each enemy piece (no pawn or king) a pawn attacks. */
-const PAWN_THREAT = 33.7;
+const PAWN_THREAT = 39.2;
+/** Having the move. */
+const TEMPO = 19;
 const WHITE_KING = KING * CELLS;
 const BLACK_KING = (KING | BLACK) * CELLS;
 
@@ -119,7 +121,7 @@ export function evaluate(pos: Position, full = true): number {
     }
   }
 
-  const relative = pos.side === WHITE_SIDE ? score : -score;
+  const relative = (pos.side === WHITE_SIDE ? score : -score) + TEMPO;
   const scaled = toward50(relative, pos.halfmoves);
   return full ? scaled + mobilityScore(pos) : scaled;
 }

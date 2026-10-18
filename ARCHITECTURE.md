@@ -1249,9 +1249,9 @@ position together, in tables per piece and cell (development and centralisation 
 pawns' progress towards their last square, worth more as the board empties); the king home
 behind its pawns while the enemy has the pieces to attack it, its queen above all, and active
 once they are gone; its own pawns beside it; pressure on the enemy king; pieces a pawn
-attacks; mobility (left out of the quiescence search where it cannot matter); the bishop
-pair; and, a side ahead, trading down and driving the bare king to a corner, which mates with
-king and queen. Its numbers were tuned for playing strength by self-play
+attacks; having the move; mobility (left out of the quiescence search where it cannot
+matter); the bishop pair; and, a side ahead, trading down and driving the bare king to a
+corner, which mates with king and queen. Its numbers were tuned for playing strength by self-play
 (`research/evaluation/`, its README for the method): at the same number of positions
 searched it scored 68.7% against the hand-set evaluation it replaced (2,000 games at 40,000
 positions a move, about 135 Elo). The board keeps the king and pawn terms as moves are

@@ -59,7 +59,7 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
   // White's blunder: the queen there for the taking
   await page.locator('[data-ply="3"]').click();
   await expect(history).toHaveAttribute('data-viewing-ply', '3');
-  await expect(history).toHaveAttribute('data-best', 'Bd2-Cc2');
+  await expect(history).toHaveAttribute('data-best', 'Bc1-Cc2');
   await expect(page.getByTestId('best-move')).toBeVisible();
   await expect.poll(() => betterOnBoard(page)).toBe(true);
   // An unmarked move keeps the board quiet

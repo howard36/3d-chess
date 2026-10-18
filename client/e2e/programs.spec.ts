@@ -154,7 +154,7 @@ test('a finished game’s review links no shader program: the better move is dra
   await expect(history).toHaveAttribute('data-analysis', 'done', { timeout: 60_000 });
   // White's blunder: the better move drawn beside the move played
   await page.locator('[data-ply="3"]').click();
-  await expect(history).toHaveAttribute('data-best', 'Bd2-Cc2');
+  await expect(history).toHaveAttribute('data-best', 'Bc1-Cc2');
   await page.waitForTimeout(1000);
   expect(await links(page)).toEqual([]);
 });
