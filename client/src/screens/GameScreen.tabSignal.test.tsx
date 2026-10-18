@@ -7,22 +7,8 @@ import { SHORT_GAME } from '../game/shortGame';
 
 // The browser tab's title and icon through a game: "Your move" and the dot
 // while it is the player's move, the page's own otherwise. As in
-// GameScreen.endModal.test.tsx, the three.js layer is stubbed.
-vi.mock('@react-three/fiber', () => ({
-  Canvas: () => <div data-testid="r3f-canvas" />,
-}));
-vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
-vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
-vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
-vi.mock('../three/scene/backdropCache', () => ({
-  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
-}));
-vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
-vi.mock('../three/scene/warm', () => ({ WarmPrograms: () => null }));
-vi.mock('../three/intro/IntroDirector', () => ({
-  IntroDirector: () => null,
-}));
-vi.mock('../three/Board', () => ({ default: () => null }));
+// GameScreen.endModal.test.tsx, the board's canvas is stubbed.
+vi.mock('./GameCanvas', () => ({ default: () => <div data-testid="r3f-canvas" /> }));
 
 // The showcase game: 17 plies ending in White's mate.
 const moves = SHORT_GAME.map((m, i): WebSocketMessage => {

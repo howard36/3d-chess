@@ -7,24 +7,8 @@ import { fromZXY } from '../engine/coords';
 import { fakeSocket, gameScreenAt } from './testSupport';
 import { SHORT_GAME } from '../game/shortGame';
 
-// As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
-vi.mock('@react-three/fiber', () => ({
-  Canvas: () => <div data-testid="r3f-canvas" />,
-}));
-vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
-vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
-vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
-vi.mock('../three/scene/backdropCache', () => ({
-  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
-}));
-vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
-vi.mock('../three/scene/warm', () => ({
-  WarmPrograms: () => null,
-}));
-vi.mock('../three/intro/IntroDirector', () => ({
-  IntroDirector: () => null,
-}));
-vi.mock('../three/Board', () => ({ default: () => null }));
+// No WebGL in jsdom: the board's canvas (GameView's lazy GameCanvas) is stubbed.
+vi.mock('./GameCanvas', () => ({ default: () => <div data-testid="r3f-canvas" /> }));
 // The mated king's topple, which the card follows: fired by hand here
 const topple = vi.hoisted(() => ({ listeners: new Set<() => void>() }));
 vi.mock('../three/toppled', () => ({

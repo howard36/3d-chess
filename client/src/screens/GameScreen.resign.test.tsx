@@ -4,22 +4,8 @@ import type { WebSocketMessage } from '../types/messages';
 import { fakeSocket, gameScreenAt } from './testSupport';
 import { YOUR_MOVE_TITLE } from '../hooks/useTabSignal';
 
-// As in GameScreen.endModal.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
-vi.mock('@react-three/fiber', () => ({
-  Canvas: () => <div data-testid="r3f-canvas" />,
-}));
-vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
-vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
-vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
-vi.mock('../three/scene/backdropCache', () => ({
-  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
-}));
-vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
-vi.mock('../three/scene/warm', () => ({ WarmPrograms: () => null }));
-vi.mock('../three/intro/IntroDirector', () => ({
-  IntroDirector: () => null,
-}));
-vi.mock('../three/Board', () => ({ default: () => null }));
+// No WebGL in jsdom: the board's canvas (GameView's lazy GameCanvas) is stubbed.
+vi.mock('./GameCanvas', () => ({ default: () => <div data-testid="r3f-canvas" /> }));
 
 const started = (color: 'white' | 'black' = 'white'): WebSocketMessage[] => [
   { type: 'game_state', color, started: true, moves: [{ by: 'white', from: 'Bc2', to: 'Cc2' }] },
