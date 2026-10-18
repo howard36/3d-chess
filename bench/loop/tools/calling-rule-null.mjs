@@ -20,7 +20,12 @@ const arg = (name) => process.argv.indexOf(name);
 const minPairs = arg('--min-pairs') > 0 ? Number(process.argv[arg('--min-pairs') + 1]) : 2;
 const aaOnly = arg('--aa') > 0;
 
-const calls = (ratios) => verdict(ratios.map((r) => [100, 100 * r]), 'lower', 'ms')?.real ?? false;
+const calls = (ratios) =>
+  verdict(
+    ratios.map((r) => [100, 100 * r]),
+    'lower',
+    'ms',
+  )?.real ?? false;
 
 const byPairs = new Map();
 for (const file of readdirSync(dir).filter((f) => /^ab-.*\.md$/.test(f))) {
@@ -51,7 +56,9 @@ let expected = 0;
 let called = 0;
 console.log('pairs  rows  false calls expected  called on the data');
 for (const [n, s] of [...byPairs].sort((a, b) => a[0] - b[0])) {
-  console.log(`${String(n).padStart(5)} ${String(s.rows).padStart(5)} ${s.expected.toFixed(4).padStart(21)} ${String(s.called).padStart(19)}`);
+  console.log(
+    `${String(n).padStart(5)} ${String(s.rows).padStart(5)} ${s.expected.toFixed(4).padStart(21)} ${String(s.called).padStart(19)}`,
+  );
   rows += s.rows;
   expected += s.expected;
   called += s.called;
