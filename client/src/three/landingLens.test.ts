@@ -161,6 +161,20 @@ describe('the pictures', () => {
     }
   });
 
+  it('of one layout share a density, so a swap between them never rescales the scene', () => {
+    for (const density of ['1x', '2x'] as const) {
+      const perTangent = new Map<string, number[]>();
+      for (const p of Object.values(LANDING_PICTURES))
+        perTangent.set(p.layout, [
+          ...(perTangent.get(p.layout) ?? []),
+          p.pixels[density][1] / p.span,
+        ]);
+      // (within the pixel each cut's size was rounded to)
+      for (const [layout, each] of perTangent)
+        expect(Math.max(...each) - Math.min(...each), layout).toBeLessThan(1.5);
+    }
+  });
+
   it('are named for their density', () => {
     expect(pictureSource('wide', 'avif')).toBe('/landing/wide.avif');
     expect(pictureSource('wide', 'webp', '2x')).toBe('/landing/wide@2x.webp');
