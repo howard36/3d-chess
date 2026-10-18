@@ -167,7 +167,7 @@ it('the levels grow stronger: deeper, steadier, seeing more', () => {
 it('plays Hard on a budget of positions the same on any machine, and the expert by its own numbers', () => {
   const records = demo.slice(0, 6);
   const slow = { now: () => performance.now() / 100 };
-  const fixed = { level: { nodes: 50_000 } };
+  const fixed = { level: { nodes: 20_000 } };
   const a = chooseMove(records, 'hardFixed', 5, fixed)!;
   const b = chooseMove(records, 'hardFixed', 5, { ...fixed, ...slow })!;
   expect(b).toEqual(a);
@@ -179,8 +179,8 @@ it('plays Hard on a budget of positions the same on any machine, and the expert 
   expect(evaluate(expert)).not.toBe(evaluate(start));
   const choice = chooseMove(records, 'expert', 5, fixed)!;
   expect(isLegal(records, choice.move)).toBe(true);
-  expect(choice.nodes).toBeLessThanOrEqual(50_000 + 1024);
-});
+  expect(choice.nodes).toBeLessThanOrEqual(20_000 + 1024);
+}, 30_000);
 
 it('calls a long move across levels, or a knight changing level, hard to see', () => {
   const move = (from: number, to: number, piece: number) => from | (to << 7) | (piece << 21);

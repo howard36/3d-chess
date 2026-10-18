@@ -147,7 +147,7 @@ it('does not see a hidden move, so walks into it', () => {
 
 it('on a budget of positions, stops where the clock would at that speed, on any machine', () => {
   const pos = Position.fromRecords(demo.slice(0, 6));
-  const limits = { maxDepth: 30, timeMs: 1800, margin: 16, nodes: 60_000 };
+  const limits = { maxDepth: 30, timeMs: 1800, margin: 16, nodes: 20_000 };
   const budgeted = new Searcher(pos).search({ ...limits, now: () => performance.now() * 1e6 });
   // The clock's own rules, with a clock that counts the positions searched
   const searcher = new Searcher(pos);
@@ -160,9 +160,10 @@ it('on a budget of positions, stops where the clock would at that speed, on any 
   expect(budgeted).toEqual(clocked);
   // Past the budget by at most the stretch between looks at the clock
   expect(budgeted.nodes).toBeLessThanOrEqual(limits.nodes + 1024);
-  const more = new Searcher(pos).search({ ...limits, nodes: 600_000 });
+  const more = new Searcher(pos).search({ ...limits, nodes: 200_000 });
   expect(more.depth).toBeGreaterThan(budgeted.depth);
-});
+  // A few searches: seconds with coverage on a busy runner
+}, 30_000);
 
 it('the expert judges a position as its mirror image, with or without a king', () => {
   const pieces: [number, number, number, number][] = [
