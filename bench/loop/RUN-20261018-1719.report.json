@@ -1,0 +1,133 @@
+{
+ "title": "Perf run 20261018-1719",
+ "eyebrow": "3D chess · perf-iteration · run 20261018-1719 · general run",
+ "heading": "Fixes, checks and two small removals, with no player moment slower: the computer's games and the tutorial now open no connection to the server",
+ "meta": "<p>This general run kept 17 changes, each held to the skill's bar of evidence: 7 fixes, 1 visibility fix, 8 new checks and 2 small removals. It claims no speed change. The most visible fix: a game against the computer and the tutorial no longer connect to the game server, so they no longer wake its container or hold an idle connection.</p><p>The final A/B ran the branch (<code>05b74df</code>) against the base <code>9a9e9db</code>, all 16 headline rows, 8 interleaved pairs. No row was called better or worse. Nine rows leaned slower at the median pair. A second A/B of the five game rows among them, 8 pairs, showed none of those leans again. The other four leans are listed under Needs from me, as information.</p>",
+ "needs": {
+  "intro": "<p>Nothing here needs a decision. The skill asks for these items to be listed; each is information, with a recommendation.</p>",
+  "items": [
+   {
+    "title": "Information: four headline rows leaned slower in the final A/B and were not measured again",
+    "body": "<p>The skill's speed rule lists any headline row that is more than 3% worse at its median pair. In the final A/B (8 pairs, nothing called) nine rows did. The five game rows among them were measured again, 8 more pairs: none was more than 3% worse (<code>ab-20261018-1719-recheck.md</code>), so those leans came from the machine. The other four, with their pairs (head/base):</p><ul><li>Start page shows the board, desktop: ×1.073 at the median pair, 5 of 8 worse (1.09 1.18 0.91 1.08 1.15 0.89 1.06 0.98). The DL1 row: this row swings on identical code.</li><li>Start page answers its first click, desktop: 15.3 → 15.7 ms, ×1.151 at the median pair, 5 of 8 worse (0.85 1.37 1.16 0.73 1.14 1.17 1.19 0.91). CK1 touches this click, and run 2100's A/B of CK1 leaned the same way (×1.114, 5 of 8). The change is 0.4 ms.</li><li>First board picture, playing the computer: 1.39 → 1.45 s, ×1.113, 6 of 8 worse (1.00 1.25 1.09 1.18 1.14 1.15 0.84 0.93). The run's change on that path removes a socket; it adds no work.</li><li>Reopening a long game: ×1.198, 4 of 8 worse (0.79 1.79 2.02 0.77 1.60 0.41 0.35 1.67). The run changed no code on that path.</li></ul>",
+    "recommend": "No action. The next speed run takes the desktop rows with DL1 and FC1 (a 16-pair A/A of the desktop rows first), and can include the computer's section in its first A/B.",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 05b74df vs 9a9e9db, --primary, 8 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "All 16 headline rows, 05b74df against 9a9e9db, 8 pairs (ab-20261018-1719-final.md).",
+      "target": 1.2
+     },
+     {
+      "rows": {
+       "change": "final re-check: 05b74df vs 9a9e9db, setup, move-latency, select, 8 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "The five game rows again, 05b74df against 9a9e9db, 8 pairs (ab-20261018-1719-recheck.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "Information: the 1.2× target was not met",
+    "body": "<p>This was a general run, and the orchestrator reserved the speed ideas (RT1, FC1, CL1, DL1's measurements) for the next speed run. No change here was meant to make a headline row faster, so no row reached 1.2× faster than the base.</p>"
+   },
+   {
+    "title": "Information: the base against the last run's base",
+    "body": "<p>Step 2 compared the base <code>9a9e9db</code> with the last run's base <code>db54330</code>, 6 pairs. Nothing was called worse. A returning phone's board was called better (558 → 326 ms, SWR from the last run). Six rows leaned slower at the median pair, none called: desktop usable ×1.063, desktop board ×1.21, desktop first click ×1.216, a shared game's first screen ×1.975 (0.20 to 2.62), the computer's first board picture ×1.092 and reopening ×1.142. The last three run code neither side changed. The pairs are in <code>ab-20261018-1719-regress.md</code>.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: 9a9e9db vs db54330 (last run's base)",
+       "only": "PRIMARY"
+      },
+      "caption": "All 16 headline rows, 9a9e9db against db54330, 6 pairs (ab-20261018-1719-regress.md).",
+      "target": 1.2
+     }
+    ]
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code> (16 rows). Target: each 1.2× faster than the base <code>9a9e9db</code> (the dashed line). Each bar is the geometric mean of the pairs; each dot is one pair. The long view against the first recorded run was not measured this run; the last figure, from run 20261016-2036, was 2.48 times as fast over 11 rows.</p>",
+  "items": [
+   {
+    "title": "The branch against the base",
+    "body": "<p><code>05b74df</code> against <code>9a9e9db</code>, all 16 headline rows, 8 interleaved pairs: ×0.942 over the 16 rows, 0 called better, 0 called worse, and 0 of the 110 diagnostics called. The re-check of the five game rows, 8 pairs, gave ×1.035 over those rows, none more than 3% worse. The commits after <code>05b74df</code> change only <code>bench/loop/</code>.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 05b74df vs 9a9e9db, --primary, 8 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "All 16 headline rows, 05b74df against 9a9e9db, 8 pairs (ab-20261018-1719-final.md).",
+      "target": 1.2
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>Each change below has its own commit, and its evidence is in that commit's message. A fix has a test that fails on the base and passes on the branch. A new check was broken once on purpose to show that it fails.</p>",
+  "items": [
+   {
+    "title": "No connection to the server from the computer's pages and the tutorial (1014:ES: 0dcd5bb, 6716adc)",
+    "body": "<p>Before, the built page's inline script opened a socket to the game server on every page, and the app opened its own one where the script had not. A game against the computer and the tutorial never send anything to the server, yet they woke its container and held the connection open. <code>0dcd5bb</code> stopped the inline script on those pages. The review found that the app's socket still opened there, so <code>6716adc</code> makes the app's socket wait for a page that uses the server: it opens on the way to <code>/new</code>. A new test renders the app at <code>/computer</code>, <code>/computer/abc123</code> and <code>/learn</code> and finds no socket, then one after moving to <code>/new</code>. It fails on <code>0dcd5bb</code>. The commit message of <code>0dcd5bb</code> claims the whole fix; <code>6716adc</code> completes it.</p>"
+   },
+   {
+    "title": "A double tap sends a request to the opponent once (online half of 1015:I13, 8eedbfb)",
+    "body": "<p>A second tap on Resign, Draw, Take back or Rematch within the server's round trip sent the request twice, and the server's refusal stayed on screen as an error. Each request now goes once until a message arrives.</p>"
+   },
+   {
+    "title": "Escape closes the result card and the promotion picker after a click on them (Escape half of 1015:I15, ec4d60a)",
+    "body": "<p>A click on the card's words moved focus to the page, so Escape did nothing. The two cards now take focus on a click. In headless Chromium the clicked card draws no focus ring; other browsers were not checked (ledger I15).</p>"
+   },
+   {
+    "title": "The computer's worker: freed when its thought is dropped, and a warning when it cannot start (1015:CC, 13a488c; 182e2b0)",
+    "body": "<p>A thought dropped before its answer (a draw offer or a take-back during the computer's search) kept its worker busy, and the next question waited behind it. The dropped thought now ends its worker and the next question gets a fresh one. Separately, when <code>new Worker</code> throws, the computer now says so in the console instead of falling back silently.</p>"
+   },
+   {
+    "title": "The start page's early picture keeps the cut the head preloaded (1018-0317:EP1, 58b88eb)",
+    "body": "<p>The page's head preloads one cut of the board's picture and its body then chose again, so on some window heights it fetched a second cut. The body now keeps the preloaded cut while it still covers the window.</p>"
+   },
+   {
+    "title": "The A/B's calling rule: from 10 pairs on, the lowest and highest ratio are left out of the spread (1017-1252:VR1, d85cade)",
+    "body": "<p>One far pair blocked a call that every pair agreed on. Every pair must still move the same way. Flipping the signs of every committed report's pairs at random gives 0.022 chance calls expected over the 373 rows with 10 or more pairs, against 0.009 under the old rule. An A/A of the client tier, 12 pairs, called 0 of 120 rows (<code>ab-20261018-1719-aa-client.md</code>).</p>"
+   },
+   {
+    "title": "New checks (f9ee5ca, d9108c2, d9796ab, 900ef97, 57f77dd, 7ae1e19)",
+    "body": "<ul><li><code>public/landing</code> holds only the pictures the page asks for, and the entry's <code>__LANDING_VERSION__</code> define is checked.</li><li>The move record's piece values are compared with the computer's, and <code>og.jpg</code>'s size and format with the page's link-preview tags.</li><li>A layout's start page pictures share one pixel density.</li><li>The bench's preview server reads the build's own <code>_headers</code>.</li><li>Every part of a headline row's name is written in its bench.</li><li><code>eslint.config.test.mjs</code> lints one line per CLAUDE.md lint rule in each part of the code.</li></ul>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<ul><li>The start page click's redundant <code>flushSync</code> (CK1, <code>986e325</code>): the router already commits its navigation as a transition, after the click's own update.</li><li>Six GameScreen test files stub the lazily loaded board once instead of nine three.js modules each (part of D10, <code>be7492c</code>): 112 test lines out, 19 in.</li><li>The move record draws and says a move through one small component instead of two copies of the same markup (MH2, <code>dd7eead</code>): 22 lines in, 21 out.</li><li><code>bench/loop/patches/start-click-no-flushsync-CK1.patch</code>: the change is in the code.</li></ul><p>Net over the run (<code>9a9e9db..05b74df</code>, outside <code>bench/loop/</code>): app, bench and docs +115 −53; tests +363 −121. The run mostly added checks, so the code grew.</p>"
+ },
+ "rejected": {
+  "intro": "",
+  "items": [
+   {
+    "title": "M9: one set of search tables per thread",
+    "body": "<p>A/B against <code>986e325</code>, the computer's search, 12 pairs: search speed 50.1 → 29.7 ms at the median pair, 11 of 12 pairs below 1 and one at 1.17, so not called (<code>ab-20261018-1719-m9.md</code>). Its memory case was read in the source, not measured. Closed with no code left.</p>"
+   },
+   {
+    "title": "RW1: the review on every core",
+    "body": "<p>Closed without measuring. Its fourth worker takes the page's own core, which lengthens the longest freeze during the review: a trade between two player moments.</p>"
+   },
+   {
+    "title": "CK2(c): a stricter check of the start page pictures' cover",
+    "body": "<p>An existing test already fails on the same break, so the new one added nothing.</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>Fixed ES's review blocker in the code (the app's socket waits for a page that uses the server) instead of rewording the claim. A page that goes from <code>/new</code> to <code>/computer</code> now closes its socket and opens a fresh one on the way back.</li><li>Ran the final A/B at 8 pairs, then re-ran the five game rows that leaned, 8 pairs, instead of every section again. The four rows not re-run are listed under Needs from me.</li><li>VR1 trims from 10 pairs, not 8: from 8 the chance calls on the committed reports grow about five-fold.</li><li>I13's latch is per request type, so a draw offer and a take-back in one round trip both go.</li><li>Parked six ledger rows that three runs passed over (CG1, HW1, SV1, AV1, RF1, BS1).</li></ul>"
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>The four leaning rows above were not measured again.</li><li>Whether a key pressed after a click on the result card makes Chromium, Firefox or WebKit draw a focus ring round it (ledger I15).</li><li>The cost of the fresh worker after a dropped thought (ledger CC2).</li><li>DL1's per-load desktop figures: read from raw output that is not committed, so they stay a lead.</li></ul>"
+ },
+ "next": {
+  "intro": "<ol><li>Speed run: RT1 with 16 or more pairs; FC1 (the desktop first click); DL1's 16-pair desktop A/A first; CL1.</li><li>CC2: time the computer's reply after a dropped thought.</li><li>I15: the focus ring after a click, and where focus lands when the card closes.</li><li>E7 and CC3: two checks that could pass on broken code.</li><li>VR2: make the A/B's chance sentence depend on the pair count.</li></ol>"
+ }
+}
