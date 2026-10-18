@@ -198,6 +198,18 @@ describe('take-backs', () => {
     expect(takeBack()).toBeDisabled();
   });
 
+  it('asks once until the server answers, however often it is tapped', () => {
+    // A phone's double tap: the second ask would be refused, its error left standing
+    const { sent, rerender } = play(replied('white'));
+    act(() => takeBack().click());
+    act(() => takeBack().click());
+    expect(sent).toEqual([{ type: 'request_takeback' }]);
+    // Refused for another reason: asked again, it goes
+    rerender([...replied('white'), { type: 'error', code: 'invalid_takeback', message: 'No' }]);
+    act(() => takeBack().click());
+    expect(sent).toEqual([{ type: 'request_takeback' }, { type: 'request_takeback' }]);
+  });
+
   it('puts the opponent’s request to the player, to accept or decline', () => {
     const asked: WebSocketMessage[] = [
       ...replied('black'),
