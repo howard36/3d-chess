@@ -12,26 +12,6 @@ import { picturePlacement, pictureSource, pictureSourceSet } from '../three/land
  */
 export const EARLY_PICTURE_ID = 'landing-early';
 
-/**
- * Starts the picture the window shows (its AVIF, as fine as the screen)
- * downloading, from an inline script in the built page's head, before the
- * stylesheet and the entry have loaded (vite.config.ts, bundled with the lens
- * as the early picture is). Only on the start page, in every layout.
- */
-export function preloadLandingPicture(): void {
-  const [width, height] = [innerWidth, innerHeight];
-  if (location.pathname !== '/' || !(width > 0 && height > 0)) return;
-  const { picture } = picturePlacement(width, height);
-  const link = document.createElement('link');
-  link.rel = 'preload';
-  link.setAttribute('as', 'image');
-  link.type = 'image/avif';
-  link.href = pictureSource(picture, 'avif');
-  link.setAttribute('imagesrcset', pictureSourceSet(picture, 'avif'));
-  link.setAttribute('fetchpriority', 'high');
-  document.head.appendChild(link);
-}
-
 export function placeEarlyPicture(): void {
   const root = document.getElementById('root');
   const [width, height] = [innerWidth, innerHeight];
@@ -43,9 +23,9 @@ export function placeEarlyPicture(): void {
   picture.className = 'landing-picture';
   picture.setAttribute('aria-hidden', 'true');
   picture.innerHTML =
-    `<picture><source type="image/avif" srcset="${pictureSourceSet(place.picture, 'avif')}">` +
-    `<img src="${pictureSource(place.picture, 'webp')}" srcset="${pictureSourceSet(place.picture, 'webp')}" ` +
-    `alt="" decoding="async" fetchpriority="high" data-picture="${place.picture}" ` +
+    `<picture><source type="image/avif" srcset="${pictureSourceSet(place.layout, 'avif')}">` +
+    `<img src="${pictureSource(place.layout, 'webp')}" srcset="${pictureSourceSet(place.layout, 'webp')}" ` +
+    `alt="" decoding="async" fetchpriority="high" data-layout="${place.layout}" ` +
     `style="transform: translate(${place.left}px, ${place.top}px); ` +
     `width: ${place.width}px; height: ${place.height}px"></picture>`;
   document.body.insertBefore(picture, root);

@@ -69,11 +69,10 @@ test('the picture of the preview shows at once, and goes once the preview has fa
   renderStart();
   const picture = screen.getByTestId('landing-picture');
   const img = picture.querySelector('img')!;
-  // A tall phone's: the phone's picture cut to the taller phones
-  expect(img.getAttribute('src')).toBe('/landing/phone-tall.webp');
+  expect(img.getAttribute('src')).toBe('/landing/phone.webp');
   // As fine as the screen
   expect(picture.querySelector('source')!.getAttribute('srcset')).toBe(
-    '/landing/phone-tall.avif 1x, /landing/phone-tall@2x.avif 2x',
+    '/landing/phone.avif 1x, /landing/phone@2x.avif 2x',
   );
   // Larger than the window, which it covers
   expect(img.style.transform).toMatch(/^translate\(-[\d.]+px, -[\d.]+px\)$/);
@@ -85,7 +84,7 @@ test('the picture of the preview shows at once, and goes once the preview has fa
   expect(screen.getByText(/^Preview: games play themselves/)).toBeInTheDocument();
 });
 
-test('the page takes in the picture the built page placed early, while it is the window’s', () => {
+test('the page takes in the picture the built page placed early, while its layout fits', () => {
   reduceMotion(false);
   phoneWindow();
   const root = document.createElement('div');
@@ -99,19 +98,6 @@ test('the page takes in the picture the built page placed early, while it is the
   expect(box.querySelectorAll('picture')).toHaveLength(1);
   expect(box.querySelector('picture')).toBe(placed);
   expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
-  // The browser's bars come and go: the picture shown stays while it covers the window
-  const resize = (w: number, h: number) =>
-    act(() => {
-      vi.stubGlobal('innerWidth', w);
-      vi.stubGlobal('innerHeight', h);
-      window.dispatchEvent(new Event('resize'));
-    });
-  resize(390, 780);
-  expect(box.querySelector('picture')).toBe(placed);
-  resize(390, 664);
-  expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/phone.webp');
-  resize(390, 844);
-  expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/phone.webp');
   // A window of another layout asks for another file: the page's own
   act(() => {
     vi.stubGlobal('innerWidth', 1440);
@@ -121,7 +107,7 @@ test('the page takes in the picture the built page placed early, while it is the
   expect(box.querySelectorAll('picture')).toHaveLength(1);
   expect(placed.isConnected).toBe(false);
   expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/wide.webp');
-  // Back to a phone, a shorter one: one picture, the whole phone's, placed for this window
+  // Back to a phone, of another size: one picture, the phone's, placed for this window
   act(() => {
     vi.stubGlobal('innerWidth', 360);
     vi.stubGlobal('innerHeight', 640);
