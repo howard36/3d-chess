@@ -1,0 +1,1 @@
+@curves/R_2.84.txt vs @joint_final.txt at 40000 nodes: 0.466 ± 0.010 (-24 Elo) over 2000 games {'adjudicated': 1334, 'mate': 174, 'fifty': 340, 'repetition': 152}
