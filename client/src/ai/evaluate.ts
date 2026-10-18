@@ -41,16 +41,16 @@ export { DIST, VALUE } from './position';
 
 /** Positional terms beyond the tables, weighted per piece type. */
 const MOBILITY_WEIGHT = [0, 0, 1, 1, 2, 3, 0, 0];
-const BISHOP_PAIR = 28;
+const BISHOP_PAIR = 29;
 /** The king's danger: shares of the game's phase, the enemy's pieces and the enemy's queen. */
-const DANGER_FORCE = 0.27;
-const DANGER_QUEEN = 0.32;
+const DANGER_FORCE = 0.24;
+const DANGER_QUEEN = 0.33;
 /** Each own pawn beside the king, at the king's danger. */
-const SHIELD = 12.5;
+const SHIELD = 13.7;
 /** Each enemy piece (no pawn or king) a pawn attacks. */
-const PAWN_THREAT = 39.2;
+const PAWN_THREAT = 41.6;
 /** Having the move. */
-const TEMPO = 19;
+const TEMPO = 20;
 const WHITE_KING = KING * CELLS;
 const BLACK_KING = (KING | BLACK) * CELLS;
 

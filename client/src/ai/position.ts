@@ -137,11 +137,11 @@ export const promotes = (cell: number, side: number) =>
 /** What the search orders captures by and counts the material lead in. */
 export const VALUE = new Int16Array(8);
 VALUE[PAWN] = 100;
-VALUE[KNIGHT] = 337;
-VALUE[BISHOP] = 297;
-VALUE[ROOK] = 239;
-VALUE[UNICORN] = 137;
-VALUE[QUEEN] = 969;
+VALUE[KNIGHT] = 338;
+VALUE[BISHOP] = 300;
+VALUE[ROOK] = 241;
+VALUE[UNICORN] = 136;
+VALUE[QUEEN] = 966;
 VALUE[KING] = 0;
 
 /** Each piece's weight in the game's phase: the opening's 24 down to the endgame's 0. */
@@ -167,8 +167,8 @@ for (let c = 0; c < CELLS; c++) {
 }
 
 /** A pawn's worth by how far along it is (rank + level, 1..7; it starts at 1 or 2). */
-const PAWN_MG = [0, 85.3, 99.8, 123.4, 111.8, 123.7, 153.5, 181.2, 0];
-const PAWN_EG = [0, 95.5, 111.9, 116.2, 140.3, 167.7, 208.7, 248.5, 0];
+const PAWN_MG = [0, 85.1, 100.9, 123.6, 110, 122.5, 153.9, 181.2, 0];
+const PAWN_EG = [0, 95.4, 111.8, 116.2, 139.5, 167.8, 206.7, 250, 0];
 
 // Piece-square tables, material included, from White's side: middlegame and
 // endgame, per piece code and cell. Black's are White's turned through the
@@ -191,18 +191,18 @@ for (let c = 0; c < CELLS; c++) {
     MG[(type | BLACK) * CELLS + mirror(c)] = -m;
     EG[(type | BLACK) * CELLS + mirror(c)] = -e;
   };
-  const file = x === 2 ? 5.7 : x === 1 || x === 3 ? 1.8 : 0;
+  const file = x === 2 ? 5.8 : x === 1 || x === 3 ? 1.8 : 0;
   set(PAWN, PAWN_MG[out] + file, PAWN_EG[out]);
   // Developed: off the home rank and level (the unicorns: off the first two ranks of level A)
   const home = y === 0 && z === 0 ? 1 : 0;
   const unicornHome = y <= 1 && z === 0 ? 1 : 0;
-  set(KNIGHT, 364.9 - 5.2 * centre - 3.6 * home, 355.7 - 4.2 * centre);
-  set(BISHOP, 313.9 - 2.5 * centre - 13.6 * home, 305.3 - 3.8 * centre);
-  set(UNICORN, 166.1 - 2.7 * centre - 7.1 * unicornHome, 127.1 - 2.3 * centre);
-  set(ROOK, 223.8 - 0.4 * centre, 265.1 - 0.4 * centre);
-  set(QUEEN, 956 - 4 * centre, 997.2 - 2.5 * centre);
+  set(KNIGHT, 367.2 - 5 * centre - 2.8 * home, 354.8 - 4.3 * centre);
+  set(BISHOP, 315.9 - 2.6 * centre - 14.1 * home, 310.4 - 3.9 * centre);
+  set(UNICORN, 166.5 - 2.6 * centre - 7.7 * unicornHome, 126 - 2.5 * centre);
+  set(ROOK, 223.5 - 0.3 * centre, 268.6 - 0.3 * centre);
+  set(QUEEN, 954 - 4.1 * centre, 993.1 - 2.6 * centre);
   // Home and behind its pawns while there is an attack to fear; to the middle after
-  set(KING, -10.8 * out - 6.2 * Math.abs(x - 2), 24 - 12.8 * centre);
+  set(KING, -10.5 * out - 6.4 * Math.abs(x - 2), 24 - 13.3 * centre);
 }
 
 /** How much a piece near the enemy king threatens it (pawns and kings: nothing). */

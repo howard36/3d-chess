@@ -100,6 +100,7 @@ evaluation:
 | --------------------------------- | ---------------------------- | ---------------------------- | ----------------------------- |
 | Hand-set                          | 3.02, 2.82, 2.24, 1.33, 8.70 | 3.14, 2.93, 2.34, 1.36, 9.01 | 2.92, 2.76, 2.24, 1.30, 8.54  |
 | Tuned for strength                | 3.28, 2.86, 2.32, 1.44, 8.84 | 3.30, 2.89, 2.35, 1.41, 8.78 | 3.12, 2.76, 2.31, 1.36, 8.47  |
+| Tuned for strength, second round  | 3.26, 2.88, 2.34, 1.41, 8.76 | 3.26, 2.89, 2.35, 1.36, 8.63 | 3.09, 2.79, 2.33, 1.32, 8.39  |
 | Fitted to results                 | 3.19, 2.86, 2.42, 1.07, 9.31 | 3.22, 2.91, 2.46, 1.08, 9.35 | 3.05, 2.80, 2.31, 1.09, 9.07  |
 | Fitted to results, no new terms   | 3.21, 2.80, 2.35, 1.02, 9.27 | 3.29, 2.91, 2.44, 1.06, 9.46 | 3.10, 2.79, 2.28, 1.06, 9.11  |
 | Material alone, fitted to results | —                            | —                            | 3.19, 2.90, 2.36, 1.11, 10.65 |
@@ -112,6 +113,13 @@ the same positions, but for the queen (9.1 against 10.7 ± 0.7). These positions
 games at 20k nodes, where an imbalance arises in play; `research/piece-values/` imposed its
 imbalances at random in stronger play, and its rook (2.84) and bishop (3.07) stand higher. Compare
 values within one set of positions.
+
+The second round's evaluation (`round2_final.txt`, below), 81 Elo stronger than the first, reads
+within 0.05 of it on every piece but the queen (0.1 to 0.15 lower): what it gained is in its other
+numbers (the bonus for the move, the threats, the shield), not in what the pieces are worth. It
+also predicts these positions' results a little better than the hand-set evaluation, each with its
+own fitted scale: squared error lower by 0.0006 ± 0.0003 (the game's numbers now, `round3_final.txt`,
+the same), where the first round's was lower by 0.0002 ± 0.0002 (bootstrap over positions).
 
 The projection does not depend on the positions chosen. `engine augment` keeps each position that
 is quiet by the evaluation's own capture search (the evaluation cannot see a hanging piece; the
@@ -162,24 +170,59 @@ player's own values.
 | Mobility counting only the squares no enemy pawn attacks                        | 50.0% ± 1.4%                       |
 | Pieces a pawn defends, 8 cp                                                     | 54.3% ± 2.2% after 380 games (cut) |
 
-SPSA with all of them (`spsa72.py`, `jx_start.txt`, two runs) raised the side to move to about 21,
-the threats to about 10, the defended pieces from 4 to 7, the pawn chains from 2 to 3.5, and kept the
-king's surroundings near 2.4. Only the side to move is in the game: the others need counts the
-board keeps as moves are played, as it does the pawn threats, and are left for later.
+SPSA with all of them (`spsa72.py`, `jx_start.txt`, two runs to 13,696 pairs) raised the side to
+move to about 22, the threats to about 10, the defended pieces from 4 to 7.5 and the pawn chains
+from 2 to 4, and kept the king's surroundings near 2.4. Only the side to move is in the game.
+
+Against the second round's evaluation (`terms2/`: `round2_final.txt` with one term added; 1,000
+games at 20k):
+
+| Term                                     | Score        |
+| ---------------------------------------- | ------------ |
+| Pieces a pawn defends, 8 cp              | 52.2% ± 1.3% |
+| Pawns a pawn defends (pawn chains), 4 cp | 55.6% ± 1.4% |
+| The same, at 40k                         | 52.4% ± 1.4% |
+| Isolated pawns, −8 cp                    | 50.8% ± 1.4% |
+
+Pawn chains gain at equal nodes: on top of the game's numbers (`round3_final.txt`, below;
+`terms2/round3_chain4.txt`) they scored 53.8% ± 0.7% against the second round's numbers (4,000
+games at 40k), where the numbers alone scored 51.8% ± 0.8% (3,000 games), about 13 Elo more. They
+are not in the game, because they cost about as much in time. `pawn_chains.patch` keeps them in the
+board as moves are played: a pawn's move or capture changes only the pawns near it, and
+`position.test.ts` and `ref.ts` pass with it. The JS search runs at 0.96× with it on the same tree
+(paired, interleaved runs; 0.91× counting each side's pawns afresh after a pawn's move), and here
+1% fewer positions costs about 2.3 Elo (the first round's equal-time match, below), so they would
+net about 4 Elo at equal time.
 
 **A second tuning** (from the tuned evaluation at 5,696 pairs; the later half of each run
 averaged, `polyak.py`), against the tuned evaluation at 40k: continuing as before, to 17,696
 pairs, 53.9% ± 1.0% (2,000 games); with the side to move's bonus (`jt_start.txt`, two runs to
 13,696 and 9,696 pairs, averaged from 7,696; every eighth step in `jt_a_traj.jsonl` and
 `jt_b_traj.jsonl`), 61.4% ± 1.3% (1,000 games), with the bonus at 19 cp as tuned, and 61.0% ±
-1.3% with it set to 15. These are the game's numbers now (`round2_final.txt`). Averaging the
-first run's later half instead of taking its last step scored 51.4% ± 1.4%: a run's end is only
-one point of a wandering path.
+1.3% with it set to 15. These were the game's numbers (`round2_final.txt`) until the runs went
+on. Averaging the first run's later half instead of taking its last step scored 51.4% ± 1.4%: a
+run's end is only one point of a wandering path.
+
+**The runs continued** (jtA to 17,696 pairs, jtB to 13,696), averaged from 11,696 and 9,696
+(`jt_avg3.txt`; as the game holds it, `round3_final.txt`): 51.8% ± 0.8% against the second round's
+numbers (3,000 games at 40k, +13 Elo). These are the game's numbers now. Alone, the first run's own
+later half scored 60.7% ± 1.0% against the first round's (2,000 games), as the second round's did;
+the run without the bonus, continued as far (contA), 55.2% ± 1.0%. The five values read off it
+barely move: removal 3.26, 2.92, 2.37, 1.35, 8.56.
 
 ## The result
 
-The game's numbers (`round2_final.txt`, the second round's, as `position.ts` and `evaluate.ts`
-hold them: `apply_numbers.py` writes both from a numbers file) against the hand-set evaluation:
+The game's numbers (`round3_final.txt`, the second round's runs continued, as `position.ts` and
+`evaluate.ts` hold them: `apply_numbers.py` writes both from a numbers file):
+
+| Budget                                                                   | Games | Score        | Elo |
+| ------------------------------------------------------------------------ | ----: | ------------ | --- |
+| 40k nodes, against the second round's first average (`round2_final.txt`) | 3,000 | 51.8% ± 0.8% | +13 |
+
+The bonus for the move costs the search nothing, and the rest is numbers, so the first round's
+speed (below) holds.
+
+The second round's first average (`round2_final.txt`) against the hand-set evaluation:
 
 | Budget                                                   | Games | Score        | Elo  |
 | -------------------------------------------------------- | ----: | ------------ | ---- |
@@ -188,9 +231,8 @@ hold them: `apply_numbers.py` writes both from a numbers file) against the hand-
 | 160k nodes                                               |   500 | 77.5% ± 1.6% | +215 |
 | 40k nodes, against the first round's (`joint_final.txt`) | 1,000 | 61.4% ± 1.3% | +81  |
 
-The 160k row played the game's numbers; the others the numbers as tuned, before their rounding to
-tenths (which moves a cell's value by at most a centipawn). The bonus for the move costs the search nothing, and the rest is numbers, so the
-first round's speed (below) holds.
+The 160k row played the numbers as the game held them; the others the numbers as tuned, before
+their rounding to tenths (which moves a cell's value by at most a centipawn).
 
 The first round's numbers (`joint_final.txt`) against the hand-set evaluation:
 
@@ -237,8 +279,10 @@ python3 curves/analyse.py .
 cp jt_start.jsonl jtA.traj
 python3 spsa72.py --start jt_start.txt --tag jtA --fix 61,62,64,65,67,68,69,70,71 --pairs 13696 --resume
 python3 polyak.py jtA.traj jtA_avg.txt --from 7696
+# the game's numbers: both runs, continued, pooled from 11,696 and 9,696
+python3 polyak.py jtA.traj jtB.traj jt_avg3.txt --from 11696 9696
 # into the game (client/src/ai), rounded as it holds them; then check the port with ref.ts
-python3 apply_numbers.py round2_final.txt ../../client/src/ai rounded.txt
+python3 apply_numbers.py jt_avg3.txt ../../client/src/ai round3_final.txt
 # evaluate.ts from a numbers file, and the port against the JS engine (from client/, after npm ci)
 python3 gen_eval_ts.py numbers.txt ../../client/src/ai/evaluate.ts joint_final.txt
 npx vite-node ../research/evaluation/ref.ts moves 3000 0 in.txt js.txt
