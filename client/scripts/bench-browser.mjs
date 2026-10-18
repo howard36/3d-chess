@@ -497,6 +497,21 @@ const BENCH_INIT = () => {
     },
     true,
   );
+  // The start page's picture on screen: its Element Timing paint (the frame
+  // the browser painted it in, which needs nothing from the main thread once
+  // the picture has decoded); `elementtiming` is set as the picture is
+  // inserted, below
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.identifier === 'landing-picture' && !b.firsts.landingPicture) {
+          b.firsts.landingPicture = performance.timeOrigin + (e.renderTime || e.loadTime);
+        }
+      }
+    }).observe({ type: 'element', buffered: true });
+  } catch {
+    // (no Element Timing: the picture is never timed, and the board row falls to the preview)
+  }
   const frame = (ts) => {
     b.raf.push(performance.timeOrigin + ts);
     requestAnimationFrame(frame);
@@ -542,7 +557,7 @@ const BENCH_INIT = () => {
       f.sideChoice = t;
     }
     // The start page's picture of its preview (where there is one), from the
-    // frame it is painted in (decoded, then the next frame), and the live
+    // frame it is painted in (its Element Timing entry, above), and the live
     // preview on screen: drawn, and not held transparent (where it fades in
     // over the picture, once it has). The built page may place the picture
     // before the entry runs (#landing-early, before #root), which the page
@@ -551,11 +566,16 @@ const BENCH_INIT = () => {
     const picture = document.querySelector(
       '#landing-early img, [data-testid="landing-picture"] img',
     );
-    if (!f.landingPicture && !b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
+    if (picture && !picture.hasAttribute('elementtiming')) {
+      picture.setAttribute('elementtiming', 'landing-picture');
+    }
+    if (!b.pictureSeen && picture?.complete && picture.naturalWidth > 0) {
       b.pictureSeen = true;
+      // The old stamp, a diagnostic beside it: decoded, then the next frame,
+      // which waits on the main thread three times
       // (a picture that fails to decode is never painted: not timed, but counted)
       picture.decode().then(
-        () => requestAnimationFrame(() => (f.landingPicture = now())),
+        () => requestAnimationFrame(() => (b.pictureDecoded = now())),
         () => (b.pictureFailed = true),
       );
     }
@@ -1220,7 +1240,7 @@ async function coldSection(browser) {
     'cold-load',
     {
       title: 'Cold load of the start screen',
-      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, decoded and painted, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The fourth is that phone coming back: its profile has visited the start page once before (until the live preview showed), so its cache holds what the host let it keep (\`vite preview\` sends the host’s \`_headers\` as built, through the harness’s \`bench/preview.config.ts\`; a file they say nothing about is asked for again, as Cloudflare Pages does by default). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
+      intro: `A first visit to the start page, ${CFG.coldRuns} times per case. A new browser profile with an empty cache opens \`/\` and waits until the page is *ready*: “Play a friend” is enabled and the connection to the server is open. It then clicks “Play a friend” at once and waits for the side choice. In as many more loads, left alone, it times the board’s first showing (the start page’s picture of its preview, at the frame Element Timing says painted it, or the live preview where there is no picture) and the live preview on screen (its first frame drawn, and faded in over the picture where there is one). Desktop is ${VIEWPORTS.desktop.label} and phone is ${VIEWPORTS.phone.label}. The third case is a mid-range phone on a mobile network: DevTools slows the CPU 4 times and applies its “Fast 4G” preset (165 ms round trip, 8.1 Mbit/s down). The fourth is that phone coming back: its profile has visited the start page once before (until the live preview showed), so its cache holds what the host let it keep (\`vite preview\` sends the host’s \`_headers\` as built, through the harness’s \`bench/preview.config.ts\`; a file they say nothing about is asked for again, as Cloudflare Pages does by default). The page is served from this machine by \`vite preview\` with gzip, and the start page’s preview game draws behind it while it loads.`,
       columns: ['Case', 'Metric', 'median', 'p95', 'max', 'n'],
       align: ['l', 'l', 'r', 'r', 'r', 'r'],
       timeoutMs: QUICK ? 240000 : 480000,
@@ -1339,16 +1359,21 @@ async function coldSection(browser) {
             const t0 = performance.timeOrigin;
             const live = firsts.previewLive - t0;
             const picture = firsts.landingPicture ? firsts.landingPicture - t0 : Infinity;
+            const decoded = window.__bench.pictureDecoded;
             const fetched = performance
               .getEntriesByType('resource')
               .filter((e) => new URL(e.name).pathname.startsWith('/landing/'))
               .map((e) => new URL(e.name).pathname);
             return {
               board: Math.min(picture, live),
+              fcp: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null,
+              decodeStamp: Math.min(decoded ? decoded - t0 : Infinity, live),
               preview: live,
               shown: picture <= live ? 'picture' : 'preview',
               fetched,
               pictureFailed,
+              // decoded, yet no paint reported: the board row fell to the preview
+              pictureUntimed: !!decoded && !firsts.landingPicture,
               earlyPicture,
             };
           });
@@ -1386,6 +1411,9 @@ async function coldSection(browser) {
         // The board on the page: its picture, then the live preview over it
         for (const [label, k] of [
           ['board on screen (its picture, or the live preview)', 'board'],
+          // The board stamp before Element Timing (run 20261018-0317): how
+          // far the main thread holds a script's view of the paint back
+          ['board on screen, by the picture’s decode() and the next frame', 'decodeStamp'],
           ['live preview on screen', 'preview'],
         ]) {
           const [row, m] = stat(
@@ -1408,6 +1436,7 @@ async function coldSection(browser) {
         for (const [label, pick, better] of [
           ['loads whose board showed first as its picture', (r) => r.shown === 'picture', 'higher'],
           ['pictures that failed to decode', (r) => r.pictureFailed, 'lower'],
+          ['pictures decoded with no paint timed', (r) => r.pictureUntimed, 'lower'],
           // The built page's inline script (earlyPicture.ts), which nothing
           // else runs: e2e serves the dev page
           ['loads whose picture was placed before the entry ran', (r) => r.earlyPicture, 'none'],
