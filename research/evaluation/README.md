@@ -77,9 +77,13 @@ the hand-set (−1.14 ± 0.63 thousandths); the strength-tuned one does not (−
 
 **From a whole evaluation to five values.** Of those 57 numbers, 34 belong to one piece each (its
 tables, mobility, pressure on the king, and the bishop pair), 16 to pawns and 3 to the king; the
-danger blend, the shield and the threat are shared. Two ways to read five values off a whole
-evaluation, neither of which assumes that attribution:
+danger blend, the shield and the threat are shared. Three ways to read five values off a whole
+evaluation:
 
+- Own numbers (`attrib.py`): what each piece's own numbers are worth where it stands (the
+  evaluation's drop when it is taken off with every other number set to 0), in what the pawn's own
+  numbers are worth, the three phases weighted equally. It uses the attribution and leaves out the
+  shared terms; for the hand-set evaluation it is the average worth above, within 0.02.
 - Removal (`engine removal`): the evaluation's drop when one piece alone is taken off, from its
   owner's view, over 22,000 positions from self-play, in pawns (the same drop for a pawn), the
   three phases weighted equally. `attrib.py` splits it by the numbers it comes from (exactly: the
@@ -92,18 +96,18 @@ evaluation, neither of which assumes that attribution:
   results) instead of the result, the phases weighted equally. The same model fitted to the
   results is the reference: what material alone says on these positions.
 
-| Whole evaluation                  | Removal: N, B, R, U, Q       | Projection: N, B, R, U, Q     |
-| --------------------------------- | ---------------------------- | ----------------------------- |
-| Hand-set                          | 3.14, 2.93, 2.34, 1.36, 9.01 | 2.92, 2.76, 2.24, 1.30, 8.54  |
-| Tuned for strength                | 3.30, 2.89, 2.35, 1.41, 8.78 | 3.12, 2.76, 2.31, 1.36, 8.47  |
-| Fitted to results                 | 3.22, 2.91, 2.46, 1.08, 9.35 | 3.05, 2.80, 2.31, 1.09, 9.07  |
-| Fitted to results, no new terms   | 3.29, 2.91, 2.44, 1.06, 9.46 | 3.10, 2.79, 2.28, 1.06, 9.11  |
-| Material alone, fitted to results | —                            | 3.19, 2.90, 2.36, 1.11, 10.65 |
+| Whole evaluation                  | Own numbers: N, B, R, U, Q   | Removal: N, B, R, U, Q       | Projection: N, B, R, U, Q     |
+| --------------------------------- | ---------------------------- | ---------------------------- | ----------------------------- |
+| Hand-set                          | 3.02, 2.82, 2.24, 1.33, 8.70 | 3.14, 2.93, 2.34, 1.36, 9.01 | 2.92, 2.76, 2.24, 1.30, 8.54  |
+| Tuned for strength                | 3.28, 2.86, 2.32, 1.44, 8.84 | 3.30, 2.89, 2.35, 1.41, 8.78 | 3.12, 2.76, 2.31, 1.36, 8.47  |
+| Fitted to results                 | 3.19, 2.86, 2.42, 1.07, 9.31 | 3.22, 2.91, 2.46, 1.08, 9.35 | 3.05, 2.80, 2.31, 1.09, 9.07  |
+| Fitted to results, no new terms   | 3.21, 2.80, 2.35, 1.02, 9.27 | 3.29, 2.91, 2.44, 1.06, 9.46 | 3.10, 2.79, 2.28, 1.06, 9.11  |
+| Material alone, fitted to results | —                            | —                            | 3.19, 2.90, 2.36, 1.11, 10.65 |
 
 The projections are good to ±0.02 (the queen ±0.08); material alone to ±0.10, 0.09, 0.08, 0.05
-and 0.71. The two conversions agree. Strength and results agree on the knight, bishop and rook
+and 0.71. The three conversions agree. Strength and results agree on the knight, bishop and rook
 (within 0.1 pawn) and differ on the unicorn (strength about 1.4, results 1.1) and the queen
-(strength lower by 0.5 to 0.6). The evaluation fitted to results reads as material alone does on
+(strength lower by 0.4 to 0.6). The evaluation fitted to results reads as material alone does on
 the same positions, but for the queen (9.1 against 10.7 ± 0.7). These positions come from natural
 games at 20k nodes, where an imbalance arises in play; `research/piece-values/` imposed its
 imbalances at random in stronger play, and its rook (2.84) and bishop (3.07) stand higher. Compare
