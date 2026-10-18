@@ -115,6 +115,12 @@ test('the pictures’ version changes with any of them, and the host keeps them 
   }
 });
 
+test('the entry asks for the pictures by the version the early scripts ask for', () => {
+  // Without it the page's own picture misses the head's preload and the host's year-long rule
+  const config = (versionLandingPictures().config as () => UserConfig)();
+  expect(config.define?.__LANDING_VERSION__).toBe(JSON.stringify(landingVersion()));
+});
+
 test('the build runs the start page’s scripts', () => {
   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
