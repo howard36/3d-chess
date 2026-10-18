@@ -449,17 +449,18 @@ Key decisions:
   (`screens/LandingPicture.tsx`, `public/landing/<picture>.avif` and `.webp`, larger than
   any common window of the layout and fading into the night at its edges, the fade drawn
   into the picture; a phone's cut, `phone-tall`, for the phones it covers, about a third of
-  the pixels: a window takes the first of its layout's pictures that covers it) from its first render, placed by the window's lens (`picturePlacement`,
-  plain arithmetic with the fit's numbers baked, from the window's size as the page first
-  renders, nothing measured: the start page is the entry), and the built page's head starts
-  the AVIF downloading before the entry has run (`preloadLandingPicture`, bundled with the lens, on `/` alone; written
-  in after `<meta name="viewport">`, since before it a phone's window reads 980 px wide and the
-  script would fetch the tablet's picture: `vite.config.test.ts`). The built page also places
-  the picture from an inline script after `#root` (`screens/earlyPicture.ts`; the phone
-  layout alone, as a desktop's first click measured slower), so a phone paints it as it
-  arrives, before the entry; `LandingPicture` takes that very element in as
-  its own in its first commit (while its file is the window's), and
-  `earlyPicture.test.tsx` holds the two markups equal.
+  the pixels: a window takes the first of its layout's pictures that covers it) from its
+  first render, placed by the window's lens (`picturePlacement`, plain arithmetic with the
+  fit's numbers baked, from the window's size as the page first renders, nothing measured:
+  the start page is the entry), and the built page's head starts the AVIF downloading before
+  the entry has run (`preloadLandingPicture`, bundled with the lens, on `/` alone; written
+  in after `<meta name="viewport">`, since before it a phone's window reads 980 px wide and
+  the script would fetch the tablet's picture: `vite.config.test.ts`). The built page also
+  places the picture from an inline script after `#root` (`screens/earlyPicture.ts`; the
+  phone layout alone, as a desktop's first click measured slower), so a phone paints it as
+  it arrives, before the entry; `LandingPicture` takes that very element in as its own in
+  its first commit (while its file is the window's), and `earlyPicture.test.tsx` holds the
+  two markups equal.
   Each layout's picture comes at two densities, picked by the screen's (`srcset`): 1x, and
   `@2x` as fine as the preview's canvas draws on a finer screen (the pixel budget's); AVIF
   of 16–44 KB at 1x and 37–73 KB at 2x, colour at half resolution (4:2:0: full
@@ -1435,16 +1436,17 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
-Link previews read `client/index.html`'s meta tags (title, description, and `og:image`
-and `twitter:image`, `public/og.jpg`: the README's picture cut to 1.91:1, written by
-`scripts/readme-image.mjs` from the start page's first frame, drawn at 1x, as the
-browser's own JPEG: X's cards showed no picture for ffmpeg's). A game's link is an invitation, so the build also writes
-`invite.html`, the same page with the invitation's `og:title` and description
-(`invitePage` in `vite.config.ts`, which fails the build if a tag it replaces is missing), and
-`public/_redirects` has Cloudflare Pages serve it at `/game/*`; every other address gets
-`index.html` (Pages' single-page fallback). `og:image` names `https://3dchess.club/og.jpg`,
-which only holds what main deployed, so a branch's preview build points it at the
-preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
+Link previews read `client/index.html`'s meta tags (title, description, and `og:image` and
+`twitter:image`, `public/og.jpg`: the README's picture cut to 1.91:1, written by
+`scripts/readme-image.mjs` from the start page's first frame, drawn at 1x, as the browser's
+own JPEG: X's cards showed no picture for ffmpeg's). A game's link is an invitation, so the
+build also writes `invite.html`, the same page with the invitation's `og:title` and
+description (`invitePage` in `vite.config.ts`, which fails the build if a tag it replaces is
+missing), and `public/_redirects` has Cloudflare Pages serve it at `/game/*`; every other
+address gets `index.html` (Pages' single-page fallback). `og:image` names
+`https://3dchess.club/og.jpg`, which only holds what main deployed, so a branch's preview
+build points it at the preview's own copy (`socialImageOnPreviews`, from Pages'
+`CF_PAGES_URL`).
 `public/_headers` sets three headers on every address: other sites may not show the app in
 a frame, browsers must not guess file types, and a link the player follows sends only the
 site's name. The build adds a rule keeping each file it wrote under `/assets/` a year (their
