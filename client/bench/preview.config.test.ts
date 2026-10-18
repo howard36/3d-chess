@@ -69,6 +69,12 @@ test('the bench’s server reads the build’s own _headers, with the rules the 
     const sent: Record<string, string> = {};
     middleware({ url: '/zz/a' }, { setHeader: (n: string, v: string) => (sent[n] = v) }, () => {});
     expect(sent).toEqual({ 'X-Only-In-Build': '1' });
+    // A build with no _headers (the first recorded run's) is served with none
+    rmSync(join(dir, '_headers'));
+    (headers.configurePreviewServer as (s: PreviewServer) => void)(server);
+    const none: Record<string, string> = {};
+    middleware({ url: '/zz/a' }, { setHeader: (n: string, v: string) => (none[n] = v) }, () => {});
+    expect(none).toEqual({});
   } finally {
     rmSync(dir, { recursive: true });
   }
