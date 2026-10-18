@@ -4,6 +4,7 @@ import {
   pictureSourceSet,
   picturePlacement,
   type PicturePlacement,
+  type PictureName,
 } from '../three/landingLens';
 import { EARLY_PICTURE_ID, earlyPicture } from './earlyPicture';
 
@@ -41,16 +42,19 @@ function useWindowSize(): [number, number] {
  * (1x or 2x), and its edges fade into the page's night in the picture itself.
  * Where the built page placed the same picture before the entry ran
  * (earlyPicture.ts), that element becomes this one's, for as long as its
- * file is the one the window's layout asks for.
+ * file is the one the window asks for.
  */
 export function LandingPicture() {
   const [width, height] = useWindowSize();
-  const place = width > 0 && height > 0 ? picturePlacement(width, height) : null;
-  const box = React.useRef<HTMLDivElement>(null);
   const [early] = React.useState(earlyPicture);
   const earlyImg = early?.querySelector('img');
-  const adopt = place !== null && earlyImg?.dataset.layout === place.layout;
+  // The picture on screen, kept while it covers the window (picturePlacement)
+  const shown = React.useRef(earlyImg?.dataset.picture as PictureName | undefined);
+  const place = width > 0 && height > 0 ? picturePlacement(width, height, shown.current) : null;
+  const box = React.useRef<HTMLDivElement>(null);
+  const adopt = place !== null && earlyImg?.dataset.picture === place.picture;
   React.useLayoutEffect(() => {
+    if (place) shown.current = place.picture;
     if (!early) return;
     if (adopt && early.parentNode !== box.current) box.current!.append(early);
     document.getElementById(EARLY_PICTURE_ID)?.remove();
@@ -61,14 +65,14 @@ export function LandingPicture() {
     <div className="landing-picture" aria-hidden="true" data-testid="landing-picture" ref={box}>
       {place && !adopt && (
         <picture>
-          <source type="image/avif" srcSet={pictureSourceSet(place.layout, 'avif')} />
+          <source type="image/avif" srcSet={pictureSourceSet(place.picture, 'avif')} />
           <img
-            src={pictureSource(place.layout, 'webp')}
-            srcSet={pictureSourceSet(place.layout, 'webp')}
+            src={pictureSource(place.picture, 'webp')}
+            srcSet={pictureSourceSet(place.picture, 'webp')}
             alt=""
             decoding="async"
             fetchPriority="high"
-            data-layout={place.layout}
+            data-picture={place.picture}
             style={placement(place)}
           />
         </picture>

@@ -8,6 +8,7 @@ import {
   LANDING_CAMERAS,
   LANDING_PICTURES,
   PICTURE_FADE,
+  covers,
   landingLens,
   pictureSource,
   pictureSourceSet,
@@ -17,7 +18,7 @@ import { COMMON_WINDOWS } from './landingWindows';
 import { landingFrameRings, landingViewDirection } from './landingView';
 import { LANDING_BANDS, landingLayoutOf } from '../screens/landingLayout';
 import type { LandingLayout } from '../screens/landingLayout';
-import type { PictureDensity } from './landingLens';
+import type { PictureDensity, PictureName } from './landingLens';
 
 const opening = elevationOf(new Vector3(...landingViewDirection), new Vector3());
 const fitWindow = (width: number, height: number, fov = 36): FitWindow => ({
@@ -107,6 +108,48 @@ describe('the pictures', () => {
     }
   });
 
+  it('a layout’s last covers each of its common windows, and a phone’s cut the taller phones', () => {
+    for (const [layout, list] of Object.entries(COMMON_WINDOWS)) {
+      const names = Object.keys(LANDING_PICTURES).filter(
+        (n) => LANDING_PICTURES[n as PictureName].layout === layout,
+      );
+      for (const [w, h] of list) {
+        const p = picturePlacement(w, h);
+        // The window takes the first that covers it
+        expect(names.indexOf(p.picture)).toBeGreaterThanOrEqual(0);
+        if (p.picture !== names[names.length - 1]) expect(covers(p, w, h)).toBe(true);
+      }
+    }
+    for (const [w, h] of [
+      [360, 740],
+      [360, 800],
+      [384, 832],
+      [390, 844],
+      [393, 852],
+      [412, 780],
+      [412, 915],
+      [414, 896],
+      [430, 932],
+    ])
+      expect([w, h, picturePlacement(w, h).picture]).toEqual([w, h, 'phone-tall']);
+    for (const [w, h] of [
+      [320, 568],
+      [375, 553],
+      [390, 664],
+    ])
+      expect([w, h, picturePlacement(w, h).picture]).toEqual([w, h, 'phone']);
+  });
+
+  it('the picture shown stays while it covers the window, so a phone’s bars never fetch another', () => {
+    expect(picturePlacement(390, 844).picture).toBe('phone-tall');
+    expect(picturePlacement(390, 844, 'phone').picture).toBe('phone');
+    expect(picturePlacement(412, 915, 'phone-tall').picture).toBe('phone-tall');
+    // No longer covered: the whole phone's, once
+    expect(picturePlacement(390, 664, 'phone-tall').picture).toBe('phone');
+    // Another layout's is never kept
+    expect(picturePlacement(1440, 900, 'phone').picture).toBe('wide');
+  });
+
   it('keep their shape at every density: the same scene across and down, to a pixel', () => {
     for (const p of Object.values(LANDING_PICTURES)) {
       for (const [w, h] of Object.values(p.pixels)) {
@@ -140,10 +183,10 @@ describe('the pictures', () => {
       const ispe = b.indexOf('ispe');
       return [b.readUInt32BE(ispe + 8), b.readUInt32BE(ispe + 12)];
     };
-    for (const [layout, picture] of Object.entries(LANDING_PICTURES))
+    for (const [name, picture] of Object.entries(LANDING_PICTURES))
       for (const [density, pixels] of Object.entries(picture.pixels))
         for (const type of ['avif', 'webp'] as const) {
-          const file = pictureSource(layout as LandingLayout, type, density as PictureDensity);
+          const file = pictureSource(name as PictureName, type, density as PictureDensity);
           expect([file, size(file)]).toEqual([file, pixels]);
         }
   });
@@ -152,7 +195,8 @@ describe('the pictures', () => {
     for (const [w, h] of windows) {
       const lens = landingLens(w, h);
       const p = picturePlacement(w, h);
-      const picture = LANDING_PICTURES[lens.layout];
+      const picture = LANDING_PICTURES[p.picture];
+      expect(picture.layout).toBe(lens.layout);
       // The picture's middle, a point of the scene at its centre tangents
       const perTangent = h / (2 * Math.tan((lens.fov * Math.PI) / 360));
       const x = w / 2 + (picture.centre[0] - lens.shift[0]) * perTangent;
