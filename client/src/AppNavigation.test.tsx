@@ -16,6 +16,9 @@ import type { LobbyView } from './three/lobby/LobbyScene';
 vi.mock('./screens/LandingPreview', () => ({
   LandingPreview: () => null,
 }));
+// Nor the tutorial's (/learn): its lazy canvas would mount the real scene
+// under the stubbed Canvas below
+vi.mock('./screens/learn/LearnCanvas', () => ({ default: () => null }));
 // Neither is the lobby's stage: its canvas renders the scene component only,
 // and the scene stands in for its choosing moment by saying at once that the
 // pick has played out
