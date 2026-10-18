@@ -2,13 +2,13 @@
  "title": "Perf run 20261018-1719",
  "eyebrow": "3D chess · perf-iteration · run 20261018-1719 · general run",
  "heading": "Fixes, checks and two small removals, with no player moment slower: the computer's games and the tutorial now open no connection to the server",
- "meta": "<p>This general run kept 17 changes, each held to the skill's bar of evidence: 7 fixes, 1 visibility fix, 8 new checks and 2 small removals. It claims no speed change. The most visible fix: a game against the computer and the tutorial no longer connect to the game server, so they no longer wake its container or hold an idle connection.</p><p>The final A/B ran the branch (<code>05b74df</code>) against the base <code>9a9e9db</code>, all 16 headline rows, 8 interleaved pairs. No row was called better or worse. Nine rows leaned slower at the median pair. A second A/B of the five game rows among them, 8 pairs, showed none of those leans again. The other four leans are listed under Needs from me, as information.</p>",
+ "meta": "<p>This general run kept 17 changes, each held to the skill's bar of evidence: 6 fixes, 1 visibility fix, 8 new checks and 2 small removals. A third removal, CK1, was reverted at grading because the row it touches leaned slower twice; it waits in the ledger with its patch. It claims no speed change. The most visible fix: a game against the computer and the tutorial no longer connect to the game server, so they no longer wake its container or hold an idle connection.</p><p>The final A/B ran the branch (<code>05b74df</code>) against the base <code>9a9e9db</code>, all 16 headline rows, 8 interleaved pairs. No row was called better or worse. Nine rows leaned slower at the median pair. A second A/B of the five game rows among them, 8 pairs, showed none of those leans again. The other four leans are listed under Needs from me, as information.</p>",
  "needs": {
   "intro": "<p>Nothing here needs a decision. The skill asks for these items to be listed; each is information, with a recommendation.</p>",
   "items": [
    {
     "title": "Information: four headline rows leaned slower in the final A/B and were not measured again",
-    "body": "<p>The skill's speed rule lists any headline row that is more than 3% worse at its median pair. In the final A/B (8 pairs, nothing called) nine rows did. The five game rows among them were measured again, 8 more pairs: none was more than 3% worse (<code>ab-20261018-1719-recheck.md</code>), so those leans came from the machine. The other four, with their pairs (head/base):</p><ul><li>Start page shows the board, desktop: ×1.073 at the median pair, 5 of 8 worse (1.09 1.18 0.91 1.08 1.15 0.89 1.06 0.98). The DL1 row: this row swings on identical code.</li><li>Start page answers its first click, desktop: 15.3 → 15.7 ms, ×1.151 at the median pair, 5 of 8 worse (0.85 1.37 1.16 0.73 1.14 1.17 1.19 0.91). CK1 touches this click, and run 2100's A/B of CK1 leaned the same way (×1.114, 5 of 8). The change is 0.4 ms.</li><li>First board picture, playing the computer: 1.39 → 1.45 s, ×1.113, 6 of 8 worse (1.00 1.25 1.09 1.18 1.14 1.15 0.84 0.93). The run's change on that path removes a socket; it adds no work.</li><li>Reopening a long game: ×1.198, 4 of 8 worse (0.79 1.79 2.02 0.77 1.60 0.41 0.35 1.67). The run changed no code on that path.</li></ul>",
+    "body": "<p>The skill's speed rule lists any headline row that is more than 3% worse at its median pair. In the final A/B (8 pairs, nothing called) nine rows did. The five game rows among them were measured again, 8 more pairs: none was more than 3% worse (<code>ab-20261018-1719-recheck.md</code>), so those leans came from the machine. The other four, with their pairs (head/base):</p><ul><li>Start page shows the board, desktop: ×1.073 at the median pair, 5 of 8 worse (1.09 1.18 0.91 1.08 1.15 0.89 1.06 0.98). The DL1 row: this row swings on identical code.</li><li>Start page answers its first click, desktop: 15.3 → 15.7 ms, ×1.151 at the median pair, 5 of 8 worse (0.85 1.37 1.16 0.73 1.14 1.17 1.19 0.91). CK1 touched this click, and run 2100's A/B of CK1 leaned the same way (×1.114, 5 of 8). The change is 0.4 ms, but speed ranks above less code, so CK1 was reverted at grading (<code>ddfa59f</code>): the start page's code is the base's again. The row was not measured after the revert.</li><li>First board picture, playing the computer: 1.39 → 1.45 s, ×1.113, 6 of 8 worse (1.00 1.25 1.09 1.18 1.14 1.15 0.84 0.93). The run's change on that path removes a socket; it adds no work.</li><li>Reopening a long game: ×1.198, 4 of 8 worse (0.79 1.79 2.02 0.77 1.60 0.41 0.35 1.67). The run changed no code on that path.</li></ul>",
     "recommend": "No action. The next speed run takes the desktop rows with DL1 and FC1 (a 16-pair A/A of the desktop rows first), and can include the computer's section in its first A/B.",
     "charts": [
      {
@@ -50,7 +50,7 @@
   ]
  },
  "scoreboard": {
-  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code> (16 rows). Target: each 1.2× faster than the base <code>9a9e9db</code> (the dashed line). Each bar is the geometric mean of the pairs; each dot is one pair. The long view against the first recorded run was not measured this run; the last figure, from run 20261016-2036, was 2.48 times as fast over 11 rows.</p>",
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code> (16 rows). Target: each 1.2× faster than the base <code>9a9e9db</code> (the dashed line). Each bar is the geometric mean of the pairs; each dot is one pair. The long view against the first recorded run (<code>92ce041</code>) was not measured again this run: an A/B of it takes about half an hour, which did not fit the grading stage. Its last measurement is charted below, tied to the commit it ran on.</p>",
   "items": [
    {
     "title": "The branch against the base",
@@ -62,6 +62,20 @@
        "only": "PRIMARY"
       },
       "caption": "All 16 headline rows, 05b74df against 9a9e9db, 8 pairs (ab-20261018-1719-final.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "The long view: against the first recorded run",
+    "body": "<p>Last measured in run 20261016-0037: <code>e02a235</code> against the first recorded run's base <code>92ce041</code>, 3 pairs (<code>ab-20261016-0037-vs-first-run.md</code>). The head was 2.48 times as fast over the 11 headline rows both sides can measure (5 called better, 2 called worse). The base has no computer player or review, so those rows are missing. Five runs have landed since; none claims a speed change against its own base large enough to move this figure much, but it is not a measurement of this branch. The next run should measure it fresh (Next).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: e02a235 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "e02a235 (run 20261016-0037) against the first recorded run's base 92ce041, 3 pairs (ab-20261016-0037-vs-first-run.md). Not this branch.",
       "target": 1.2
      }
     ]
@@ -102,14 +116,18 @@
   ]
  },
  "removed": {
-  "intro": "<ul><li>The start page click's redundant <code>flushSync</code> (CK1, <code>986e325</code>): the router already commits its navigation as a transition, after the click's own update.</li><li>Six GameScreen test files stub the lazily loaded board once instead of nine three.js modules each (part of D10, <code>be7492c</code>): 112 test lines out, 19 in.</li><li>The move record draws and says a move through one small component instead of two copies of the same markup (MH2, <code>dd7eead</code>): 22 lines in, 21 out.</li><li><code>bench/loop/patches/start-click-no-flushsync-CK1.patch</code>: the change is in the code.</li></ul><p>Net over the run (<code>9a9e9db..05b74df</code>, outside <code>bench/loop/</code>): app, bench and docs +115 −53; tests +363 −121. The run mostly added checks, so the code grew.</p>"
+  "intro": "<ul><li>Six GameScreen test files stub the lazily loaded board once instead of nine three.js modules each (part of D10, <code>be7492c</code>). Screens layer, tests only: 19 lines in, 112 out. Duplication in the six files (jscpd, 5 lines or 50 tokens): 7 clones, 100 lines (8.95%) → 3 clones, 21 lines (2.05%). Complexity (ESLint's <code>complexity</code>): 280 functions summing 298 → 184 summing 194; the largest is 3 before and after.</li><li>The move record draws and says a move through one small component instead of two copies of the same markup (MH2, <code>dd7eead</code>). Screens layer, app: 22 lines in, 21 out. Duplication in MoveHistory.tsx (jscpd, 2 lines or 20 tokens): 1 clone of 3 lines → none. Complexity: 29 functions summing 149, largest 59 → 30 summing 150, largest 58.</li><li>CK1 (the start page click's <code>flushSync</code>, <code>986e325</code>) was removed and then restored at grading (<code>ddfa59f</code>), so it removes nothing. Its patch is back in <code>bench/loop/patches/</code>.</li></ul><p>Lines per layer over the run (<code>9a9e9db..ddfa59f</code>, outside <code>bench/loop/</code>; app, then tests): screens +55 −32 and +87 −113; hooks and lib +25 −3 and +47 −1; ai +3 −1 and +16 −0; game +1 −1 and +20 −1; three, tests only, +21 −2; bench +13 −3 and +49 −4; other (index.html, config, and the config and lint tests) +3 −1 and +123 −0. The engine and the server are untouched. In the whole screens folder, duplication fell from 18 clones, 212 lines (1.47%) to 13 clones, 118 lines (0.82%), and the complexity sum from 2,247 to 2,161 (largest 88 both). The run mostly added checks, so the code grew.</p>"
  },
  "rejected": {
   "intro": "",
   "items": [
    {
-    "title": "M9: one set of search tables per thread",
-    "body": "<p>A/B against <code>986e325</code>, the computer's search, 12 pairs: search speed 50.1 → 29.7 ms at the median pair, 11 of 12 pairs below 1 and one at 1.17, so not called (<code>ab-20261018-1719-m9.md</code>). Its memory case was read in the source, not measured. Closed with no code left.</p>"
+    "title": "CK1: the start page click without flushSync (reverted, parked)",
+    "body": "<p>Kept in Improve as a removal with no speed claim, then reverted at grading (<code>ddfa59f</code>): the desktop first click leaned slower in both of its A/Bs (run 2100 ×1.114 and this run's final ×1.151, 5 of 8 pairs each, neither called). It waits first in the ledger with its patch for an A/B of the start page section with 16 or more pairs.</p>"
+   },
+   {
+    "title": "M9: one set of search tables per thread (not landed, parked for the speed run)",
+    "body": "<p>A/B against <code>986e325</code>, the computer's search, 12 pairs: “The computer's strength in its time” 50.1 → 29.7 ms at the median pair, 11 of 12 pairs below 1 and one at 1.17, so not called (<code>ab-20261018-1719-m9.md</code>). Not a rejection: it is the first item for the next speed run, with its patch, 16 or more pairs and a probe of its idle memory.</p>"
    },
    {
     "title": "RW1: the review on every core",
@@ -122,12 +140,12 @@
   ]
  },
  "choices": {
-  "intro": "<ul><li>Fixed ES's review blocker in the code (the app's socket waits for a page that uses the server) instead of rewording the claim. A page that goes from <code>/new</code> to <code>/computer</code> now closes its socket and opens a fresh one on the way back.</li><li>Ran the final A/B at 8 pairs, then re-ran the five game rows that leaned, 8 pairs, instead of every section again. The four rows not re-run are listed under Needs from me.</li><li>VR1 trims from 10 pairs, not 8: from 8 the chance calls on the committed reports grow about five-fold.</li><li>I13's latch is per request type, so a draw offer and a take-back in one round trip both go.</li><li>Parked six ledger rows that three runs passed over (CG1, HW1, SV1, AV1, RF1, BS1).</li></ul>"
+  "intro": "<ul><li>Fixed ES's review blocker in the code (the app's socket waits for a page that uses the server) instead of rewording the claim. A page that goes from <code>/new</code> to <code>/computer</code> now closes its socket and opens a fresh one on the way back.</li><li>Ran the final A/B at 8 pairs, then re-ran the five game rows that leaned, 8 pairs, instead of every section again. The four rows not re-run are listed under Needs from me.</li><li>VR1 trims from 10 pairs, not 8: from 8 the chance calls on the committed reports grow about five-fold.</li><li>I13's latch is per request type, so a draw offer and a take-back in one round trip both go.</li><li>Parked six ledger rows that three runs passed over (CG1, HW1, SV1, AV1, RF1, BS1).</li><li>At grading, reverted CK1 rather than measure it again: an A/B of the start page with enough pairs to clear a 0.4 ms lean would not fit the stage. Speed ranks above less code.</li><li>At grading, moved M9 back to the top of the ledger's Open list for the speed run instead of closing it.</li></ul>"
  },
  "notConfirmed": {
-  "intro": "<ul><li>The four leaning rows above were not measured again.</li><li>Whether a key pressed after a click on the result card makes Chromium, Firefox or WebKit draw a focus ring round it (ledger I15).</li><li>The cost of the fresh worker after a dropped thought (ledger CC2).</li><li>DL1's per-load desktop figures: read from raw output that is not committed, so they stay a lead.</li></ul>"
+  "intro": "<ul><li>The four leaning rows above were not measured again, nor the desktop first click after CK1's revert.</li><li>Whether a key pressed after a click on the result card makes Chromium, Firefox or WebKit draw a focus ring round it (ledger I15).</li><li>The cost of the fresh worker after a dropped thought (ledger CC2).</li><li>DL1's per-load desktop figures: read from raw output that is not committed, so they stay a lead.</li><li>The long view on this branch (charted from run 20261016-0037 instead).</li><li>Why <code>programs.spec.ts</code>'s review test failed once in the full e2e run on <code>ddfa59f</code>; it passed when run alone (ledger PG1).</li></ul>"
  },
  "next": {
-  "intro": "<ol><li>Speed run: RT1 with 16 or more pairs; FC1 (the desktop first click); DL1's 16-pair desktop A/A first; CL1.</li><li>CC2: time the computer's reply after a dropped thought.</li><li>I15: the focus ring after a click, and where focus lands when the card closes.</li><li>E7 and CC3: two checks that could pass on broken code.</li><li>VR2: make the A/B's chance sentence depend on the pair count.</li></ol>"
+  "intro": "<ol><li>Speed run: M9 (search tables per thread, 16+ pairs of the ai section); RT1 with 16 or more pairs; FC1 (the desktop first click) with CK1's A/B in the same start page run; DL1's 16-pair desktop A/A first; CL1.</li><li>The long view: the head against the first recorded run 92ce041, <code>--primary</code>, 3 pairs (about 30 minutes).</li><li>PG1: <code>e2e/programs.spec.ts</code>'s review test failed once in a full e2e run on <code>ddfa59f</code> (three marks' programs linked after the warm-up) and passed alone.</li><li>CC2: time the computer's reply after a dropped thought.</li><li>I15: the focus ring after a click, and where focus lands when the card closes.</li><li>E7 and CC3: two checks that could pass on broken code.</li><li>VR2: make the A/B's chance sentence depend on the pair count.</li></ol>"
  }
 }
