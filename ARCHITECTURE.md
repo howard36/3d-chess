@@ -903,6 +903,10 @@ video:
 cd client && node scripts/showcase.mjs --out /tmp/showcase   # ffmpeg on PATH
 ```
 
+`--entrance` starts the video on the game's first frame instead, as the lobby hands over, so
+one take runs from the tower building itself through the whole game (with `--tour` and
+`--zoom 0.82` at `--width 1080 --height 1080`, a square cut ready to share).
+
 `--review` photographs the board for a legibility check: the opening, a selected piece
 with quiet and capture destinations (and the pointer on a destination and on a piece), the
 last move's line and a check, each from 13 camera poses, top-down included (or
