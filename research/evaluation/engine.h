@@ -63,6 +63,13 @@ typedef struct {
   // Fractional weights (research; with ext): mobility and king pressure per type, bishop pair
   int frac;
   double dmob[8], dtrop[8], dbpair;
+  // More extensions (research; after the fractional weights): a knight, bishop or unicorn attacking
+  // a rook or queen, or a rook a queen; each attack on a square next to the enemy king (at that
+  // king's danger; the queen's too when ykq); the side to move; own pieces a pawn defends; own pawns
+  // a pawn defends; pawns with no own pawn on a neighbouring file; yspare != 0: mobility counts only
+  // the squares no enemy pawn attacks
+  int ext2;
+  double ythreat, ykzone, ytempo, yprot, ychain, yiso, ykq, yspare;
 } EvalParams;
 
 #define NTHETA 58

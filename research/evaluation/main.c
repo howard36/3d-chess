@@ -138,20 +138,26 @@ static void init_eval_spec(EvalParams *e, const char *s) {
   int v[6];
   for (int i = 0; i < NTHETA; i++) if (fscanf(f, "%lf", &th[i]) != 1) { fprintf(stderr, "short %s\n", s + 1); exit(1); }
   for (int i = 0; i < 6; i++) if (fscanf(f, "%d", &v[i]) != 1) { fprintf(stderr, "short %s\n", s + 1); exit(1); }
-  double x[17];
+  double x[25];
   int nx = 0;
-  while (nx < 17 && fscanf(f, "%lf", &x[nx]) == 1) nx++;
+  while (nx < 25 && fscanf(f, "%lf", &x[nx]) == 1) nx++;
   fclose(f);
   eval_init_theta(e, th, v);
   if (nx >= 6) {
     e->ext = 1;
     e->xa = x[0]; e->xb = x[1]; e->xshield = x[2]; e->xpass_mg = x[3]; e->xpass_eg = x[4]; e->xthreat = x[5];
   }
-  if (nx == 17) {   // fractional mobility N B R U Q, king pressure N B R U Q, bishop pair
+  if (nx == 25 || nx == 14) {   // and the further extensions, after the fractional weights or without them
+    const double *y = x + (nx == 25 ? 17 : 6);
+    e->ext2 = 1;
+    e->ythreat = y[0]; e->ykzone = y[1]; e->ytempo = y[2]; e->yprot = y[3];
+    e->ychain = y[4]; e->yiso = y[5]; e->ykq = y[6]; e->yspare = y[7];
+  }
+  if (nx == 17 || nx == 25) {   // fractional mobility N B R U Q, king pressure N B R U Q, bishop pair
     e->frac = 1;
     for (int t = 0; t < 5; t++) { e->dmob[KNIGHT + t] = x[6 + t]; e->dtrop[KNIGHT + t] = x[11 + t]; }
     e->dbpair = x[16];
-  } else if (nx != 0 && nx != 6) { fprintf(stderr, "extensions need 6 or 17 numbers: %s\n", s + 1); exit(1); }
+  } else if (nx != 0 && nx != 6 && nx != 14) { fprintf(stderr, "extensions need 6, 14, 17 or 25 numbers: %s\n", s + 1); exit(1); }
 }
 
 // The evaluation the moves and search modes use: the game's, or the one PV_EVAL names

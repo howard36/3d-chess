@@ -137,7 +137,8 @@ static int quiesce(Searcher *s, int alpha, int beta, int ply, int qply) {
   if (s->stopped) return 0;
   int rough = evaluate(s->ev, pos, 0);
   if (rough - 150 >= beta) return rough;
-  int stand = rough + 150 <= alpha ? rough : rough + mobility_score(s->ev, pos);
+  // with the further extensions the part beyond the rough evaluation is more than mobility
+  int stand = rough + 150 <= alpha ? rough : s->ev->ext2 ? evaluate(s->ev, pos, 1) : rough + mobility_score(s->ev, pos);
   if (stand >= beta) return stand;
   if (ply >= MAX_PLY - 1 || qply >= s->qLimit) return stand;
   if (stand > alpha) alpha = stand;

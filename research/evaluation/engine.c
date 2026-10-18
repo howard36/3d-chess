@@ -533,6 +533,73 @@ int mobility_score(const EvalParams *e, const Pos *p) {
   return toward50(p->side == WHITE_SIDE ? m : -m, pos_halfmoves(p));
 }
 
+// The further extensions' attacks, White's view: pieces attacking a bigger enemy piece, and attacks
+// on the squares next to each king at that king's danger (W, in 24ths)
+static double attack_terms(const EvalParams *e, const Pos *p, const double *W, double *safeMob) {
+  const uint8_t *board = p->board;
+  static uint8_t zone[2][CELLS], pa[2][CELLS];
+  int safe = e->yspare != 0;
+  if (safe) {   // the squares each side's pawns attack
+    memset(pa, 0, sizeof pa);
+    for (int c = 0; c < CELLS; c++) {
+      int q = board[c];
+      if (!q || (q & 7) != PAWN) continue;
+      int s = q >> 3;
+      for (int k = 0, len = PAWN_CAP_LEN[s][c]; k < len; k++) pa[s][PAWN_CAP[s][c * 5 + k]] = 1;
+    }
+  }
+  double mob[2] = {0, 0};
+  for (int s = 0; s < 2; s++) {
+    int k = p->king[s];
+    if (k < 0 || e->ykzone == 0) continue;
+    for (int d = 0; d < CELLS; d++) zone[s][d] = DIST[k * CELLS + d] == 1;
+  }
+  int thr[2] = {0, 0}, kz[2] = {0, 0};
+  for (int word = 0; word < 8; word++) {
+    uint32_t bits = p->occ[word];
+    while (bits) {
+      int c = ((word & 3) << 5) | __builtin_ctz(bits);
+      bits &= bits - 1;
+      int pc = board[c], type = pc & 7, s = pc >> 3, own = pc & BLACK;
+      if (type == PAWN || type == KING) continue;
+      double mw = e->frac ? e->dmob[type] : e->mob[type];
+      int doMob = safe && mw != 0;
+      if (type == QUEEN && e->ykq == 0 && !doMob) continue;
+      const uint8_t *z = zone[s ^ 1], *ep = pa[s ^ 1];
+      int zk = e->ykzone != 0 && p->king[s ^ 1] >= 0 && (type != QUEEN || e->ykq != 0);
+      int cnt = 0;
+      if (type == KNIGHT) {
+        for (int i = 0, len = KNIGHT_LEN[c]; i < len; i++) {
+          int t = KNIGHT_TO[c * 24 + i], q = board[t];
+          if (zk && z[t]) kz[s]++;
+          if (q && (q & BLACK) != own && ((q & 7) == ROOK || (q & 7) == QUEEN)) thr[s]++;
+          if (doMob && (!q || (q & BLACK) != own) && !ep[t]) cnt++;
+        }
+      } else {
+        int d0 = type == BISHOP ? ROOK_END : type == UNICORN ? BISHOP_END : 0;
+        int d1 = type == ROOK ? ROOK_END : type == BISHOP ? BISHOP_END : DIRS;
+        for (int d = d0; d < d1; d++) {
+          int len = RAY_LEN[c * DIRS + d], base = (c * DIRS + d) * 4;
+          for (int i = 0; i < len; i++) {
+            int t = RAY[base + i], q = board[t];
+            if (zk && z[t]) kz[s]++;
+            if (!q) { if (doMob && !ep[t]) cnt++; continue; }
+            if ((q & BLACK) != own) {
+              int v = q & 7;
+              if (type == ROOK ? v == QUEEN : type != QUEEN && (v == ROOK || v == QUEEN)) thr[s]++;
+              if (doMob && !ep[t]) cnt++;
+            }
+            break;
+          }
+        }
+      }
+      mob[s] += mw * cnt;
+    }
+  }
+  if (safe) *safeMob = mob[0] - mob[1];
+  return e->ythreat * (thr[0] - thr[1]) + e->ykzone * (kz[0] * W[1] - kz[1] * W[0]) / 24.0;
+}
+
 static int evaluate_ext(const EvalParams *e, const Pos *p, int full) {
   const uint8_t *board = p->board;
   int mg = 0, eg = 0, phase = 0;
@@ -628,6 +695,32 @@ static int evaluate_ext(const EvalParams *e, const Pos *p, int full) {
       num += (s ? -1 : 1) * e->xthreat * 24 * n;
     }
   }
+  if (e->ext2 && (e->yprot != 0 || e->ychain != 0 || e->yiso != 0)) {
+    static uint8_t mark[CELLS];
+    for (int s = 0; s < 2; s++) {
+      int prot = 0, chain = 0, iso = 0;
+      for (int i = 0; i < np[s]; i++) {
+        int c = pawns[s][i];
+        for (int k = 0, len = PAWN_CAP_LEN[s][c]; k < len; k++) {
+          int t = PAWN_CAP[s][c * 5 + k], q = board[t];
+          if (!q || (q >> 3) != s || (q & 7) == KING || mark[t]) continue;
+          mark[t] = 1;
+          if ((q & 7) == PAWN) chain++; else prot++;
+        }
+        int alone = 1;
+        for (int j = 0; j < np[s] && alone; j++) {
+          int dx = CX[pawns[s][j]] - CX[c];
+          if (dx == 1 || dx == -1) alone = 0;
+        }
+        iso += alone;
+      }
+      for (int i = 0; i < np[s]; i++) {
+        int c = pawns[s][i];
+        for (int k = 0, len = PAWN_CAP_LEN[s][c]; k < len; k++) mark[PAWN_CAP[s][c * 5 + k]] = 0;
+      }
+      num += (s ? -1 : 1) * 24 * (e->yprot * prot + e->ychain * chain + e->yiso * iso);
+    }
+  }
   int score = (int)jsround(num / PHASE_MAX);
   int lead = material[0] - material[1];
   if (abs(lead) >= 150) {
@@ -642,11 +735,22 @@ static int evaluate_ext(const EvalParams *e, const Pos *p, int full) {
       score += sign * (12 * CENTRE[weakKing] + 10 * (4 - DIST[weakKing * CELLS + strongKing]));
   }
   int relative = p->side == WHITE_SIDE ? score : -score;
+  if (e->ext2) relative += (int)jsround(e->ytempo);
   int scaled = toward50(relative, pos_halfmoves(p));
   if (!full) return scaled;
-  if (!e->frac) return scaled + mobility_score(e, p);
+  int extra = 0;
+  if (e->ext2 && (e->ythreat != 0 || e->ykzone != 0 || e->yspare != 0)) {
+    double sm = 0;
+    double a = attack_terms(e, p, W, &sm);
+    extra = toward50((int)jsround(p->side == WHITE_SIDE ? a : -a), pos_halfmoves(p));
+    if (e->yspare != 0) {   // mobility counted on the squares no enemy pawn attacks, instead
+      int m = (int)jsround(sm);
+      return scaled + toward50(p->side == WHITE_SIDE ? m : -m, pos_halfmoves(p)) + extra;
+    }
+  }
+  if (!e->frac) return scaled + mobility_score(e, p) + extra;
   int m = (int)jsround(pos_mobility_d(p, e->dmob));
-  return scaled + toward50(p->side == WHITE_SIDE ? m : -m, pos_halfmoves(p));
+  return scaled + toward50(p->side == WHITE_SIDE ? m : -m, pos_halfmoves(p)) + extra;
 }
 
 int evaluate(const EvalParams *e, const Pos *p, int full) {
