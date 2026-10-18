@@ -1,0 +1,1 @@
+@jxA_avg.txt vs @joint_final.txt at 40000 nodes: 0.673 ± 0.009 (+126 Elo) over 2000 games {'mate': 189, 'adjudicated': 1383, 'repetition': 212, 'fifty': 216}
