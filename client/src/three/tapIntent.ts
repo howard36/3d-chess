@@ -34,6 +34,13 @@ export const MOVE_ODDS = 2;
 /** How much likelier a tap means what its ray hit than what it only lies near. */
 export const DIRECT_ODDS = 2;
 
+/**
+ * How far (CSS px) a tap must land from everything the player can act on to
+ * mean none of it (and put a held piece down): a fingertip and a half, about
+ * 9 mm. A near miss beside a lone mark is still that mark.
+ */
+export const NOTHING_PX = 56;
+
 /** Below this share of the odds, a meaning is left out of the magnifier. */
 export const CANDIDATE_SHARE = 0.05;
 
@@ -169,7 +176,7 @@ export interface TapContext<Id> {
  * - a tap whose ray hits a piece takes that piece;
  * - otherwise each target's odds are weighed (oddsOf; what the ray hit
  *   counts DIRECT_ODDS times, a move MOVE_ODDS times while a piece is held),
- *   against a tap meant for nothing (one three spreads clear of everything);
+ *   against a tap meant for nothing (one NOTHING_PX clear of everything);
  * - the likeliest acts when its share is at least SURE, or when it is a
  *   piece and the moves together have less than MOVE_DOUBT;
  * - otherwise the likely meanings (up to MAX_CANDIDATES) are asked about.
@@ -187,8 +194,8 @@ export function decideTap<Id>(
     if (holding && target.kind === 'destination') odds *= MOVE_ODDS;
     return { target, odds };
   });
-  // (A tap three spreads from everything was meant for none of it)
-  const nothing = Math.exp(-4.5);
+  // (A tap NOTHING_PX from everything was meant for none of it)
+  const nothing = Math.exp(-(NOTHING_PX * NOTHING_PX) / (2 * spread * spread));
   const total = weighed.reduce((sum, w) => sum + w.odds, nothing);
   weighed.sort((a, b) => b.odds - a.odds);
   const [best] = weighed;

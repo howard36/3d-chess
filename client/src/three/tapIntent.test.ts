@@ -13,6 +13,7 @@ import {
   LENS_SPACING_PX,
   LENS_ZOOM,
   MAX_CANDIDATES,
+  NOTHING_PX,
   pickInLens,
   recordTap,
   spreadOf,
@@ -143,11 +144,11 @@ describe('decideTap', () => {
     expect(decideTap([112, 100], targets, nothingHeld)).toEqual({ act: 'take', id: 'b' });
   });
 
-  it('means nothing three spreads clear of everything', () => {
+  it(`means nothing ${NOTHING_PX} px clear of everything`, () => {
     const targets = [piece('a', 100, 100)];
-    const clear = 100 + 17 / 2 + 3 * TAP_SPREAD_PX + 2;
+    const clear = 100 + 17 / 2 + NOTHING_PX + 2;
     expect(decideTap([clear, 100], targets, nothingHeld)).toEqual({ act: 'none' });
-    expect(decideTap([clear - 6, 100], targets, nothingHeld)).toEqual({ act: 'take', id: 'a' });
+    expect(decideTap([clear - 12, 100], targets, nothingHeld)).toEqual({ act: 'take', id: 'a' });
     expect(decideTap([0, 0], [], nothingHeld)).toEqual({ act: 'none' });
   });
 
@@ -185,6 +186,21 @@ describe('decideTap', () => {
       act: 'take',
       id: 'p',
     });
+  });
+
+  it('gives a near miss beside a lone mark to that mark, never putting the piece down', () => {
+    const targets = [mark('m', 100, 100), piece('far', 300, 300)];
+    for (const tap of [
+      [140, 100],
+      [60, 100],
+      [100, 140],
+      [100, 50],
+    ] as ScreenPoint[]) {
+      expect(decideTap(tap, targets, { holding: true, direct: null })).toEqual({
+        act: 'take',
+        id: 'm',
+      });
+    }
   });
 
   it('counts a tap above a mark, where the piece would stand, as near the mark', () => {

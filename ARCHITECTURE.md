@@ -175,8 +175,9 @@ Key decisions:
   from its shape (a quiet move's shape takes in the held piece standing on it), what the
   tap's ray hit counts double, and a move counts double while a piece is held. A tap whose
   ray hits a piece picks it up (or puts it down); otherwise the likeliest target acts when
-  it has 90% of the odds, or when it is a piece and no move is in the running; a tap three
-  spreads clear of everything puts the selection down. When a move is in doubt, the
+  it has 90% of the odds, or when it is a piece and no move is in the running; only a tap
+  56 px (`NOTHING_PX`, a fingertip and a half) clear of everything puts the selection down, so
+  a near miss beside a lone mark still plays it. When a move is in doubt, the
   magnifier (`three/Magnifier.tsx`) shows the likely meanings (up to four) enlarged beside
   the finger, ringed, the two closest a fingertip apart (3x to 5x), and a tap in it picks
   one; a tap outside closes it, the piece still held. A finger held still on the board for
