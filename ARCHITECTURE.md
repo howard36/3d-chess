@@ -307,8 +307,7 @@ Key decisions:
   back in the game, and a resignation or offer queued meanwhile is dropped, like a move. Under the pill hang the **captured pieces** (`screens/CapturedPieces.tsx`, from
   `GameHistory.captured` and `game/material.ts`): each side's haul under its own half, a
   silhouette per kind of piece taken (the promotion dialog's, `screens/PieceGlyph.tsx`) in the taken army's material with a count when more than one, and "+N" on the side ahead on material (in pawns:
-  queen 10, knight and bishop 3, rook 2.5, unicorn 1.5, measured for this board by
-  self-play, not 2D chess's); one above the other at the top left in a short window. The camera fit keeps their row clear
+  knight and bishop 3, rook 2.5, unicorn 1.5, queen 9; see Piece values); one above the other at the top left in a short window. The camera fit keeps their row clear
   from the first move (`hudTop`), so a capture never moves the board, and a screen
   reader reads them as a sentence per side, never announced. Under them, only while they
   apply: "Reconnecting…" (the pill and the captures dim), the refusal that still stands and the
@@ -1245,20 +1244,23 @@ draw, and so does one repeated inside the line searched (it can always be repeat
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` scores material and
-position together, in tables per piece and cell (development and centralisation in the cube,
-pawns' progress towards their last square, worth more as the board empties); the king home
-behind its pawns while the enemy has the pieces to attack it, its queen above all, and active
-once they are gone; its own pawns beside it; pressure on the enemy king; pieces a pawn
-attacks; having the move; mobility (left out of the quiescence search where it cannot
-matter); the bishop pair; and, a side ahead, trading down and driving the bare king to a
-corner, which mates with king and queen. Its numbers were tuned for playing strength by self-play
-(`research/evaluation/`, its README for the method): at the same number of positions
-searched it scored 75.2% against the hand-set evaluation it replaced (2,000 games at 40,000
-positions a move, about 190 Elo). The board keeps the king and pawn terms as moves are
-played, as it does the tables' sums (`position.ts`); they cost the search about 7% of its
-speed, and at equal time it still scored 72.0%. In the browser it searches some 400,000
-positions a second.
+side behind takes a repetition when it is offered. `evaluate.ts` judges by one of two sets of
+numbers (`numbers.ts`). The levels' scores material at its own values (queen 9.8, knight 3.2,
+bishop 2.95, rook 2.45, unicorn 1.4, which play with the terms that follow; the captured
+pieces' "+N" counts material alone, see Piece values), development and centralisation in the
+cube, pawns' progress towards their last square (worth more as the board empties), king safety
+(home behind its pawns, enemy pieces near it) giving way to an active king in the endgame,
+mobility (left out of the quiescence search where it cannot matter), the bishop pair, and, a
+side ahead, trading down and driving the bare king to a corner, which mates with king and
+queen. The expert's (the `expert` player, below) has every number tuned for playing strength by
+self-play (`research/evaluation/`, its README for the method) and four terms more: the king's
+tables and the pressure on it blend by its own danger (the enemy's pieces, its queen above all)
+rather than the game's phase, own pawns beside the king, enemy pieces a pawn attacks, and
+having the move. At the same number of positions searched it scored 75.2% against the levels'
+(2,000 games at 40,000 positions a move, about 190 Elo), and 72.0% at equal time: the board
+keeps its extra terms as moves are played (`position.ts`), but only for a position made with
+the expert's numbers, and that costs its search about 7% of its speed. In a Chromium worker
+Hard searches about a million positions a second.
 
 **The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
 engine, the search gives an exact score to every root move within a margin of the best, and
@@ -1282,6 +1284,12 @@ the way a person does; its own moves this turn are always all considered.
 Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
 Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
 
+Two players the game does not offer (`LEVELS.hardFixed`, `LEVELS.expert`): Hard on a budget
+of positions instead of the clock (`nodes`: the search keeps the clock's rules with its clock
+counting positions, 1.8 million standing for Hard's 1.8 s at a million positions a second), so
+it plays the same on any device and takes longer on a slower one; and the expert, the same
+search, choice and budget by the expert's numbers.
+
 **A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the
 start (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
@@ -1302,6 +1310,26 @@ ahead) that it hardly changes the result: a mistake past 7 pawns, an inaccuracy 
 self-play (`chooseMove` games, each position reviewed), per 100 moves: Easy 13.6
 inaccuracies, 6.6 mistakes and 5.8 blunders, Medium 10.5, 2.1 and 2.9, Hard 2.0, 0 and 0.3
 (16 Easy, 12 Medium and 8 Hard sides).
+
+### Piece values
+
+The captured pieces' "+N" (`game/material.ts`) counts a knight or a bishop as 3 pawns, a rook
+2.5, a unicorn 1.5 and a queen 9: half pawns, to read at a glance. Two measurements for this
+board stand behind them, both by self-play of a C port of `src/ai` that searches node for node
+as the game does:
+
+- What predicts the winner from material alone (`research/piece-values/`, its README for the
+  detail): material taken away at random, from the start and from quiet positions of played
+  games in three phases (12 or more pieces besides kings and pawns; 6–11; 1–5), each imbalance
+  played twice with the sides swapped, some 15,000 games by bots about 100 Elo above Hard, and
+  each piece's effect on the odds of winning fitted with the phases weighted equally: queen
+  11.2, knight 3.1, bishop 3.1, rook 2.8, unicorn 1.2. In endings without pawns no lone piece
+  mates, so an extra piece there nearly always draws; no count can show that.
+- What the engine plays best with: its own values (`ai/evaluate.ts`: queen 9.8, knight 3.2,
+  bishop 2.95, rook 2.45, unicorn 1.4) work together with its positional terms. At equal work
+  its search did no better with the measured values (scaled so its positional credits keep
+  their share: 44–46% in 1,000 games), with evaluations fitted to self-play results (29% or
+  worse), or with constants tuned for strength (51.3% ± 1.4%).
 
 ## The tutorial
 
@@ -1384,7 +1412,8 @@ server/bench/    Server benchmarks: store operations, live WebSocket load, adver
 bench/           The benchmark runner (run.mjs) and the primary rows (primary.mjs); reports go to bench/out/.
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
-research/evaluation/  How the computer's evaluation was tuned: a C port of src/ai, SPSA and matches (not shipped).
+research/piece-values/  How the piece values were measured: test bots (a C port of src/ai) and scripts.
+research/evaluation/  How the expert's numbers were tuned: a C port of src/ai, SPSA and matches (not shipped).
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).

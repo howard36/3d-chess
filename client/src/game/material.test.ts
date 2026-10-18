@@ -37,7 +37,7 @@ describe('the pieces each side has taken', () => {
     const h = replay();
     expect(h.captured).toEqual({ white: [], black: [] });
     expect(materialLead(h.board, 'white')).toBe(0);
-    expect(materialOf(h.board, 'white')).toBe(10 + 2 * 3 + 2 * 3 + 2 * 2.5 + 2 * 1.5 + 10);
+    expect(materialOf(h.board, 'white')).toBe(10 + 2 * 3 + 2 * 3 + 2 * 2.5 + 2 * 1.5 + 9);
   });
 
   it('are what stood on each move’s destination, in the order taken', () => {
@@ -105,9 +105,9 @@ describe('materialOf', () => {
     board.setPiece(fromZXY('Cc3'), { type: Queen, color: 'white' });
     board.setPiece(fromZXY('Dc3'), { type: Queen, color: 'white' });
     board.setPiece(fromZXY('Bb2'), { type: Knight, color: 'black' });
-    expect(materialOf(board, 'white')).toBe(20);
+    expect(materialOf(board, 'white')).toBe(18);
     expect(materialOf(board, 'black')).toBe(3);
-    expect(materialLead(board, 'black')).toBe(-17);
+    expect(materialLead(board, 'black')).toBe(-15);
   });
 });
 
