@@ -1,0 +1,1 @@
+hardFixed@640000 vs hardFixed: 21.0% ± 3.6% (-230 Elo) over 100 games {"resigned":86,"fifty":12,"repetition":2}; hardFixed@640000: 558 ms, 472435 positions a move; hardFixed: 1582 ms, 1318882 positions a move
