@@ -1,0 +1,5 @@
+engine
+*.raw
+*.jobs.json
+*.log
+__pycache__/
