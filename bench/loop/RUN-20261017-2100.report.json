@@ -2,7 +2,7 @@
   "title": "Perf run 20261017-2100",
   "eyebrow": "3D chess · perf-iteration · run 20261017-2100 · speed run",
   "heading": "No speed win this run: two picture changes for the phone's start page lean faster, but no A/B called them",
-  "meta": "<p>This run kept no change to the game. It looked for time in one moment you asked about: how soon the start page shows the board, on a phone and on a desktop, on a first visit and on a return. It found where that time goes, tried the two largest fixes, and measured each against the base <code>fbac15f</code>. Neither was called by the A/B, so both are parked as patches with their numbers.</p><p>The PR carries the bench and the loop state: the returning phone's board is now a headline row, the cold-load runs record where the board's time went, and the ledger, scoreboard and run record are up to date. The game's code on the branch is the base's code.</p><p>The run went from 21:00 to about 02:20 UTC, against a budget of about 4 hours. Each cold-load A/B took 70 minutes or more on this machine, and the machine was noisy throughout, so there was time for only two ideas.</p>",
+  "meta": "<p>This run kept no change to the game. It looked for time in one moment you asked about: how soon the start page shows the board, on a phone and on a desktop, on a first visit and on a return. It found where that time goes, tried the two largest fixes, and measured each against the base <code>fbac15f</code>. Neither was called by the A/B, so both are parked as patches with their numbers. It also answered your item on the start page click's flushSync (CK1): removing it makes no headline row faster, so it stays for now.</p><p>The PR carries the bench and the loop state: the returning phone's board is now a headline row, and the ledger, scoreboard and run record are up to date. The game's code on the branch is the base's code.</p><p>The run went from 21:00 to about 02:05 UTC, and a follow-up to about 03:20, against a budget of about 4 hours. Each cold-load A/B took 70 minutes or more on this machine, and the machine was noisy throughout, so there was time for only two ideas.</p>",
   "needs": {
     "intro": "<p>Nothing here blocks the PR. Both items are information, each with a recommendation.</p>",
     "items": [
@@ -13,8 +13,8 @@
       },
       {
         "title": "Five headline rows lean slower on the base than on the last run's base, none called (information)",
-        "body": "<p>The regression check compared the base <code>fbac15f</code> with the last run's base <code>1f207f0</code>, 8 pairs (<code>ab-20261017-2100-regress.md</code>). It called one row better (returning phone usable 564 → 414 ms) and none worse. These rows lean slower:</p><ul><li><b>First board picture, playing the computer</b>: 1.26 → 1.49 s, median pair ×1.144, 7 of 8 pairs slower (1.18 1.15 0.76 1.14 1.23 1.12 1.45 1.03). Last run leaned the same way (×1.269, 7 of 8). The creator's first board picture leans too (712 → 966 ms, 6 of 8); the joiner's does not. Both slow ones start with a click on the start page.</li><li><b>A shared game's page, first screen</b>: median pair ×1.096, 6 of 8.</li><li><b>The player's move appears</b>: ×1.060, 5 of 8. <b>The opponent's move appears</b>: ×1.054, 5 of 8.</li><li><b>Start page shows the board, desktop</b>: ×1.052, 5 of 8.</li></ul><p>An A/A on identical code (run 0532) leaned up to ±6% at the median pair on about a third of the rows, so only the computer's row stands out.</p>",
-        "recommend": "Start the next speed run with CK1: cold load, setup and the computer together, 16 pairs, with and without the start page's flushSync and takedown (f16b8b5); bisect if the lean holds without them."
+        "body": "<p>The regression check compared the base <code>fbac15f</code> with the last run's base <code>1f207f0</code>, 8 pairs (<code>ab-20261017-2100-regress.md</code>). It called one row better (returning phone usable 564 → 414 ms) and none worse. These rows lean slower:</p><ul><li><b>First board picture, playing the computer</b>: 1.26 → 1.49 s, median pair ×1.144, 7 of 8 pairs slower (1.18 1.15 0.76 1.14 1.23 1.12 1.45 1.03). Last run leaned the same way (×1.269, 7 of 8). The creator's first board picture leans too (712 → 966 ms, 6 of 8); the joiner's does not. Both slow ones start with a click on the start page.</li><li><b>A shared game's page, first screen</b>: 131 → 141 ms, median pair ×1.096, 6 of 8 pairs slower (1.28 1.12 1.16 1.03 1.36 0.78 0.41 1.07).</li><li><b>The player's move appears</b>: 333 → 346 ms, median pair ×1.060, 5 of 8 slower (1.00 1.20 1.08 1.19 1.05 1.07 0.87 0.83).</li><li><b>The opponent's move appears</b>: 276 → 290 ms, median pair ×1.054, 5 of 8 slower (1.10 1.01 0.91 1.41 1.18 0.93 0.74 1.15).</li><li><b>Start page shows the board, desktop</b>: 137 → 152 ms, median pair ×1.052, 5 of 8 slower (0.82 1.06 1.27 0.77 0.92 1.04 1.63 1.26).</li></ul><p>An A/A on identical code (run 0532) leaned up to ±6% at the median pair on about a third of the rows, so only the computer's row stands out.</p>",
+        "recommend": "No action. CK1's A/B in this run's follow-up showed the start page click's flushSync does not cause the computer's lean (+0.1%, 8 pairs). The next speed run tests the takedown itself, or bisects fbac15f..1f207f0 on the computer section with 16 pairs."
       }
     ]
   },
@@ -53,29 +53,25 @@
         "body": "<p>Medians of 10 loads a case on the base, from the page's own stamps and Resource Timing (4× slower CPU, Fast 4G, 390×844).</p><p>On a first visit the biggest parts are the picture's bytes, which share the network with the page's script, and its decode: the phone picture has about 4 times the pixels a phone shows. On a return the biggest part is one round trip to revalidate the picture, because its name has no hash and so the year-long cache rule does not cover it.</p>",
         "figure": {
           "html": "<table><thead><tr><th>Step (ms from navigation)</th><th>First visit</th><th>Returning</th></tr></thead><tbody><tr><td>HTML received</td><td>174</td><td>171</td></tr><tr><td>Picture asked for</td><td>225</td><td>225</td></tr><tr><td>Picture arrived</td><td>483</td><td>396 (a revalidation)</td></tr><tr><td>Page sees the picture loaded</td><td>488</td><td>482</td></tr><tr><td>Picture decoded</td><td>641</td><td>560</td></tr><tr><td>Board stamped (next frame)</td><td>687</td><td>636</td></tr><tr><td>First contentful paint</td><td>496</td><td>620</td></tr></tbody></table>",
-          "caption": "Untraced cold-load runs on fbac15f, 10 loads a case, medians; the raw output (bench/out/steps/) is not committed."
+          "caption": "Untraced cold-load runs on fbac15f, 10 loads a case, medians; the raw output (bench/out/steps/) is not committed, and the steps record that made it (4c5d5b0) was dropped at step 8."
         }
       }
     ]
   },
   "changed": {
-    "intro": "<p>No change to the game. Two bench commits, both measurement only (no row's value changes).</p>",
+    "intro": "<p>No change to the game. One bench commit, measurement only (no row's value changes).</p>",
     "items": [
       {
         "title": "The returning phone's board is a headline row (8906e96)",
-        "body": "<p>\"Start page shows the board, phone, returning\" was measured already as a diagnostic. It is now in <code>bench/primary.mjs</code>, so the speed rule guards it. <code>BENCH_TRACE_COLD=&lt;dir&gt;</code> records a Chrome trace of each cold-load picture run, read by <code>bench/loop/tools/cold-trace.mjs</code>. The traces more than doubled the phone's board time, so they show what runs where and are not for timing.</p>"
-      },
-      {
-        "title": "The cold-load runs record where the board's time went (4c5d5b0)",
-        "body": "<p>Each run's raw output has a <code>steps</code> record: the HTML, CSS and entry script arriving, and the picture asked for, first byte, arrived, seen by the page, decoded and painted. No report row reads it. The table under Scoreboard comes from it.</p>"
+        "body": "<p>\"Start page shows the board, phone, returning\" was measured already as a diagnostic. It is now in <code>bench/primary.mjs</code>, so the speed rule guards it.</p>"
       }
     ]
   },
   "removed": {
-    "intro": "<ul><li><code>bench/loop/patches/move-list-quiet-focus-FT1.patch</code>: you decided FT1 (the move list keeps a plain focus).</li><li>The four pictures in SP3's patch (218 KB → 45 KB): <code>landing-pictures.mjs</code> renders them after the patch is applied.</li><li>No code was removed from the game.</li></ul>"
+    "intro": "<ul><li><code>bench/loop/patches/move-list-quiet-focus-FT1.patch</code>: you decided FT1 (the move list keeps a plain focus).</li><li>The four pictures in SP3's patch (218 KB → 45 KB): <code>landing-pictures.mjs</code> renders them after the patch is applied.</li><li>The bench hooks this run added for its breakdown, dropped in edec415 because neither made a headline row faster: the <code>BENCH_TRACE_COLD</code> traces with <code>bench/loop/tools/cold-trace.mjs</code> (216 lines; the traces more than doubled the phone's board time), and the raw <code>steps</code> record (about 30 lines; no report row read it). <code>client/scripts/bench-browser.mjs</code> is the base's again, byte for byte. Net on the branch's code: +7 lines (the headline row).</li><li>No code was removed from the game.</li></ul>"
   },
   "rejected": {
-    "intro": "<p>Both ideas are parked in the ledger with their patches, waiting on the stamp fix (PB1). Each A/B ran the cold-load section alone against <code>fbac15f</code>. The percentages are the geometric mean of the pairs; the median pair is given beside them.</p>",
+    "intro": "<p>SWR and SP3 are parked in the ledger with their patches, waiting on the stamp fix (PB1); each ran the cold-load section alone against <code>fbac15f</code>. CK1 ran cold load, setup and the computer. The percentages are the geometric mean of the pairs; the median pair is given beside them.</p>",
     "items": [
       {
         "title": "SWR: versioned picture addresses kept a year",
@@ -102,16 +98,29 @@
             "caption": "Headline rows of the cold load, fbac15f with SP3 against fbac15f, 6 pairs (ab-20261017-2100-sp3.md)."
           }
         ]
+      },
+      {
+        "title": "CK1: the start page click without its flushSync (your item 3)",
+        "body": "<p>The click that leaves the start page takes down a preview that has arrived but not shown, inside a <code>flushSync</code>. The flushSync is redundant: a click's update commits in its own task, ahead of the navigation, which React Router runs as a transition. Removed alone (the takedown kept) against <code>fbac15f</code>, cold load, setup and the computer, 8 pairs (<code>ab-20261017-2100-ck1.md</code>): no headline row called, ×1.030 over 10 rows. The computer's first board picture +0.1% (median pair ×0.995). The desktop first click leaned slower, median pair ×1.114 (5 of 8). The share link's first showing, a diagnostic, was slower in every pair (408 → 532 ms, 1.08 to 3.23), not called.</p><p><b>Why it stays:</b> its removal buys no speed the bench can see, so a speed run cannot keep it. Removing it is a 4-line cleanup for a general run, with the tests as its evidence (patch <code>patches/start-click-no-flushsync-CK1.patch</code>). The computer's lean does not come from it.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "1017-0532:CK1",
+              "only": "PRIMARY"
+            },
+            "caption": "Headline rows of cold load, setup and the computer, fbac15f without the flushSync against fbac15f, 8 pairs (ab-20261017-2100-ck1.md)."
+          }
+        ]
       }
     ]
   },
   "choices": {
-    "intro": "<ul><li>Made the returning phone's board a headline row, because you named it as this run's focus.</li><li>Ran each A/B on the cold-load section alone, because both changes touch only the start page's picture. That left time for two ideas, not three.</li><li>Measured SP3 without SWR, so its result is its own.</li><li>Kept neither change: the speed rule asks for a called headline row.</li><li>Did not bisect the computer's lean: it was not called, and its likely cause is CK1's A/B anyway.</li><li>Took the board's breakdown from the page's own stamps, not from traces, because the traces' own cost swamped the phone's time.</li><li>Ran the final check as an A/A of the cold-load section (6 pairs), because the branch has no game code to compare.</li></ul>"
+    "intro": "<ul><li>Made the returning phone's board a headline row, because you named it as this run's focus.</li><li>Ran each A/B on the cold-load section alone, because both changes touch only the start page's picture. That left time for two ideas, not three.</li><li>Measured SP3 without SWR, so its result is its own.</li><li>Kept neither change: the speed rule asks for a called headline row.</li><li>Did not bisect the computer's lean: it was not called. CK1's A/B then showed the flushSync is not its cause.</li><li>Dropped the trace hook and the raw steps record after the grade: measurement code nothing reads does not belong in a speed run's PR.</li><li>Ran CK1 with 8 pairs rather than the 16 the ledger asked for, to fit the follow-up; with no lean either way on the computer's row, 16 would not change the answer.</li><li>Took the board's breakdown from the page's own stamps, not from traces, because the traces' own cost swamped the phone's time.</li><li>Ran the final check as an A/A of the cold-load section (6 pairs), because the branch has no game code to compare.</li></ul>"
   },
   "notConfirmed": {
-    "intro": "<ul><li>That the picture's Element Timing paint matches first contentful paint on returning loads: a probe of 3 loads, not committed (ledger PB1).</li><li>SP3's decode time falling from about 190 to about 20 ms: read from the first pairs' raw output, which is not committed.</li><li>How the network order of the picture and the script would behave on the real host: the bench serves HTTP/1.1, the host serves HTTP/2 or 3.</li><li>Whether CK1's flushSync and takedown cause the computer's lean: not reached.</li></ul>"
+    "intro": "<ul><li>That the picture's Element Timing paint matches first contentful paint on returning loads: a probe of 3 loads, not committed (ledger PB1).</li><li>SP3's decode time falling from about 190 to about 20 ms: read from the first pairs' raw output, which is not committed.</li><li>How the network order of the picture and the script would behave on the real host: the bench serves HTTP/1.1, the host serves HTTP/2 or 3.</li><li>Whether the takedown itself (not the flushSync) causes the computer's lean: not measured this run.</li></ul>"
   },
   "next": {
-    "intro": "<ol><li>PB1: stamp \"board on screen\" at the picture's Element Timing paint, in its own measurement commit applied to both sides.</li><li>CK1 with the computer's lean: 16 pairs of cold load, setup and the computer, with and without the flushSync and takedown.</li><li>SWR and SP3 again, 8 or more pairs each, after a cold-load A/A of the same length.</li><li>Then the older leads: frames that redraw only what changed for the move rows (0930:5) and the network order on a first visit (SP2).</li></ol>"
+    "intro": "<ol><li>PB1: stamp \"board on screen\" at the picture's Element Timing paint, in its own measurement commit applied to both sides.</li><li>The computer's lean: the takedown alone, or a bisect of <code>fbac15f..1f207f0</code> on the computer section, 16 pairs.</li><li>SWR and SP3 again, 8 or more pairs each, after a cold-load A/A of the same length.</li><li>Then the older leads: frames that redraw only what changed for the move rows (0930:5) and the network order on a first visit (SP2).</li></ol>"
   }
 }
