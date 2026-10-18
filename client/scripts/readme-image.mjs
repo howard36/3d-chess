@@ -9,7 +9,7 @@
 //   node scripts/readme-image.mjs                     # writes ../docs/preview.jpg and public/og.jpg
 //   node scripts/readme-image.mjs --out /tmp/x.jpg    # somewhere else (.png for lossless)
 //   node scripts/readme-image.mjs --og /tmp/og.jpg    # the social image somewhere else
-//   node scripts/readme-image.mjs --width 1400 --height 800 --scale 2 --qscale 2
+//   node scripts/readme-image.mjs --width 1400 --height 800 --scale 2 --qscale 2 --og-quality 90
 //
 // Starts its own Vite (no backend: the start page asks nothing of the
 // server), or uses SHOWCASE_URL if set. The preview's chunk is held back, so
@@ -39,15 +39,18 @@ const HEIGHT = Number(opt('height', '800'));
 const SCALE = Number(opt('scale', '2'));
 // The JPEGs' quantizer (ffmpeg's -q:v, lower is finer), their colour kept at
 // full resolution (4:4:4): a browser's own JPEGs halve it (4:2:0), which
-// blurs the thin neon edges, the title's gradient and the tiles' rims. At 2
-// the social image is about 160 KB.
+// blurs the thin neon edges, the title's gradient and the tiles' rims.
 const QSCALE = opt('qscale', '2');
 // The social image: the full width, 1.91:1 (1400 x 733 at the default size),
 // cut evenly from the top and bottom, where the garden is empty. The page as
 // a 1x screen draws it (the 1x picture): link previews show it at most 1200
-// wide, and crawlers drop large files.
+// wide, and crawlers drop large files. It is the browser's own JPEG (JFIF,
+// 4:2:0), the commonest kind there is, not ffmpeg's: X showed no picture in
+// its card for ffmpeg's (no JFIF header, every channel sampled 1x2), and
+// halves the colour of whatever it shows anyway.
 const OG = path.resolve(opt('og', path.join(CLIENT, 'public', 'og.jpg')));
 const OG_HEIGHT = Math.round(WIDTH / 1.91);
+const OG_QUALITY = Number(opt('og-quality', '90'));
 const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 // The preview's chunk (src/screens/LandingPreview.tsx in dev,
@@ -113,11 +116,12 @@ try {
 
   const og = await firstFrame(browser, 1);
   fs.mkdirSync(path.dirname(OG), { recursive: true });
-  const ogShot = await og.screenshot({
-    type: 'png',
+  await og.screenshot({
+    type: 'jpeg',
+    quality: OG_QUALITY,
+    path: OG,
     clip: { x: 0, y: Math.round((HEIGHT - OG_HEIGHT) / 2), width: WIDTH, height: OG_HEIGHT },
   });
-  writeJpeg(ogShot, OG);
   console.log(OG);
 } finally {
   await browser.close();
