@@ -151,6 +151,9 @@ Key decisions:
   straight for another game's page through history) resets the socket session; the move
   from the side choice at `/new` to the new game's page keeps it, since it holds the
   creator's `game_created`.
+- **No socket where the server is never used.** The computer's pages and the tutorial
+  (`SERVERLESS_PATH`, `client/src/lib/earlySocket.ts`) open none, neither early nor the
+  app's: `useGameSocket(false)` holds no socket, and it opens on the way to `/new`.
 - **The page's first socket.** The built page opens its socket before the app has loaded:
   an inline script at the top of `index.html` (`client/src/lib/earlySocket.ts`, injected by
   `vite.config.ts`'s build-only `early-socket` plugin) opens it and, on `/game/:id`, sends
@@ -1566,10 +1569,11 @@ It writes `bench/out/AB.md`, opening with the primary rows, their verdicts and o
 speed for them all (the geometric mean of each row's median pair: ×1.004 for identical
 code); `--primary` runs only what those rows need (the browser tier's `primary` profile and
 the client tier's search bench), about 13 minutes for three pairs on a 4-core VM, where
-the client and browser tiers in full took 37. More pairs do not help a row get called: a
-call needs every pair to agree and the change to exceed their spread (a count at 0 on a side,
-which has no ratio, is judged by the pairs' differences, called when every pair moves the same
-way).
+the client and browser tiers in full took 37. A call needs every pair to agree and the change
+to exceed their spread, the range of their ratios: below 10 pairs more pairs only widen it;
+from 10 on it leaves out the lowest and the highest, so one pair far out cannot block a call
+every other pair makes (`bench/verdict.mjs`; a count at 0 on a side, which has no ratio, is
+judged by the pairs' differences, called when every pair moves the same way).
 Without `--primary` or `--only`, `--base` runs the tiers the diff can move (the server's
 code: the server tier; the client's app code: client and browser; nothing: all, an A/A
 test). Narrow it further (`--only client --files engine --grep E4`) and a comparison takes

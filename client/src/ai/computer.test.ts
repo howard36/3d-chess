@@ -147,6 +147,22 @@ it('thinks on the page when the worker cannot load, or there is none', async () 
   expect((await noWorker.think([], 'easy'))?.move).toBeTruthy();
 });
 
+it('says so when its worker cannot even be made, and thinks on the page', async () => {
+  vi.stubGlobal(
+    'Worker',
+    class {
+      constructor() {
+        throw new Error('refused');
+      }
+    },
+  );
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const computer = createComputer();
+  expect(warn).toHaveBeenCalledOnce();
+  warn.mockRestore();
+  expect((await computer.think([], 'easy'))?.ply).toBe(0);
+});
+
 it('runs every computer’s searches on the page one at a time, a frame between each', async () => {
   FakeWorker.mode = 'fail-load';
   vi.stubGlobal('Worker', FakeWorker);

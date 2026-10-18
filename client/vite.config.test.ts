@@ -115,6 +115,37 @@ test('the pictures’ version changes with any of them, and the host keeps them 
   }
 });
 
+test('the entry asks for the pictures by the version the early scripts ask for', () => {
+  // Without it the page's own picture misses the head's preload and the host's year-long rule
+  const config = (versionLandingPictures().config as () => UserConfig)();
+  expect(config.define?.__LANDING_VERSION__).toBe(JSON.stringify(landingVersion()));
+});
+
+test('the link preview’s picture is the size its tags say, as the browser’s own JPEG', () => {
+  // X's cards showed no picture for ffmpeg's JPEG (no JFIF header, every
+  // channel sampled 1x2): scripts/readme-image.mjs writes the browser's own
+  const jpeg = readFileSync(resolve(process.cwd(), 'public/og.jpg'));
+  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+  const tag = (key: string) => html.match(new RegExp(`"${key}" content="([^"]*)"`))?.[1];
+  expect(jpeg.toString('latin1', 6, 11)).toBe('JFIF\0');
+  // The frame: baseline (SOF0), its height, width and components' sampling
+  let at = 2;
+  while (jpeg[at + 1] !== 0xc0) {
+    expect(jpeg[at]).toBe(0xff);
+    expect(jpeg[at + 1]).not.toBe(0xc2);
+    at += 2 + jpeg.readUInt16BE(at + 2);
+  }
+  const [height, width] = [jpeg.readUInt16BE(at + 5), jpeg.readUInt16BE(at + 7)];
+  const sampling = [0, 1, 2].map((c) => jpeg[at + 11 + 3 * c]);
+  expect({ width, height, sampling }).toEqual({
+    width: Number(tag('og:image:width')),
+    height: Number(tag('og:image:height')),
+    // 4:2:0: luma 2x2, both chroma 1x1
+    sampling: [0x22, 0x11, 0x11],
+  });
+  expect(tag('twitter:image')).toBe(tag('og:image'));
+});
+
 test('the build runs the start page’s scripts', () => {
   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);

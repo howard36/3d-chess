@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
@@ -161,6 +161,20 @@ describe('the pictures', () => {
     }
   });
 
+  it('of one layout share a density, so a swap between them never rescales the scene', () => {
+    for (const density of ['1x', '2x'] as const) {
+      const perTangent = new Map<string, number[]>();
+      for (const p of Object.values(LANDING_PICTURES))
+        perTangent.set(p.layout, [
+          ...(perTangent.get(p.layout) ?? []),
+          p.pixels[density][1] / p.span,
+        ]);
+      // (within the pixel each cut's size was rounded to)
+      for (const [layout, each] of perTangent)
+        expect(Math.max(...each) - Math.min(...each), layout).toBeLessThan(1.5);
+    }
+  });
+
   it('are named for their density', () => {
     expect(pictureSource('wide', 'avif')).toBe('/landing/wide.avif');
     expect(pictureSource('wide', 'webp', '2x')).toBe('/landing/wide@2x.webp');
@@ -171,7 +185,7 @@ describe('the pictures', () => {
 
   // A lens baked anew without the pictures rendered again (scripts/
   // landing-pictures.mjs) shows as a jump where the preview takes over
-  it('are the files in public/landing, at the sizes baked here', () => {
+  it('are the files in public/landing, and nothing else, at the sizes baked here', () => {
     const size = (file: string): [number, number] => {
       const b = readFileSync(join(process.cwd(), 'public', file));
       if (file.endsWith('.webp')) {
@@ -183,12 +197,17 @@ describe('the pictures', () => {
       const ispe = b.indexOf('ispe');
       return [b.readUInt32BE(ispe + 8), b.readUInt32BE(ispe + 12)];
     };
+    const files: string[] = [];
     for (const [name, picture] of Object.entries(LANDING_PICTURES))
       for (const [density, pixels] of Object.entries(picture.pixels))
         for (const type of ['avif', 'webp'] as const) {
           const file = pictureSource(name as PictureName, type, density as PictureDensity);
           expect([file, size(file)]).toEqual([file, pixels]);
+          files.push(file.replace('/landing/', ''));
         }
+    // Anything else there (landing-pictures.mjs --keep-png's PNGs) would ship,
+    // and change every picture's version (vite.config.ts, landingVersion)
+    expect(readdirSync(join(process.cwd(), 'public/landing')).sort()).toEqual(files.sort());
   });
 
   it('are placed by the window’s lens: a tangent of the view lands where the camera puts it', () => {

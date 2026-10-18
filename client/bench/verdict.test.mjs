@@ -125,6 +125,26 @@ describe('verdict', () => {
     expect(v.real).toBe(false);
   });
 
+  const pairsOf = (ratios) => ratios.map((r) => [100, 100 * r]);
+
+  it('calls 10 or more pairs that all agree, though one of them is far out', () => {
+    // ab-20261017-1252-final-search.md, the middlegame search: −44%, every
+    // pair faster, and one pair at 0.35 that made the range 55% wide
+    const search = [0.62, 0.65, 0.58, 0.54, 0.56, 0.35, 0.59, 0.54, 0.5, 0.61, 0.61, 0.6];
+    expect(verdict(pairsOf(search), 'lower', 'ms')).toMatchObject({ real: true, improved: true });
+    // Two far out still set the bar
+    const two = [0.62, 0.65, 0.58, 0.54, 0.56, 0.35, 0.3, 0.54, 0.5, 0.61, 0.61, 0.6];
+    expect(verdict(pairsOf(two), 'lower', 'ms').real).toBe(false);
+  });
+
+  it('keeps the whole range below 10 pairs, and leaves a lean within its noise alone', () => {
+    // ab-20261016-1616-final.md, the desktop board in 8 pairs: trimmed, it would be called
+    const eight = [0.41, 0.62, 0.52, 0.67, 0.68, 0.6, 0.46, 0.63];
+    expect(verdict(pairsOf(eight), 'lower', 'ms').real).toBe(false);
+    const lean = [0.99, 0.97, 0.9, 0.95, 0.98, 0.93, 0.96, 0.85, 0.97, 0.94];
+    expect(verdict(pairsOf(lean), 'lower', 'ms').real).toBe(false);
+  });
+
   it('has nothing to say on fewer than two pairs', () => {
     expect(verdict([[100, 90]], 'lower', 'ms')).toBeNull();
   });

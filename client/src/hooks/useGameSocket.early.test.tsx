@@ -3,7 +3,12 @@ import { render, renderHook, act, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameSocket, WS_URL } from './useGameSocket';
-import { resetEarlySocketForTests, startEarlySocket, takeEarlySocket } from '../lib/earlySocket';
+import {
+  resetEarlySocketForTests,
+  SERVERLESS_PATH,
+  startEarlySocket,
+  takeEarlySocket,
+} from '../lib/earlySocket';
 import { ROLE_KEY_PREFIX } from '../lib/playerRole';
 import { CLIENT_ID_KEY } from '../lib/clientId';
 
@@ -57,6 +62,16 @@ describe('the early socket', () => {
     startEarlySocket(WS_URL, keys);
     await server.connected;
     expect(window.__earlySocket!.sent).toBeNull();
+  });
+
+  it('opens nothing where the server is never used: the computer’s games, the tutorial', () => {
+    for (const path of ['/computer', '/computer/abc123', '/learn', '/learn/rook']) {
+      window.history.pushState({}, '', path);
+      startEarlySocket(WS_URL, keys);
+      expect([path, window.__earlySocket]).toEqual([path, undefined]);
+    }
+    // The same pages as the app's (App.tsx), written out in the inline script
+    expect(startEarlySocket.toString()).toContain(`/${SERVERLESS_PATH.source}/`);
   });
 
   it('is adopted once, while it is connecting or open', async () => {
