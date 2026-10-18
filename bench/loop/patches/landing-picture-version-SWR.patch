@@ -1,0 +1,214 @@
+diff --git a/client/src/screens/landingLayout.ts b/client/src/screens/landingLayout.ts
+index 6c6d915..93b3f20 100644
+--- a/client/src/screens/landingLayout.ts
++++ b/client/src/screens/landingLayout.ts
+@@ -32,17 +32,22 @@ export const landingLayoutOf = (width: number, height: number): LandingLayout =>
+  * this function's source, so it must stand alone (landingLayout.test.ts
+  * checks it picks the layout landingLayoutOf does). Only on the start page.
+  */
+-export function preloadLandingPicture(): void {
++export function preloadLandingPicture(version = ''): void {
+   if (location.pathname !== '/') return;
+   const [width, height] = [innerWidth, innerHeight];
+   const layout = height >= width ? (width >= 600 ? 'tablet' : 'phone') : 'wide';
++  // The pictures' version, as the page's own addresses carry it (pictureSource)
++  const v = version ? `?v=${version}` : '';
+   const link = document.createElement('link');
+   link.rel = 'preload';
+   link.setAttribute('as', 'image');
+   link.type = 'image/avif';
+-  link.href = `/landing/${layout}.avif`;
++  link.href = `/landing/${layout}.avif${v}`;
+   // The picture as fine as the screen, as the page's own picks it (pictureSourceSet)
+-  link.setAttribute('imagesrcset', `/landing/${layout}.avif 1x, /landing/${layout}@2x.avif 2x`);
++  link.setAttribute(
++    'imagesrcset',
++    `/landing/${layout}.avif${v} 1x, /landing/${layout}@2x.avif${v} 2x`,
++  );
+   link.setAttribute('fetchpriority', 'high');
+   document.head.appendChild(link);
+ }
+diff --git a/client/src/three/landingLens.ts b/client/src/three/landingLens.ts
+index fa5e077..8d5d8cc 100644
+--- a/client/src/three/landingLens.ts
++++ b/client/src/three/landingLens.ts
+@@ -139,6 +139,10 @@ export const LANDING_PICTURES: Record<LandingLayout, LandingPicture> = {
+   },
+ };
+ 
++declare const __LANDING_VERSION__: string | undefined;
++/** The built page asks for the pictures by their version, which the host keeps a year (vite.config.ts, versionLandingPictures). */
++const VERSION = typeof __LANDING_VERSION__ === 'string' ? `?v=${__LANDING_VERSION__}` : '';
++
+ /**
+  * The address of a layout's picture (public/landing/, written by
+  * scripts/landing-pictures.mjs): AVIF, and WebP for a browser without it,
+@@ -148,7 +152,7 @@ export const pictureSource = (
+   layout: LandingLayout,
+   type: 'avif' | 'webp',
+   density: PictureDensity = '1x',
+-) => `/landing/${layout}${density === '1x' ? '' : '@2x'}.${type}`;
++) => `/landing/${layout}${density === '1x' ? '' : '@2x'}.${type}${VERSION}`;
+ 
+ /** A `srcset` of a layout's picture at every density. */
+ export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =>
+diff --git a/client/vite.config.test.ts b/client/vite.config.test.ts
+index 45964be..edf1613 100644
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -8,8 +8,10 @@ import { parseHeaders } from './bench/preview.config';
+ import config, {
+   KEEP_A_YEAR,
+   keepHashedFiles,
++  landingVersion,
+   placeLandingPictureEarly,
+   preloadLandingPictureOnStartPage,
++  versionLandingPictures,
+ } from './vite.config';
+ 
+ test('the built page preloads its picture after the viewport tag, where a phone knows its width', async () => {
+@@ -55,7 +57,9 @@ test('the built page places the start page’s picture right after #root, self-c
+       else {
+         const place = picturePlacement(width, height);
+         expect(document.getElementById('landing-early')!.nextElementSibling?.id).toBe('root');
+-        expect(img!.getAttribute('src')).toBe(`/landing/${place.layout}.webp`);
++        expect(img!.getAttribute('src')).toBe(
++          `/landing/${place.layout}.webp?v=${landingVersion()}`,
++        );
+         expect(img!.style.width).toBe(`${place.width}px`);
+       }
+     }
+@@ -66,6 +70,51 @@ test('the built page places the start page’s picture right after #root, self-c
+   }
+ });
+ 
++test('the built page’s preload asks for the very addresses its early picture shows, by their version', async () => {
++  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
++  const head = preloadLandingPictureOnStartPage().transformIndexHtml as (
++    h: string,
++  ) => Promise<string>;
++  const body = placeLandingPictureEarly().transformIndexHtml as (h: string) => Promise<string>;
++  const built = await body(await head(html));
++  const scripts = [...built.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
++  try {
++    vi.stubGlobal('innerWidth', 390);
++    vi.stubGlobal('innerHeight', 844);
++    window.history.replaceState(null, '', '/');
++    document.body.innerHTML = '<div id="root"></div>';
++    for (const script of scripts) new Function(script)();
++    const link = document.head.querySelector('link[rel="preload"][as="image"]')!;
++    const source = document.querySelector('#landing-early source')!;
++    expect(link.getAttribute('imagesrcset')).toBe(source.getAttribute('srcset'));
++    expect(link.getAttribute('href')).toContain(`?v=${landingVersion()}`);
++    link.remove();
++  } finally {
++    document.body.innerHTML = '';
++    vi.unstubAllGlobals();
++  }
++});
++
++test('the pictures’ version changes with any of them, and the host keeps them a year', () => {
++  const dir = mkdtempSync(join(tmpdir(), 'landing-'));
++  try {
++    writeFileSync(join(dir, 'phone.avif'), 'a');
++    const before = landingVersion(dir);
++    writeFileSync(join(dir, 'phone.avif'), 'b');
++    expect(landingVersion(dir)).not.toBe(before);
++    writeFileSync(join(dir, '_headers'), '');
++    const plugin = versionLandingPictures();
++    (plugin.configResolved as (c: unknown) => void)({ root: dir, build: { outDir: '.' } });
++    (plugin.writeBundle as () => void)();
++    const rules = parseHeaders(readFileSync(join(dir, '_headers'), 'utf8'));
++    expect(rules.find((r) => r.path.test('/landing/phone@2x.avif'))?.headers).toEqual([
++      ['Cache-Control', KEEP_A_YEAR],
++    ]);
++  } finally {
++    rmSync(dir, { recursive: true });
++  }
++});
++
+ test('the build runs the start page’s scripts', () => {
+   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
+   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
+@@ -73,6 +122,7 @@ test('the build runs the start page’s scripts', () => {
+     expect.arrayContaining([
+       'preload-landing-picture',
+       'place-landing-picture-early',
++      'version-landing-pictures',
+       'keep-hashed-files',
+     ]),
+   );
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index fd480eb..ab3c2bd 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -1,4 +1,5 @@
+-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
++import { createHash } from 'node:crypto';
++import { appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+ import { resolve } from 'node:path';
+ import { gzipSync } from 'node:zlib';
+ import { build, defineConfig, minify } from 'vite';
+@@ -9,6 +10,37 @@ import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
+ import { CLIENT_ID_KEY } from './src/lib/clientId';
+ import { preloadLandingPicture } from './src/screens/landingLayout';
+ 
++/**
++ * The start page's pictures (public/landing/) are asked for with a version, a
++ * hash of every one of them, in their addresses (landingLens.ts, pictureSource),
++ * so the host keeps them a year, as it keeps the files under assets/: a
++ * returning visit paints the picture from its cache, without asking whether
++ * it changed. Pictures re-rendered are a new version, and a new address.
++ */
++export const landingVersion = (dir = resolve(import.meta.dirname, 'public/landing')): string => {
++  const hash = createHash('sha256');
++  for (const name of readdirSync(dir).sort())
++    hash.update(name).update(readFileSync(resolve(dir, name)));
++  return hash.digest('hex').slice(0, 8);
++};
++export const versionLandingPictures = (): Plugin => {
++  let outDir = 'dist';
++  return {
++    name: 'version-landing-pictures',
++    apply: 'build',
++    config: () => ({ define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) } }),
++    configResolved(config) {
++      outDir = resolve(config.root, config.build.outDir);
++    },
++    writeBundle() {
++      appendFileSync(
++        resolve(outDir, '_headers'),
++        `\n# The start page's pictures, asked for by their version (vite.config.ts, versionLandingPictures)\n/landing/*\n  Cache-Control: ${KEEP_A_YEAR}\n`,
++      );
++    },
++  };
++};
++
+ /**
+  * The start page shows a picture of its preview while three.js loads
+  * (LandingPicture): the built page starts it downloading from an inline
+@@ -21,7 +53,7 @@ export const preloadLandingPictureOnStartPage = (): Plugin => ({
+   async transformIndexHtml(html) {
+     const { code, errors } = await minify(
+       'landing-picture.js',
+-      `(${preloadLandingPicture.toString()})()`,
++      `(${preloadLandingPicture.toString()})(${JSON.stringify(landingVersion())})`,
+     );
+     if (errors.length) throw new Error(`preload-landing-picture: ${errors[0].message}`);
+     // After the viewport's tag: before it, a phone's innerWidth is the
+@@ -47,6 +79,7 @@ export const placeLandingPictureEarly = (): Plugin => ({
+       configFile: false,
+       logLevel: 'silent',
+       publicDir: false,
++      define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) },
+       plugins: [
+         {
+           name: 'early-picture',
+@@ -376,6 +409,7 @@ export default defineConfig({
+     keepSceneOutOfEntry(),
+     invitePage(),
+     socialImageOnPreviews(),
++    versionLandingPictures(),
+     keepHashedFiles(),
+   ],
+   resolve: {
