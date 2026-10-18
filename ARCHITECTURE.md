@@ -151,10 +151,12 @@ Key decisions:
   straight for another game's page through history) resets the socket session; the move
   from the side choice at `/new` to the new game's page keeps it, since it holds the
   creator's `game_created`.
+- **No socket where the server is never used.** The computer's pages and the tutorial
+  (`SERVERLESS_PATH`, `client/src/lib/earlySocket.ts`) open none, neither early nor the
+  app's: `useGameSocket(false)` holds no socket, and it opens on the way to `/new`.
 - **The page's first socket.** The built page opens its socket before the app has loaded:
   an inline script at the top of `index.html` (`client/src/lib/earlySocket.ts`, injected by
-  `vite.config.ts`'s build-only `early-socket` plugin) opens it (on every page but the
-  computer's and the tutorial's, which never use the server) and, on `/game/:id`, sends
+  `vite.config.ts`'s build-only `early-socket` plugin) opens it and, on `/game/:id`, sends
   the first request the game screen would (`rejoin_game` with the seat stored for the game,
   else `look_game`), keeping the replies. `useGameSocket` adopts it on its first mount as
   session 1, its messages in its first render, and records what each session has sent, so

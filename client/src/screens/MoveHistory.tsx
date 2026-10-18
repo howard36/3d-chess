@@ -105,7 +105,6 @@ const NO_GRADES: readonly (Grade | null | undefined)[] = [];
 const moveWords = (moves: MoveRecord[], notation: readonly MoveNotation[], i: number) =>
   notation[i] ? notationWords(notation[i]) : formatMove(moves[i]);
 
-/** A move's mark after it: the glyph, its grade in words for a screen reader. */
 /** A move drawn in its pieces' icons and said in words, or in words alone without its notation. */
 const Said = ({ notation, words }: { notation?: MoveNotation | null; words: string }) =>
   notation ? (
@@ -119,6 +118,7 @@ const Said = ({ notation, words }: { notation?: MoveNotation | null; words: stri
     words
   );
 
+/** A move's mark after it: the glyph, its grade in words for a screen reader. */
 const Mark = ({ grade }: { grade: Grade }) => (
   <>
     <span className="hud-mark" data-grade={grade} aria-hidden>

@@ -96,7 +96,7 @@ export function useComputerGame(
 
   const answered = messages.some((m) => m.type === 'game_state');
 
-  // One computer for the page's life
+  // The page's computer: replaced when a thought is dropped (below), disposed with the page
   const computerRef = useRef<Computer | null>(null);
   useEffect(
     () => () => {

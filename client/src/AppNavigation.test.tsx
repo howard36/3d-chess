@@ -72,6 +72,23 @@ test('the default route is the start screen', async () => {
   expect(await screen.findByRole('button', { name: 'Play a friend' })).toBeInTheDocument();
 });
 
+test.each(['/computer', '/computer/abc123', '/learn'])(
+  'opens no socket where the server is never used (%s), and opens one on the way to /new',
+  async (path) => {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <App />
+        <Navigator />
+      </MemoryRouter>,
+    );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(server.server.clients()).toHaveLength(0);
+    act(() => go('/new'));
+    await server.connected;
+    expect(server.server.clients()).toHaveLength(1);
+  },
+);
+
 test.each(['/games', '/game/', '/game/ABC123/moves', '/new/x'])(
   'an address with no page (%s) says so, and leads home',
   async (path) => {
