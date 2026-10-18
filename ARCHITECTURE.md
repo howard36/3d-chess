@@ -1546,10 +1546,11 @@ It writes `bench/out/AB.md`, opening with the primary rows, their verdicts and o
 speed for them all (the geometric mean of each row's median pair: ×1.004 for identical
 code); `--primary` runs only what those rows need (the browser tier's `primary` profile and
 the client tier's search bench), about 13 minutes for three pairs on a 4-core VM, where
-the client and browser tiers in full took 37. More pairs do not help a row get called: a
-call needs every pair to agree and the change to exceed their spread (a count at 0 on a side,
-which has no ratio, is judged by the pairs' differences, called when every pair moves the same
-way).
+the client and browser tiers in full took 37. A call needs every pair to agree and the change
+to exceed their spread, the range of their ratios: below 10 pairs more pairs only widen it;
+from 10 on it leaves out the lowest and the highest, so one pair far out cannot block a call
+every other pair makes (`bench/verdict.mjs`; a count at 0 on a side, which has no ratio, is
+judged by the pairs' differences, called when every pair moves the same way).
 Without `--primary` or `--only`, `--base` runs the tiers the diff can move (the server's
 code: the server tier; the client's app code: client and browser; nothing: all, an A/A
 test). Narrow it further (`--only client --files engine --grep E4`) and a comparison takes
