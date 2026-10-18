@@ -61,6 +61,30 @@ test.each([
   expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
 });
 
+test('the body places the picture the head preloaded, while it still covers the window', () => {
+  // A phone's bars coming or going between the two scripts: the head chose
+  // the phone's cut, and the body's window, taller, would choose the tall one
+  const width = 390;
+  const heights = Array.from({ length: 700 }, (_, i) => 400 + i);
+  const head = heights.find((h) => picturePlacement(width, h).picture === 'phone');
+  const body = heights.find(
+    (h) =>
+      picturePlacement(width, h).picture === 'phone-tall' &&
+      picturePlacement(width, h, 'phone').picture === 'phone',
+  );
+  expect(head && body).toBeTruthy();
+  vi.stubGlobal('innerWidth', width);
+  vi.stubGlobal('innerHeight', head);
+  preloadLandingPicture();
+  vi.stubGlobal('innerHeight', body);
+  document.body.innerHTML = '<div id="root"></div>';
+  placeEarlyPicture();
+  const link = document.head.querySelector('link[rel="preload"]')!;
+  expect(earlyPicture()!.querySelector('source')!.getAttribute('srcset')).toBe(
+    link.getAttribute('imagesrcset'),
+  );
+});
+
 test('any other page places none', () => {
   document.body.innerHTML = '<div id="root"></div>';
   window.history.replaceState(null, '', '/new');

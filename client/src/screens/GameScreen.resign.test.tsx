@@ -4,22 +4,8 @@ import type { WebSocketMessage } from '../types/messages';
 import { fakeSocket, gameScreenAt } from './testSupport';
 import { YOUR_MOVE_TITLE } from '../hooks/useTabSignal';
 
-// As in GameScreen.endModal.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
-vi.mock('@react-three/fiber', () => ({
-  Canvas: () => <div data-testid="r3f-canvas" />,
-}));
-vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
-vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
-vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
-vi.mock('../three/scene/backdropCache', () => ({
-  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
-}));
-vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
-vi.mock('../three/scene/warm', () => ({ WarmPrograms: () => null }));
-vi.mock('../three/intro/IntroDirector', () => ({
-  IntroDirector: () => null,
-}));
-vi.mock('../three/Board', () => ({ default: () => null }));
+// No WebGL in jsdom: the board's canvas (GameView's lazy GameCanvas) is stubbed.
+vi.mock('./GameCanvas', () => ({ default: () => <div data-testid="r3f-canvas" /> }));
 
 const started = (color: 'white' | 'black' = 'white'): WebSocketMessage[] => [
   { type: 'game_state', color, started: true, moves: [{ by: 'white', from: 'Bc2', to: 'Cc2' }] },
@@ -210,6 +196,18 @@ describe('take-backs', () => {
     expect(screen.queryByTestId('takeback-pending')).not.toBeInTheDocument();
     expect(screen.getByTestId('takeback-declined')).toHaveTextContent('Take-back declined');
     expect(takeBack()).toBeDisabled();
+  });
+
+  it('asks once until the server answers, however often it is tapped', () => {
+    // A phone's double tap: the second ask would be refused, its error left standing
+    const { sent, rerender } = play(replied('white'));
+    act(() => takeBack().click());
+    act(() => takeBack().click());
+    expect(sent).toEqual([{ type: 'request_takeback' }]);
+    // Refused for another reason: asked again, it goes
+    rerender([...replied('white'), { type: 'error', code: 'invalid_takeback', message: 'No' }]);
+    act(() => takeBack().click());
+    expect(sent).toEqual([{ type: 'request_takeback' }, { type: 'request_takeback' }]);
   });
 
   it('puts the opponent’s request to the player, to accept or decline', () => {

@@ -6,11 +6,16 @@ export const median = (xs) => {
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 
+/** From how many pairs the spread leaves out the two most extreme. */
+const TRIM_FROM = 10;
+
 /**
  * The pairs' verdict for one measured thing: each pair's ratio head/base,
  * their geometric mean as the change, and a change called real only when
  * every pair agrees on its direction and it exceeds both 5% and the pairs'
- * own disagreement (their ratios' range). A value at 0 on a side is judged
+ * own disagreement (their ratios' range; from 10 pairs on, the range without
+ * the lowest and the highest ratio, so that one pair far out, a hiccup of the
+ * machine, cannot set the bar for all the others). A value at 0 on a side is judged
  * by the pairs' differences instead (`diffs`, the change their median).
  * A row whose `better` is 'none' (a choice, not a cost) is never called.
  */
@@ -34,7 +39,11 @@ export function verdict(pairs, better, unit) {
   if (ratios.length < 2) return null;
   const mean = Math.exp(ratios.reduce((s, r) => s + Math.log(r), 0) / ratios.length);
   const change = (mean - 1) * 100;
-  const spread = ((Math.max(...ratios) - Math.min(...ratios)) / mean) * 100;
+  // Trimmed only from 10 pairs: with sign flips of every committed report's
+  // pairs as the null, the calls left to chance stay under 0.01% of rows
+  // (bench/loop/tools/calling-rule-null.mjs); trimmed from 8 they grow 5-fold
+  const kept = ratios.length >= TRIM_FROM ? [...ratios].sort((a, b) => a - b).slice(1, -1) : ratios;
+  const spread = ((Math.max(...kept) - Math.min(...kept)) / mean) * 100;
   // Every pair, a pair with a 0 included (it has no ratio, but a direction)
   const ways = pairs.map(([b, h]) => Math.sign(h - b));
   const agree = ways.every((w) => w > 0) || ways.every((w) => w < 0);

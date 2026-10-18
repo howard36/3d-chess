@@ -36,7 +36,14 @@ const PromotionPicker: React.FC<PromotionPickerProps> = ({ choices, color, onPic
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className="hud-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title">
+      <div
+        className="hud-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="promotion-title"
+        // A click on the card keeps the focus in it, within Escape's reach
+        tabIndex={-1}
+      >
         <h2 id="promotion-title" className="hud-eyebrow">
           Promote to
         </h2>

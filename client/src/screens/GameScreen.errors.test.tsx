@@ -3,34 +3,17 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocketMessage } from '../types/messages';
 import type { Move } from '../engine';
-import type { BoardProps } from '../three/Board';
+import type { GameCanvasProps } from './GameCanvas';
 import { fakeSocket, gameScreenAt } from './testSupport';
 import { getStoredRole, setStoredRole } from '../lib/playerRole';
 
 // The error banner and the refusals the page acts on: each judged by what
 // this page asked and what came back since, not by the whole log. No WebGL
-// in jsdom: the three.js layer is stubbed, and the board only hands over its
-// onMove.
+// in jsdom: the board's canvas is stubbed, and only hands over its onMove.
 const board = vi.hoisted(() => ({ onMove: null as ((move: Move) => void) | null }));
-vi.mock('@react-three/fiber', () => ({
-  Canvas: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
-vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
-vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
-vi.mock('../three/scene/backdropCache', () => ({
-  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
-}));
-vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
-vi.mock('../three/scene/warm', () => ({
-  WarmPrograms: () => null,
-}));
-vi.mock('../three/intro/IntroDirector', () => ({
-  IntroDirector: () => null,
-}));
-vi.mock('../three/Board', () => ({
-  default: (props: BoardProps) => {
-    board.onMove = props.onMove ?? null;
+vi.mock('./GameCanvas', () => ({
+  default: (props: GameCanvasProps) => {
+    board.onMove = props.onMove;
     return null;
   },
 }));

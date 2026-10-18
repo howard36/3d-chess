@@ -216,6 +216,37 @@ it('declines a draw unless it stands clearly worse, answering before it plays on
   expect(loadComputerGame('g1')!.drawOffer).toEqual({ by: 'black', ply: 0, declined: true });
 });
 
+it('drops a thought it no longer needs with its worker, so an offer waits on nothing', async () => {
+  newGame('black');
+  // White (the computer) to move: offered a draw before its search answers
+  const made: { disposed: boolean; assessed: number }[] = [];
+  const computer = (): Computer => {
+    const me = { disposed: false, assessed: 0 };
+    made.push(me);
+    return {
+      think: () => new Promise(() => {}),
+      assess: () => {
+        me.assessed++;
+        return Promise.resolve(40);
+      },
+      analyse: () => Promise.reject(new Error('not asked in a game')),
+      dispose: () => {
+        me.disposed = true;
+      },
+    };
+  };
+  const { result } = renderHook(() => useComputerGame('g1', options(computer)));
+  act(() => {
+    result.current.send({ type: 'offer_draw' });
+  });
+  await waitFor(() => expect(result.current.messages[3]).toMatchObject({ type: 'draw_declined' }));
+  // The busy one went, and a fresh one weighed the offer up
+  expect(made).toEqual([
+    { disposed: true, assessed: 0 },
+    { disposed: false, assessed: 1 },
+  ]);
+});
+
 it('accepts a draw when it stands clearly worse', async () => {
   newGame('white');
   // The player (White) to move: the score is the player's, so the computer is 300 down
