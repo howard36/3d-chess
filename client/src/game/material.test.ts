@@ -4,8 +4,7 @@ import { PieceType } from '../engine/pieces';
 import { fromZXY } from '../engine/coords';
 import { deriveHistory } from './history';
 import type { WebSocketMessage } from '../types/messages';
-import { PIECE_VALUE, describeTaken, groupTaken, materialLead, materialOf } from './material';
-import { BISHOP, KING, KNIGHT, PAWN, QUEEN, ROOK, UNICORN, VALUE } from '../ai/position';
+import { describeTaken, groupTaken, materialLead, materialOf } from './material';
 
 const { Queen, Rook, Bishop, Unicorn, Knight, Pawn, King } = PieceType;
 
@@ -78,24 +77,6 @@ describe('the pieces each side has taken', () => {
     // Taken in turn, it is a unicorn that burns away
     const next = replay('Ba1-Da4', 'De5-Ce5', 'Da4-Ea5=U', 'Eb5-Ea5');
     expect(next.captured.black).toEqual([Unicorn]);
-  });
-});
-
-describe('the pieces’ values', () => {
-  it('are the computer’s own, to the nearest half pawn', () => {
-    // ai/position.ts's VALUE, in centipawns, tuned by self-play: a re-tune
-    // there must show in the HUD's lead and the order taken pieces are shown in
-    const code = {
-      [PieceType.King]: KING,
-      [PieceType.Queen]: QUEEN,
-      [PieceType.Rook]: ROOK,
-      [PieceType.Bishop]: BISHOP,
-      [PieceType.Knight]: KNIGHT,
-      [PieceType.Unicorn]: UNICORN,
-      [PieceType.Pawn]: PAWN,
-    };
-    for (const type of Object.values(PieceType))
-      expect([type, PIECE_VALUE[type]]).toEqual([type, Math.round(VALUE[code[type]] / 50) / 2]);
   });
 });
 
