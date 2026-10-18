@@ -4,8 +4,18 @@
  "heading": "Fixes, checks and two small removals, with no player moment slower: the computer's games and the tutorial now open no connection to the server",
  "meta": "<p>This general run kept 18 changes, each held to the skill's bar of evidence: 7 fixes (one of them to the bench, at grading), 1 visibility fix, 8 new checks and 2 small removals. A third removal, CK1, was reverted at grading because the row it touches leaned slower twice; it waits in the ledger with its patch. It claims no speed change. The most visible fix: a game against the computer and the tutorial no longer connect to the game server, so they no longer wake its container or hold an idle connection.</p><p>The final A/B ran the branch (<code>05b74df</code>) against the base <code>9a9e9db</code>, all 16 headline rows, 8 interleaved pairs. No row was called better or worse. Nine rows leaned slower at the median pair. A second A/B of the five game rows among them, 8 pairs, showed none of those leans again. The other four leans are listed under Needs from me, as information.</p>",
  "needs": {
-  "intro": "<p>Nothing here needs a decision. The skill asks for these items to be listed; each is information, with a recommendation.</p>",
+  "intro": "<p>Nothing here needs a decision. The first two items are trade-offs this run's fixes make, named so they can be weighed; the rest is information, with a recommendation.</p>",
   "items": [
+   {
+    "title": "Trade-off: the computer answers an offer at once, but its next reply after a dropped thought starts a new worker (1015:CC, 13a488c)",
+    "body": "<p>Before, a draw offer or a take-back during the computer's search waited behind that search, up to 1.8 s. Now the dropped thought ends its worker and the answer comes at once. The cost: the computer's next reply has to start a new search worker, which loads its chunk and builds its tables, about 3.3 MB. That cost is not measured.</p>",
+    "recommend": "Keep it. The next speed run measures that reply against an ordinary one (ledger CC2); if it shows, build the replacement worker at dispose time or when idle."
+   },
+   {
+    "title": "Trade-off: the computer's pages and the tutorial no longer open the server connection (1014:ES, 0dcd5bb, 6716adc)",
+    "body": "<p>/computer, /computer/:id and /learn no longer connect to the game server, so they no longer wake it or hold an idle connection. The cost: a player who goes from one of those pages to /new now connects there cold, where before the connection was already open.</p>",
+    "recommend": "Keep it. If /new's first screen leans slower from those pages, connect when the player heads for Play a friend."
+   },
    {
     "title": "Information: four headline rows leaned slower in the final A/B and were not measured again",
     "body": "<p>The skill's speed rule lists any headline row that is more than 3% worse at its median pair. In the final A/B (8 pairs, nothing called) nine rows did. The five game rows among them were measured again, 8 more pairs: none was more than 3% worse (<code>ab-20261018-1719-recheck.md</code>), so those leans came from the machine. The other four, with their pairs (head/base):</p><ul><li>Start page shows the board, desktop: ×1.073 at the median pair, 5 of 8 worse (1.09 1.18 0.91 1.08 1.15 0.89 1.06 0.98). The DL1 row: this row swings on identical code.</li><li>Start page answers its first click, desktop: 15.3 → 15.7 ms, ×1.151 at the median pair, 5 of 8 worse (0.85 1.37 1.16 0.73 1.14 1.17 1.19 0.91). CK1 touched this click, and run 2100's A/B of CK1 leaned the same way (×1.114, 5 of 8). The change is 0.4 ms, but speed ranks above less code, so CK1 was reverted at grading (<code>ddfa59f</code>): the start page's code is the base's again. The row was not measured after the revert.</li><li>First board picture, playing the computer: 1.39 → 1.45 s, ×1.113, 6 of 8 worse (1.00 1.25 1.09 1.18 1.14 1.15 0.84 0.93). The run's change on that path removes a socket; it adds no work.</li><li>Reopening a long game: ×1.198, 4 of 8 worse (0.79 1.79 2.02 0.77 1.60 0.41 0.35 1.67). The run changed no code on that path.</li></ul>",
@@ -54,7 +64,7 @@
   "items": [
    {
     "title": "The branch against the base",
-    "body": "<p><code>05b74df</code> against <code>9a9e9db</code>, all 16 headline rows, 8 interleaved pairs: ×0.942 over the 16 rows, 0 called better, 0 called worse, and 0 of the 110 diagnostics called. The re-check of the five game rows, 8 pairs, gave ×1.035 over those rows, none more than 3% worse. The commits after <code>05b74df</code> change only <code>bench/loop/</code>.</p>",
+    "body": "<p><code>05b74df</code> against <code>9a9e9db</code>, all 16 headline rows, 8 interleaved pairs: ×0.942 over the 16 rows, 0 called better, 0 called worse, and 0 of the 110 diagnostics called. The re-check of the five game rows, 8 pairs, gave ×1.035 over those rows, none more than 3% worse. The commits after <code>05b74df</code>: <code>ddfa59f</code> reverts CK1, so <code>StartScreen.tsx</code> is the base's bytes again; <code>a142c36</code> is a test fix; <code>8a3e922</code> is the bench's preview server, used by both sides; then the merge of main (<code>25c27f9</code>, #166) and the withdrawal of a test it made stale (<code>b2fc83a</code>); the rest are <code>bench/loop/</code>. No re-measure is needed: the CK1 revert returns that code to the base, and the rest are tests and bench.</p>",
     "charts": [
      {
       "rows": {
@@ -87,7 +97,7 @@
   "items": [
    {
     "title": "No connection to the server from the computer's pages and the tutorial (1014:ES: 0dcd5bb, 6716adc, a142c36)",
-    "body": "<p>Before, the built page's inline script opened a socket to the game server on every page, and the app opened its own one where the script had not. A game against the computer and the tutorial never send anything to the server, yet they woke its container and held the connection open. <code>0dcd5bb</code> stopped the inline script on those pages. The review found that the app's socket still opened there, so <code>6716adc</code> makes the app's socket wait for a page that uses the server: it opens on the way to <code>/new</code>. A new test renders the app at <code>/computer</code>, <code>/computer/abc123</code> and <code>/learn</code> and finds no socket, then one after moving to <code>/new</code>. It fails on <code>0dcd5bb</code>. The commit message of <code>0dcd5bb</code> claims the whole fix; <code>6716adc</code> completes it.</p><p>At grading, CI's client check failed on the new navigation test: on <code>/learn</code> the tutorial's lazy canvas could arrive during the test's wait and mount the real scene under the test's stand-in for three.js. <code>a142c36</code> stubs that canvas, as the test already stubs the start page's preview; the whole suite passes (124 files, 1,475 tests).</p>"
+    "body": "<p>Before, the built page's inline script opened a socket to the game server on every page, and the app opened its own one where the script had not. A game against the computer and the tutorial never send anything to the server, yet they woke its container and held the connection open. <code>0dcd5bb</code> stopped the inline script on those pages. The review found that the app's socket still opened there, so <code>6716adc</code> makes the app's socket wait for a page that uses the server: it opens on the way to <code>/new</code>. A new test renders the app at <code>/computer</code>, <code>/computer/abc123</code> and <code>/learn</code> and finds no socket, then one after moving to <code>/new</code>. It fails on <code>0dcd5bb</code>. The commit message of <code>0dcd5bb</code> claims the whole fix; <code>6716adc</code> completes it.</p><p>At grading, CI's client check failed on the new navigation test: on <code>/learn</code> the tutorial's lazy canvas could arrive during the test's wait and mount the real scene under the test's stand-in for three.js. <code>a142c36</code> stubs that canvas, as the test already stubs the start page's preview; the whole suite passes (124 files, 1,475 tests).</p><p>Its trade-off is under Needs from me.</p>"
    },
    {
     "title": "A double tap sends a request to the opponent once (online half of 1015:I13, 8eedbfb)",
@@ -95,11 +105,11 @@
    },
    {
     "title": "Escape closes the result card and the promotion picker after a click on them (Escape half of 1015:I15, ec4d60a)",
-    "body": "<p>A click on the card's words moved focus to the page, so Escape did nothing. The two cards now take focus on a click. In headless Chromium the clicked card draws no focus ring; other browsers were not checked (ledger I15).</p>"
+    "body": "<p>A click on the card's words moved focus to the page, so Escape did nothing. The two cards now take focus on a click. Before/after screenshots in Chromium at 390×844 and 1280×800, after a click on each card's heading: before, the focus went to the page and Escape left the card open; after, the focus is on the card, it matches no <code>:focus-visible</code>, no ring is drawn, and Escape closes it. WebKit and Firefox are not installed on the run's machine and were not checked (ledger I15).</p>"
    },
    {
     "title": "The computer's worker: freed when its thought is dropped, and a warning when it cannot start (1015:CC, 13a488c; 182e2b0)",
-    "body": "<p>A thought dropped before its answer (a draw offer or a take-back during the computer's search) kept its worker busy, and the next question waited behind it. The dropped thought now ends its worker and the next question gets a fresh one. Separately, when <code>new Worker</code> throws, the computer now says so in the console instead of falling back silently.</p>"
+    "body": "<p>A thought dropped before its answer (a draw offer or a take-back during the computer's search) kept its worker busy, and the next question waited behind it. The dropped thought now ends its worker and the next question gets a fresh one. Separately, when <code>new Worker</code> throws, the computer now says so in the console instead of falling back silently.</p><p>Its trade-off is under Needs from me.</p>"
    },
    {
     "title": "The start page's early picture keeps the cut the head preloaded (1018-0317:EP1, 58b88eb)",
@@ -115,7 +125,7 @@
    },
    {
     "title": "New checks (f9ee5ca, d9108c2, d9796ab, 900ef97, 57f77dd, 7ae1e19)",
-    "body": "<ul><li><code>public/landing</code> holds only the pictures the page asks for, and the entry's <code>__LANDING_VERSION__</code> define is checked.</li><li>The move record's piece values are compared with the computer's, and <code>og.jpg</code>'s size and format with the page's link-preview tags.</li><li>A layout's start page pictures share one pixel density.</li><li>The bench's preview server reads the build's own <code>_headers</code>.</li><li>Every part of a headline row's name is written in its bench.</li><li><code>eslint.config.test.mjs</code> lints one line per CLAUDE.md lint rule in each part of the code.</li></ul>"
+    "body": "<ul><li><code>public/landing</code> holds only the pictures the page asks for, and the entry's <code>__LANDING_VERSION__</code> define is checked.</li><li><code>og.jpg</code>'s size and format are compared with the page's link-preview tags. (The same commit pinned the HUD's piece values to the computer's; that pin was withdrawn after #166 made them differ on purpose.)</li><li>A layout's start page pictures share one pixel density.</li><li>The bench's preview server reads the build's own <code>_headers</code>.</li><li>Every part of a headline row's name is written in its bench.</li><li><code>eslint.config.test.mjs</code> lints one line per CLAUDE.md lint rule in each part of the code.</li></ul>"
    }
   ]
  },
