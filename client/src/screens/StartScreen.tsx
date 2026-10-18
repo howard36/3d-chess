@@ -1,4 +1,5 @@
 import React from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { lazyChunk } from '../lib/cachedImport';
@@ -47,14 +48,14 @@ const StartScreen: React.FC = () => {
   const live = !still && preview !== 'failed' && preview !== 'left';
   const onShown = React.useCallback(() => setPreview('shown'), []);
   // A preview whose chunk has arrived but which has not shown yet is taken
-  // down by the click, whose update commits ahead of the navigation (a
-  // transition): its build, its programs' linking and its first frame, queued
-  // ahead of the navigation, would otherwise all run before the next page
-  // shows (a returning visit, its chunk in the cache, waited ~600 ms). The
-  // picture it stands behind stays, so nothing moves. Before its chunk
-  // arrives there is nothing queued, and the page is not rendered again
+  // down in the click's own task, before the next page renders: its build,
+  // its programs' linking and its first frame, queued ahead of the
+  // navigation, would otherwise all run before the next page shows (a
+  // returning visit, its chunk in the cache, waited ~600 ms). The picture it
+  // stands behind stays, so nothing moves. Before its chunk arrives there is
+  // nothing queued, and the click is not made to render the page again
   const go = (to: string) => {
-    if (previewArrived && live && preview === 'loading') setPreview('left');
+    if (previewArrived && live && preview === 'loading') flushSync(() => setPreview('left'));
     navigate(to);
   };
 
