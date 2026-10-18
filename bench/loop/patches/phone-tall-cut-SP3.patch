@@ -1,0 +1,865 @@
+SP3 (run 20261017-2100): a phone-tall cut of the phone picture, on fbac15f.
+The four pictures (client/public/landing/phone-tall{,@2x}.{avif,webp}) are left out:
+after `git apply`, run `node scripts/landing-pictures.mjs` in client/ to render them.
+
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 7d9ebde..ade6f2c 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -446,18 +446,19 @@ Key decisions:
+   have needed (between about 31° and 50° on common windows; the fit's is 36°). A zoom
+   scales the picture evenly and changes nothing else, so every window of a layout sees a
+   scaled crop of one picture of the scene: the page shows that picture
+-  (`screens/LandingPicture.tsx`, `public/landing/<layout>.avif` and `.webp`, larger than
++  (`screens/LandingPicture.tsx`, `public/landing/<picture>.avif` and `.webp`, larger than
+   any common window of the layout and fading into the night at its edges, the fade drawn
+-  into the picture) from its first render, placed by the window's lens (`picturePlacement`,
++  into the picture; a phone's cut, `phone-tall`, for the phones it covers, about a third of
++  the pixels: a window takes the first of its layout's pictures that covers it) from its first render, placed by the window's lens (`picturePlacement`,
+   plain arithmetic with the fit's numbers baked, from the window's size as the page first
+   renders, nothing measured: the start page is the entry), and the built page's head starts
+-  the AVIF downloading before the entry has run (`preloadLandingPicture`, on `/` alone; written
++  the AVIF downloading before the entry has run (`preloadLandingPicture`, bundled with the lens, on `/` alone; written
+   in after `<meta name="viewport">`, since before it a phone's window reads 980 px wide and the
+   script would fetch the tablet's picture: `vite.config.test.ts`). The built page also places
+   the picture from an inline script after `#root` (`screens/earlyPicture.ts`; the phone
+   layout alone, as a desktop's first click measured slower), so a phone paints it as it
+   arrives, before the entry; `LandingPicture` takes that very element in as
+-  its own in its first commit (while its layout's file fits the window), and
++  its own in its first commit (while its file is the window's), and
+   `earlyPicture.test.tsx` holds the two markups equal.
+   Each layout's picture comes at two densities, picked by the screen's (`srcset`): 1x, and
+   `@2x` as fine as the preview's canvas draws on a finer screen (the pixel budget's); AVIF
+diff --git a/CLAUDE.md b/CLAUDE.md
+index c7dfea3..21d5040 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -15,7 +15,7 @@ Client (run from `client/`):
+ - `node scripts/showcase.mjs --lobby [--side white|black|random] [--level easy|medium|hard] [--reduced] --out <dir>` — records the way into a game against the computer, frame by frame on the virtual clock (the side, the level, the computer's arrival, the handover, the game's entrance), with a timed contact sheet; needs only Vite running. Use it after any change to the lobby's beats, and read the sheet for black or repeated frames and beats that overlap.
+ - `node scripts/pieces.mjs [--piece <type>] --out <dir>` — saves the piece gallery (`pieces.html`, dev only) as a PNG: every piece from the side, three-quarters and above, light and dark; needs only Vite running.
+ - `node scripts/sculptures.mjs --target <square> [--orbit <deg>] --out <dir>` — the garden's neon sculptures up close through the dev-only viewer (`sculptures.html`): a sheet from several sides, or a turn round one; needs only Vite running.
+-- `node scripts/landing-pictures.mjs` — re-renders `public/landing/{phone,tablet,wide}{,@2x}.{avif,webp}`, the start page's pictures of its preview, shown until the live preview fades in over them (ARCHITECTURE.md "Landing page"); starts its own Vite, no backend, ffmpeg encodes. Rerun and commit them after a visible change to the preview's opening (the tower, the pieces, the garden), with the README's picture: an out-of-date picture shows as a change at the handover.
++- `node scripts/landing-pictures.mjs` — re-renders `public/landing/{phone-tall,phone,tablet,wide}{,@2x}.{avif,webp}`, the start page's pictures of its preview, shown until the live preview fades in over them (ARCHITECTURE.md "Landing page"); starts its own Vite, no backend, ffmpeg encodes. Rerun and commit them after a visible change to the preview's opening (the tower, the pieces, the garden), with the README's picture: an out-of-date picture shows as a change at the handover.
+ - `node scripts/readme-image.mjs` — re-renders `docs/preview.jpg`, the README's picture (the start page, the pieces on their starting squares before the demo's first move), and `public/og.jpg`, the same frame cut to 1.91:1 for link previews; starts its own Vite, no backend. Rerun and commit both after a visible change to the board or the start page.
+ - `npm run bake:pieces` — rewrites `src/three/pieces/knight.medium.ts` and `src/three/scene/occlusion.medium.ts`, the medium knight's meshes and the medium set's occlusion, precomputed; run it after changing any piece's shape or the occlusion bake (`knightData.test.ts` / `occlusionData.test.ts` fail while they are stale). `golden.test.ts` pins the piece set's geometry by hash: a change meant only to be faster must leave it alone.
+ - `node bench/run.mjs [--quick] [--primary] [--only client,server,browser] [--compare <dir>] [--repeat N] [--files engine --grep <case>]` (repo root) — the benchmark suite, each tier in turn, into `bench/out/RESULTS.md` (ARCHITECTURE.md "Benchmarks"), led by the primary rows (`bench/primary.mjs`: one per moment a player waits on, from the player's action to what they see). For a perf change use `--primary --base <ref>` (interleaved A/B of the primary rows against a worktree of that commit, about 13 minutes; report in `bench/out/AB.md`; without `--primary`, `--base` runs the tiers the diff can move; narrow with `--only client --files engine --grep <case>`): comparing against a saved run (`--compare`) is fooled when the shared VM's speed drifts between the runs, which A/A tests showed it does by 50–100% over minutes. The browser tier builds and serves the client and starts its own backend. Benchmark runs contend with anything else on the machine: run nothing else meanwhile. If the client tier stops on a fixture check, the engine's rules changed (run `npm run test`); `EXPECTED` in `client/bench/fixtures.ts` is only updated when a fixture changes on purpose. A new player moment, or one measured differently, goes in `bench/primary.mjs` with the row that measures it.
+diff --git a/client/scripts/landing-pictures.mjs b/client/scripts/landing-pictures.mjs
+index 4582036..7da7c1f 100644
+--- a/client/scripts/landing-pictures.mjs
++++ b/client/scripts/landing-pictures.mjs
+@@ -1,6 +1,7 @@
+ #!/usr/bin/env node
+-// Renders the start page's pictures of its preview, one for each of its
+-// layouts (three/landingLens.ts, LANDING_PICTURES): the opening position from
++// Renders the start page's pictures of its preview (three/landingLens.ts,
++// LANDING_PICTURES: one for each of its layouts, and a phone's cut for the
++// taller phones): the opening position from
+ // the preview's first angle, through the dev-only landing-pictures.html, as
+ // AVIF and WebP into public/landing/. The start page shows the picture while
+ // three.js loads and fades the live preview in over it, so a picture out of
+@@ -8,8 +9,8 @@
+ // pictures, after anything visible changes in the preview's opening (the
+ // tower, the pieces, the garden, the lens), as for scripts/readme-image.mjs.
+ //
+-//   node scripts/landing-pictures.mjs                      # phone, tablet and wide, 1x and 2x
+-//   node scripts/landing-pictures.mjs --layout wide --density 2x --out /tmp/pictures
++//   node scripts/landing-pictures.mjs                      # every picture, 1x and 2x
++//   node scripts/landing-pictures.mjs --picture wide --density 2x --out /tmp/pictures
+ //
+ // Starts its own Vite (no backend), or uses SHOWCASE_URL if set; ffmpeg (with
+ // libaom-av1 and libwebp) encodes. Renders in software (SwiftShader).
+@@ -30,7 +31,7 @@ const opt = (name, fallback) => {
+ 
+ const CLIENT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const OUT = path.resolve(opt('out', path.join(CLIENT, 'public', 'landing')));
+-const LAYOUTS = opt('layout', 'phone,tablet,wide').split(',');
++const PICTURES = opt('picture', 'phone-tall,phone,tablet,wide').split(',');
+ const DENSITIES = opt('density', '1x,2x').split(',');
+ // --keep-png also writes the lossless render beside them (for comparing encodings)
+ const KEEP_PNG = argv.includes('--keep-png');
+@@ -82,7 +83,7 @@ const browser = await chromium.launch({
+ const work = fs.mkdtempSync(path.join(os.tmpdir(), 'landing-pictures-'));
+ try {
+   fs.mkdirSync(OUT, { recursive: true });
+-  for (const layout of LAYOUTS)
++  for (const picture of PICTURES)
+     for (const density of DENSITIES) {
+       const context = await browser.newContext({
+         viewport: { width: 400, height: 400 },
+@@ -92,7 +93,7 @@ try {
+       await context.addInitScript(STILL_CLOCK);
+       const page = await context.newPage();
+       page.on('pageerror', (e) => console.error(`[page] ${e.message}`));
+-      await page.goto(`${base}/landing-pictures.html?layout=${layout}&density=${density}`);
++      await page.goto(`${base}/landing-pictures.html?picture=${picture}&density=${density}`);
+       const { width, height } = await page.evaluate(() => window.__picture);
+       await page.setViewportSize({ width: width / SCALE, height: height / SCALE });
+       await page.waitForSelector('[data-testid="landing-canvas"] canvas', { timeout: 180000 });
+@@ -106,7 +107,7 @@ try {
+         same = last && shot.equals(last) ? same + 1 : 0;
+         last = shot;
+       }
+-      const name = density === '1x' ? layout : `${layout}@2x`;
++      const name = density === '1x' ? picture : `${picture}@2x`;
+       const png = path.join(KEEP_PNG ? OUT : work, `${name}.png`);
+       fs.writeFileSync(png, last);
+       const encode = (args, file) =>
+diff --git a/client/src/dev/landingPictures.tsx b/client/src/dev/landingPictures.tsx
+index 5abecf4..2221fb0 100644
+--- a/client/src/dev/landingPictures.tsx
++++ b/client/src/dev/landingPictures.tsx
+@@ -2,24 +2,23 @@ import React from 'react';
+ import ReactDOM from 'react-dom/client';
+ import '../index.css';
+ import { LandingPreview } from '../screens/LandingPreview';
+-import type { LandingLayout } from '../screens/landingLayout';
+ import { LANDING_PICTURES, PICTURE_FADE } from '../three/landingLens';
+-import type { PictureDensity } from '../three/landingLens';
++import type { PictureDensity, PictureName } from '../three/landingLens';
+ import { PALETTE } from '../three/scene/palette';
+ 
+ // Entry of the dev-only page that draws the start page's pictures of its
+ // preview (client/landing-pictures.html, served by Vite in development, left
+-// out of the build): ?layout=phone|tablet|wide&density=1x|2x draws that
+-// layout's picture (three/landingLens.ts's LANDING_PICTURES) to fill the
++// out of the build): ?picture=phone-tall|phone|tablet|wide&density=1x|2x draws
++// that picture (three/landingLens.ts's LANDING_PICTURES) to fill the
+ // window, which scripts/landing-pictures.mjs sizes to the picture's pixels,
+ // its edges faded into the page's night (PICTURE_FADE) as the page shows it.
+ 
+ const params = new URLSearchParams(window.location.search);
+-const layout = (params.get('layout') ?? 'wide') as LandingLayout;
++const picture = (params.get('picture') ?? 'wide') as PictureName;
+ const density = (params.get('density') ?? '1x') as PictureDensity;
+ 
+ // The picture's size in pixels, for the script to size the window to
+-const [width, height] = LANDING_PICTURES[layout].pixels[density];
++const [width, height] = LANDING_PICTURES[picture].pixels[density];
+ (window as unknown as { __picture: unknown }).__picture = { width, height };
+ 
+ const NIGHT = PALETTE.skyTop;
+@@ -30,7 +29,7 @@ const fade = (to: string) =>
+ 
+ ReactDOM.createRoot(document.getElementById('root')!).render(
+   <React.StrictMode>
+-    <LandingPreview picture={layout} />
++    <LandingPreview picture={picture} />
+     <div style={{ position: 'absolute', inset: 0, background: fade('right') }} />
+     <div style={{ position: 'absolute', inset: 0, background: fade('bottom') }} />
+   </React.StrictMode>,
+diff --git a/client/src/screens/LandingPicture.tsx b/client/src/screens/LandingPicture.tsx
+index b3b589f..8d23341 100644
+--- a/client/src/screens/LandingPicture.tsx
++++ b/client/src/screens/LandingPicture.tsx
+@@ -41,7 +41,7 @@ function useWindowSize(): [number, number] {
+  * (1x or 2x), and its edges fade into the page's night in the picture itself.
+  * Where the built page placed the same picture before the entry ran
+  * (earlyPicture.ts), that element becomes this one's, for as long as its
+- * file is the one the window's layout asks for.
++ * file is the one the window asks for.
+  */
+ export function LandingPicture() {
+   const [width, height] = useWindowSize();
+@@ -49,7 +49,7 @@ export function LandingPicture() {
+   const box = React.useRef<HTMLDivElement>(null);
+   const [early] = React.useState(earlyPicture);
+   const earlyImg = early?.querySelector('img');
+-  const adopt = place !== null && earlyImg?.dataset.layout === place.layout;
++  const adopt = place !== null && earlyImg?.dataset.picture === place.picture;
+   React.useLayoutEffect(() => {
+     if (!early) return;
+     if (adopt && early.parentNode !== box.current) box.current!.append(early);
+@@ -61,14 +61,14 @@ export function LandingPicture() {
+     <div className="landing-picture" aria-hidden="true" data-testid="landing-picture" ref={box}>
+       {place && !adopt && (
+         <picture>
+-          <source type="image/avif" srcSet={pictureSourceSet(place.layout, 'avif')} />
++          <source type="image/avif" srcSet={pictureSourceSet(place.picture, 'avif')} />
+           <img
+-            src={pictureSource(place.layout, 'webp')}
+-            srcSet={pictureSourceSet(place.layout, 'webp')}
++            src={pictureSource(place.picture, 'webp')}
++            srcSet={pictureSourceSet(place.picture, 'webp')}
+             alt=""
+             decoding="async"
+             fetchPriority="high"
+-            data-layout={place.layout}
++            data-picture={place.picture}
+             style={placement(place)}
+           />
+         </picture>
+diff --git a/client/src/screens/LandingPreview.tsx b/client/src/screens/LandingPreview.tsx
+index 1935094..d9e7423 100644
+--- a/client/src/screens/LandingPreview.tsx
++++ b/client/src/screens/LandingPreview.tsx
+@@ -8,7 +8,7 @@ import { usePixelBudget } from '../three/pixelBudget';
+ import { LANDING_VIEW, landingFrameRings, landingViewDirection } from '../three/landingView';
+ import { LANDING_CAMERAS, LANDING_PICTURES, landingLens } from '../three/landingLens';
+ import { LANDING_BANDS } from './landingLayout';
+-import type { LandingLayout } from './landingLayout';
++import type { PictureName } from '../three/landingLens';
+ import { layout } from '../three/scene/palette';
+ import { Stage } from '../three/scene/stage';
+ import { demoFrame, demoLog, demoOrder } from '../game/demo';
+@@ -127,9 +127,9 @@ function DemoDirector({
+   return null;
+ }
+ 
+-/** The view of a layout's picture (LANDING_PICTURES): its camera, and a lens that takes in the whole picture. */
+-const pictureLens = (picture: LandingLayout) => () => ({
+-  distance: LANDING_CAMERAS[picture].distance,
++/** The view of a picture (LANDING_PICTURES): its layout's camera, and a lens that takes in the whole picture. */
++const pictureLens = (picture: PictureName) => () => ({
++  distance: LANDING_CAMERAS[LANDING_PICTURES[picture].layout].distance,
+   fov: (2 * Math.atan(LANDING_PICTURES[picture].span / 2) * 180) / Math.PI,
+   shift: LANDING_PICTURES[picture].centre,
+ });
+@@ -147,7 +147,7 @@ const pictureLens = (picture: LandingLayout) => () => ({
+  * (Reveal), and only then sets off, telling the page with `onShown`.
+  *
+  * With `picture` (the dev-only landing-pictures.html, for
+- * scripts/landing-pictures.mjs), it draws that layout's picture instead: the
++ * scripts/landing-pictures.mjs), it draws that picture instead: the
+  * opening, still, through a lens that takes in the whole picture, as finely
+  * as the screen asks.
+  */
+@@ -156,7 +156,7 @@ export function LandingPreview({
+   picture,
+ }: {
+   onShown?: () => void;
+-  picture?: LandingLayout;
++  picture?: PictureName;
+ }) {
+   const pixelRatio = usePixelBudget();
+   const veil = React.useRef<HTMLDivElement>(null);
+diff --git a/client/src/screens/StartScreen.test.tsx b/client/src/screens/StartScreen.test.tsx
+index 91d8ec2..511da92 100644
+--- a/client/src/screens/StartScreen.test.tsx
++++ b/client/src/screens/StartScreen.test.tsx
+@@ -69,10 +69,11 @@ test('the picture of the preview shows at once, and goes once the preview has fa
+   renderStart();
+   const picture = screen.getByTestId('landing-picture');
+   const img = picture.querySelector('img')!;
+-  expect(img.getAttribute('src')).toBe('/landing/phone.webp');
++  // A tall phone's: the phone's picture cut to the taller phones
++  expect(img.getAttribute('src')).toBe('/landing/phone-tall.webp');
+   // As fine as the screen
+   expect(picture.querySelector('source')!.getAttribute('srcset')).toBe(
+-    '/landing/phone.avif 1x, /landing/phone@2x.avif 2x',
++    '/landing/phone-tall.avif 1x, /landing/phone-tall@2x.avif 2x',
+   );
+   // Larger than the window, which it covers
+   expect(img.style.transform).toMatch(/^translate\(-[\d.]+px, -[\d.]+px\)$/);
+@@ -84,7 +85,7 @@ test('the picture of the preview shows at once, and goes once the preview has fa
+   expect(screen.getByText(/^Preview: games play themselves/)).toBeInTheDocument();
+ });
+ 
+-test('the page takes in the picture the built page placed early, while its layout fits', () => {
++test('the page takes in the picture the built page placed early, while it is the window’s', () => {
+   reduceMotion(false);
+   phoneWindow();
+   const root = document.createElement('div');
+@@ -107,7 +108,7 @@ test('the page takes in the picture the built page placed early, while its layou
+   expect(box.querySelectorAll('picture')).toHaveLength(1);
+   expect(placed.isConnected).toBe(false);
+   expect(box.querySelector('img')!.getAttribute('src')).toBe('/landing/wide.webp');
+-  // Back to a phone, of another size: one picture, the phone's, placed for this window
++  // Back to a phone, a shorter one: one picture, the whole phone's, placed for this window
+   act(() => {
+     vi.stubGlobal('innerWidth', 360);
+     vi.stubGlobal('innerHeight', 640);
+diff --git a/client/src/screens/earlyPicture.test.tsx b/client/src/screens/earlyPicture.test.tsx
+index 07b4820..c3e5641 100644
+--- a/client/src/screens/earlyPicture.test.tsx
++++ b/client/src/screens/earlyPicture.test.tsx
+@@ -1,10 +1,17 @@
+ import { render } from '@testing-library/react';
+ import { afterEach, expect, test, vi } from 'vitest';
+ import { LandingPicture } from './LandingPicture';
+-import { EARLY_PICTURE_ID, earlyPicture, placeEarlyPicture } from './earlyPicture';
++import { picturePlacement } from '../three/landingLens';
++import {
++  EARLY_PICTURE_ID,
++  earlyPicture,
++  placeEarlyPicture,
++  preloadLandingPicture,
++} from './earlyPicture';
+ 
+ afterEach(() => {
+   document.body.innerHTML = '';
++  document.head.querySelectorAll('link[rel="preload"]').forEach((l) => l.remove());
+   window.history.replaceState(null, '', '/');
+   vi.unstubAllGlobals();
+ });
+@@ -60,3 +67,41 @@ test('any other page places none', () => {
+   placeEarlyPicture();
+   expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
+ });
++
++/** The preload the built page's head makes in a window this size. */
++const preload = (width: number, height: number) => {
++  vi.stubGlobal('innerWidth', width);
++  vi.stubGlobal('innerHeight', height);
++  preloadLandingPicture();
++  return [...document.head.querySelectorAll<HTMLLinkElement>('link[rel="preload"]')];
++};
++
++test('the start page preloads, in any window, the very picture its page shows', () => {
++  for (let w = 300; w <= 2000; w += 37) {
++    for (const h of [
++      w - 1,
++      w,
++      w + 1,
++      Math.round(w * 0.6),
++      Math.round(w * 1.8),
++      Math.round(w * 2.1),
++    ]) {
++      const links = preload(w, h);
++      expect(links).toHaveLength(1);
++      expect(links[0].getAttribute('as')).toBe('image');
++      expect(links[0].getAttribute('type')).toBe('image/avif');
++      const { container, unmount } = render(<LandingPicture />);
++      expect(links[0].getAttribute('imagesrcset')).toBe(
++        container.querySelector('source')!.getAttribute('srcset'),
++      );
++      expect(links[0].getAttribute('href')).toContain(`/${picturePlacement(w, h).picture}.avif`);
++      links[0].remove();
++      unmount();
++    }
++  }
++});
++
++test('no other page preloads it', () => {
++  window.history.replaceState(null, '', '/new');
++  expect(preload(390, 844)).toHaveLength(0);
++});
+diff --git a/client/src/screens/earlyPicture.ts b/client/src/screens/earlyPicture.ts
+index f45d820..9603d0b 100644
+--- a/client/src/screens/earlyPicture.ts
++++ b/client/src/screens/earlyPicture.ts
+@@ -12,6 +12,26 @@ import { picturePlacement, pictureSource, pictureSourceSet } from '../three/land
+  */
+ export const EARLY_PICTURE_ID = 'landing-early';
+ 
++/**
++ * Starts the picture the window shows (its AVIF, as fine as the screen)
++ * downloading, from an inline script in the built page's head, before the
++ * stylesheet and the entry have loaded (vite.config.ts, bundled with the lens
++ * as the early picture is). Only on the start page, in every layout.
++ */
++export function preloadLandingPicture(): void {
++  const [width, height] = [innerWidth, innerHeight];
++  if (location.pathname !== '/' || !(width > 0 && height > 0)) return;
++  const { picture } = picturePlacement(width, height);
++  const link = document.createElement('link');
++  link.rel = 'preload';
++  link.setAttribute('as', 'image');
++  link.type = 'image/avif';
++  link.href = pictureSource(picture, 'avif');
++  link.setAttribute('imagesrcset', pictureSourceSet(picture, 'avif'));
++  link.setAttribute('fetchpriority', 'high');
++  document.head.appendChild(link);
++}
++
+ export function placeEarlyPicture(): void {
+   const root = document.getElementById('root');
+   const [width, height] = [innerWidth, innerHeight];
+@@ -23,9 +43,9 @@ export function placeEarlyPicture(): void {
+   picture.className = 'landing-picture';
+   picture.setAttribute('aria-hidden', 'true');
+   picture.innerHTML =
+-    `<picture><source type="image/avif" srcset="${pictureSourceSet(place.layout, 'avif')}">` +
+-    `<img src="${pictureSource(place.layout, 'webp')}" srcset="${pictureSourceSet(place.layout, 'webp')}" ` +
+-    `alt="" decoding="async" fetchpriority="high" data-layout="${place.layout}" ` +
++    `<picture><source type="image/avif" srcset="${pictureSourceSet(place.picture, 'avif')}">` +
++    `<img src="${pictureSource(place.picture, 'webp')}" srcset="${pictureSourceSet(place.picture, 'webp')}" ` +
++    `alt="" decoding="async" fetchpriority="high" data-picture="${place.picture}" ` +
+     `style="transform: translate(${place.left}px, ${place.top}px); ` +
+     `width: ${place.width}px; height: ${place.height}px"></picture>`;
+   document.body.insertBefore(picture, root);
+diff --git a/client/src/screens/landingLayout.test.ts b/client/src/screens/landingLayout.test.ts
+index b488b1c..91e1511 100644
+--- a/client/src/screens/landingLayout.test.ts
++++ b/client/src/screens/landingLayout.test.ts
+@@ -1,8 +1,7 @@
+ import { readFileSync } from 'node:fs';
+ import { join } from 'node:path';
+-import { afterEach, expect, test, vi } from 'vitest';
+-import { LANDING_BANDS, landingLayoutOf, preloadLandingPicture } from './landingLayout';
+-import { pictureSourceSet } from '../three/landingLens';
++import { expect, test } from 'vitest';
++import { LANDING_BANDS, landingLayoutOf } from './landingLayout';
+ 
+ const bands = (w: number, h: number) => ({
+   top: LANDING_BANDS.top(h, w),
+@@ -65,39 +64,3 @@ test('three layouts: a phone and a tablet upright, and anything wider than tall'
+   expect(landingLayoutOf(1001, 1000)).toBe('wide');
+   expect(landingLayoutOf(844, 390)).toBe('wide');
+ });
+-
+-afterEach(() => {
+-  vi.unstubAllGlobals();
+-  document.head.querySelectorAll('link[rel="preload"]').forEach((l) => l.remove());
+-});
+-
+-/** preloadLandingPicture as the built page runs it: from its source alone, in a window this size at `path`. */
+-const preloadFromSource = (width: number, height: number, path = '/') => {
+-  vi.stubGlobal('innerWidth', width);
+-  vi.stubGlobal('innerHeight', height);
+-  vi.stubGlobal('location', { pathname: path });
+-  new Function(`(${preloadLandingPicture.toString()})()`)();
+-  return [...document.head.querySelectorAll<HTMLLinkElement>('link[rel="preload"]')];
+-};
+-
+-test('the start page preloads the picture of its layout, from the function’s source alone', () => {
+-  for (let w = 300; w <= 2000; w += 37) {
+-    for (const h of [w - 1, w, w + 1, Math.round(w * 0.6), Math.round(w * 2.1)]) {
+-      const links = preloadFromSource(w, h);
+-      expect(links).toHaveLength(1);
+-      expect(links[0].getAttribute('href')).toBe(`/landing/${landingLayoutOf(w, h)}.avif`);
+-      expect(links[0].getAttribute('as')).toBe('image');
+-      expect(links[0].getAttribute('type')).toBe('image/avif');
+-      // The same choice as the page's picture makes
+-      expect(links[0].getAttribute('imagesrcset')).toBe(
+-        pictureSourceSet(landingLayoutOf(w, h), 'avif'),
+-      );
+-      links[0].remove();
+-    }
+-  }
+-});
+-
+-test('no other page preloads it', () => {
+-  expect(preloadFromSource(390, 844, '/new')).toHaveLength(0);
+-  expect(preloadFromSource(390, 844, '/game/abc')).toHaveLength(0);
+-});
+diff --git a/client/src/screens/landingLayout.ts b/client/src/screens/landingLayout.ts
+index 6c6d915..4a79356 100644
+--- a/client/src/screens/landingLayout.ts
++++ b/client/src/screens/landingLayout.ts
+@@ -25,27 +25,6 @@ const short = (height: number) => height <= 480;
+ export type LandingLayout = 'phone' | 'tablet' | 'wide';
+ export const landingLayoutOf = (width: number, height: number): LandingLayout =>
+   !upright(width, height) ? 'wide' : tablet(width, height) ? 'tablet' : 'phone';
+-/**
+- * Starts the start page's picture of its preview (LandingPicture, the AVIF
+- * of the window's layout, as fine as the screen) downloading from an inline script in the built
+- * page's head, before the entry has loaded: vite.config.ts writes it in from
+- * this function's source, so it must stand alone (landingLayout.test.ts
+- * checks it picks the layout landingLayoutOf does). Only on the start page.
+- */
+-export function preloadLandingPicture(): void {
+-  if (location.pathname !== '/') return;
+-  const [width, height] = [innerWidth, innerHeight];
+-  const layout = height >= width ? (width >= 600 ? 'tablet' : 'phone') : 'wide';
+-  const link = document.createElement('link');
+-  link.rel = 'preload';
+-  link.setAttribute('as', 'image');
+-  link.type = 'image/avif';
+-  link.href = `/landing/${layout}.avif`;
+-  // The picture as fine as the screen, as the page's own picks it (pictureSourceSet)
+-  link.setAttribute('imagesrcset', `/landing/${layout}.avif 1x, /landing/${layout}@2x.avif 2x`);
+-  link.setAttribute('fetchpriority', 'high');
+-  document.head.appendChild(link);
+-}
+ /** The page's side margin (index.css: --landing-gutter). */
+ const gutter = (width: number): number => clamp(24, 0.06 * width, 112);
+ /** The room under an upright window's menu (index.css: --landing-under). */
+diff --git a/client/src/three/landingLens.test.ts b/client/src/three/landingLens.test.ts
+index 1b1fe0b..4589528 100644
+--- a/client/src/three/landingLens.test.ts
++++ b/client/src/three/landingLens.test.ts
+@@ -8,6 +8,7 @@ import {
+   LANDING_CAMERAS,
+   LANDING_PICTURES,
+   PICTURE_FADE,
++  covers,
+   landingLens,
+   pictureSource,
+   pictureSourceSet,
+@@ -17,7 +18,7 @@ import { COMMON_WINDOWS } from './landingWindows';
+ import { landingFrameRings, landingViewDirection } from './landingView';
+ import { LANDING_BANDS, landingLayoutOf } from '../screens/landingLayout';
+ import type { LandingLayout } from '../screens/landingLayout';
+-import type { PictureDensity } from './landingLens';
++import type { PictureDensity, PictureName } from './landingLens';
+ 
+ const opening = elevationOf(new Vector3(...landingViewDirection), new Vector3());
+ const fitWindow = (width: number, height: number, fov = 36): FitWindow => ({
+@@ -107,6 +108,38 @@ describe('the pictures', () => {
+     }
+   });
+ 
++  it('a layout’s last covers each of its common windows, and a phone’s cut the taller phones', () => {
++    for (const [layout, list] of Object.entries(COMMON_WINDOWS)) {
++      const names = Object.keys(LANDING_PICTURES).filter(
++        (n) => LANDING_PICTURES[n as PictureName].layout === layout,
++      );
++      for (const [w, h] of list) {
++        const p = picturePlacement(w, h);
++        // The window takes the first that covers it
++        expect(names.indexOf(p.picture)).toBeGreaterThanOrEqual(0);
++        if (p.picture !== names[names.length - 1]) expect(covers(p, w, h)).toBe(true);
++      }
++    }
++    for (const [w, h] of [
++      [360, 740],
++      [360, 800],
++      [384, 832],
++      [390, 844],
++      [393, 852],
++      [412, 780],
++      [412, 915],
++      [414, 896],
++      [430, 932],
++    ])
++      expect([w, h, picturePlacement(w, h).picture]).toEqual([w, h, 'phone-tall']);
++    for (const [w, h] of [
++      [320, 568],
++      [375, 553],
++      [390, 664],
++    ])
++      expect([w, h, picturePlacement(w, h).picture]).toEqual([w, h, 'phone']);
++  });
++
+   it('keep their shape at every density: the same scene across and down, to a pixel', () => {
+     for (const p of Object.values(LANDING_PICTURES)) {
+       for (const [w, h] of Object.values(p.pixels)) {
+@@ -140,10 +173,10 @@ describe('the pictures', () => {
+       const ispe = b.indexOf('ispe');
+       return [b.readUInt32BE(ispe + 8), b.readUInt32BE(ispe + 12)];
+     };
+-    for (const [layout, picture] of Object.entries(LANDING_PICTURES))
++    for (const [name, picture] of Object.entries(LANDING_PICTURES))
+       for (const [density, pixels] of Object.entries(picture.pixels))
+         for (const type of ['avif', 'webp'] as const) {
+-          const file = pictureSource(layout as LandingLayout, type, density as PictureDensity);
++          const file = pictureSource(name as PictureName, type, density as PictureDensity);
+           expect([file, size(file)]).toEqual([file, pixels]);
+         }
+   });
+@@ -152,7 +185,8 @@ describe('the pictures', () => {
+     for (const [w, h] of windows) {
+       const lens = landingLens(w, h);
+       const p = picturePlacement(w, h);
+-      const picture = LANDING_PICTURES[lens.layout];
++      const picture = LANDING_PICTURES[p.picture];
++      expect(picture.layout).toBe(lens.layout);
+       // The picture's middle, a point of the scene at its centre tangents
+       const perTangent = h / (2 * Math.tan((lens.fov * Math.PI) / 360));
+       const x = w / 2 + (picture.centre[0] - lens.shift[0]) * perTangent;
+diff --git a/client/src/three/landingLens.ts b/client/src/three/landingLens.ts
+index fa5e077..a83d283 100644
+--- a/client/src/three/landingLens.ts
++++ b/client/src/three/landingLens.ts
+@@ -101,58 +101,78 @@ export type PictureDensity = '1x' | '2x';
+ const PICTURE_DENSITIES: readonly PictureDensity[] = ['1x', '2x'];
+ 
+ /**
+- * A picture of the preview's first frame for each layout: the scene as the
+- * layout's camera sees it, `centre` and `span` (the tangents of the picture's
+- * middle and of its full height) and `aspect` (its width over its height)
+- * taking in every common window of the layout, phones' with their browser's
+- * bars too (landingLens.test.ts lists them), and a little more, which fades
+- * into the night at its edges (PICTURE_FADE, drawn into the picture). Each in
+- * two sizes in pixels: as fine as the preview's canvas draws on a screen of
+- * that density in the layout's common windows (2x: the pixel budget's), and
+- * the browser picks one by the screen's.
++ * A picture of the preview's first frame: the scene as its layout's camera
++ * sees it, `centre` and `span` (the tangents of the picture's middle and of
++ * its full height) and `aspect` (its width over its height) taking in the
++ * windows it is for, and a little more, which fades into the night at its
++ * edges (PICTURE_FADE, drawn into the picture). Each in two sizes in pixels:
++ * as fine as the preview's canvas draws on a screen of that density in the
++ * layout's common windows (2x: the pixel budget's), and the browser picks one
++ * by the screen's.
+  */
+ export interface LandingPicture {
++  layout: LandingLayout;
+   centre: [number, number];
+   span: number;
+   aspect: number;
+   pixels: Record<PictureDensity, [number, number]>;
+ }
+ 
+-export const LANDING_PICTURES: Record<LandingLayout, LandingPicture> = {
++/**
++ * The pictures, a layout's smallest first: a window takes the first of its
++ * layout's that it lies inside with the faded edges outside it
++ * (picturePlacement), so a phone decodes only about the part it shows. The
++ * last of each layout takes in every common window of the layout, phones'
++ * with their browser's bars too (landingLens.test.ts lists them); a phone's
++ * cut, as fine, takes in the taller ones (all but the smallest phones).
++ */
++export const LANDING_PICTURES = {
++  'phone-tall': {
++    layout: 'phone',
++    centre: [0, -0.0341],
++    span: 0.66234,
++    aspect: 0.503095,
++    pixels: { '1x': [534, 1060], '2x': [1052, 2092] },
++  },
+   phone: {
++    layout: 'phone',
+     centre: [0, -0.0586],
+     span: 1.0041,
+     aspect: 0.678161,
+     pixels: { '1x': [1090, 1606], '2x': [2152, 3172] },
+   },
+   tablet: {
++    layout: 'tablet',
+     centre: [0, -0.1145],
+     span: 0.825,
+     aspect: 0.959307,
+     pixels: { '1x': [1662, 1732], '2x': [2976, 3102] },
+   },
+   wide: {
++    layout: 'wide',
+     centre: [-0.2364, -0.0437],
+     span: 0.7834,
+     aspect: 2.402402,
+     pixels: { '1x': [3200, 1332], '2x': [4892, 2036] },
+   },
+-};
++} satisfies Record<string, LandingPicture>;
++export type PictureName = keyof typeof LANDING_PICTURES;
++const PICTURE_NAMES = Object.keys(LANDING_PICTURES) as PictureName[];
+ 
+ /**
+- * The address of a layout's picture (public/landing/, written by
++ * The address of a picture (public/landing/, written by
+  * scripts/landing-pictures.mjs): AVIF, and WebP for a browser without it,
+  * each at both densities.
+  */
+ export const pictureSource = (
+-  layout: LandingLayout,
++  picture: PictureName,
+   type: 'avif' | 'webp',
+   density: PictureDensity = '1x',
+-) => `/landing/${layout}${density === '1x' ? '' : '@2x'}.${type}`;
++) => `/landing/${picture}${density === '1x' ? '' : '@2x'}.${type}`;
+ 
+-/** A `srcset` of a layout's picture at every density. */
+-export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =>
+-  PICTURE_DENSITIES.map((d) => `${pictureSource(layout, type, d)} ${d}`).join(', ');
++/** A `srcset` of a picture at every density. */
++export const pictureSourceSet = (picture: PictureName, type: 'avif' | 'webp') =>
++  PICTURE_DENSITIES.map((d) => `${pictureSource(picture, type, d)} ${d}`).join(', ');
+ 
+ /**
+  * The share of a picture's width and height, at each edge, that fades into
+@@ -162,9 +182,10 @@ export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =
+  */
+ export const PICTURE_FADE = 0.03;
+ 
+-/** Where a layout's picture lies in a window, in CSS px from its top left corner. */
++/** Which picture a window shows, and where it lies in it, in CSS px from its top left corner. */
+ export interface PicturePlacement {
+   layout: LandingLayout;
++  picture: PictureName;
+   left: number;
+   top: number;
+   width: number;
+@@ -172,20 +193,38 @@ export interface PicturePlacement {
+ }
+ 
+ /**
+- * Where the picture goes so that it shows exactly what the preview's first
+- * frame will in a `width` x `height` window: scaled by the window's lens
+- * (CSS px per tangent) and moved by its shift.
++ * Which picture a `width` x `height` window shows (the first of its layout's
++ * that covers it, faded edges and all, or else the layout's last), and where
++ * it goes so that it shows exactly what the preview's first frame will:
++ * scaled by the window's lens (CSS px per tangent) and moved by its shift.
+  */
+ export function picturePlacement(width: number, height: number): PicturePlacement {
+   const lens = landingLens(width, height);
+-  const picture = LANDING_PICTURES[lens.layout];
+   const perTangent = height / (2 * Math.tan((lens.fov * Math.PI) / 360));
+-  const spanAcross = picture.span * picture.aspect;
+-  return {
+-    layout: lens.layout,
+-    left: width / 2 + (picture.centre[0] - spanAcross / 2 - lens.shift[0]) * perTangent,
+-    top: height / 2 - (picture.centre[1] + picture.span / 2 - lens.shift[1]) * perTangent,
+-    width: spanAcross * perTangent,
+-    height: picture.span * perTangent,
++  const place = (name: PictureName): PicturePlacement => {
++    const picture = LANDING_PICTURES[name];
++    const spanAcross = picture.span * picture.aspect;
++    return {
++      layout: lens.layout,
++      picture: name,
++      left: width / 2 + (picture.centre[0] - spanAcross / 2 - lens.shift[0]) * perTangent,
++      top: height / 2 - (picture.centre[1] + picture.span / 2 - lens.shift[1]) * perTangent,
++      width: spanAcross * perTangent,
++      height: picture.span * perTangent,
++    };
+   };
++  const names = PICTURE_NAMES.filter((name) => LANDING_PICTURES[name].layout === lens.layout);
++  const placed = names.map(place);
++  return placed.find((p) => covers(p, width, height)) ?? placed[placed.length - 1];
+ }
++
++/** Whether a placed picture covers the whole window with its faded edges outside it. */
++export const covers = (p: PicturePlacement, width: number, height: number): boolean => {
++  const [fx, fy] = [p.width * PICTURE_FADE, p.height * PICTURE_FADE];
++  return (
++    p.left + fx <= 0 &&
++    p.top + fy <= 0 &&
++    p.left + p.width - fx >= width &&
++    p.top + p.height - fy >= height
++  );
++};
+diff --git a/client/vite.config.test.ts b/client/vite.config.test.ts
+index 45964be..40de9ff 100644
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -55,7 +55,7 @@ test('the built page places the start page’s picture right after #root, self-c
+       else {
+         const place = picturePlacement(width, height);
+         expect(document.getElementById('landing-early')!.nextElementSibling?.id).toBe('root');
+-        expect(img!.getAttribute('src')).toBe(`/landing/${place.layout}.webp`);
++        expect(img!.getAttribute('src')).toBe(`/landing/${place.picture}.webp`);
+         expect(img!.style.width).toBe(`${place.width}px`);
+       }
+     }
+@@ -66,6 +66,30 @@ test('the built page places the start page’s picture right after #root, self-c
+   }
+ });
+ 
++test('the built page’s preload asks for the very addresses its early picture shows', async () => {
++  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
++  const head = preloadLandingPictureOnStartPage().transformIndexHtml as (
++    h: string,
++  ) => Promise<string>;
++  const body = placeLandingPictureEarly().transformIndexHtml as (h: string) => Promise<string>;
++  const built = await body(await head(html));
++  const scripts = [...built.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
++  try {
++    vi.stubGlobal('innerWidth', 390);
++    vi.stubGlobal('innerHeight', 844);
++    window.history.replaceState(null, '', '/');
++    document.body.innerHTML = '<div id="root"></div>';
++    for (const script of scripts) new Function(script)();
++    const link = document.head.querySelector('link[rel="preload"][as="image"]')!;
++    const source = document.querySelector('#landing-early source')!;
++    expect(link.getAttribute('imagesrcset')).toBe(source.getAttribute('srcset'));
++    link.remove();
++  } finally {
++    document.body.innerHTML = '';
++    vi.unstubAllGlobals();
++  }
++});
++
+ test('the build runs the start page’s scripts', () => {
+   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
+   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index fd480eb..a5c4687 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -7,68 +7,71 @@ import react from '@vitejs/plugin-react';
+ import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
+ import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
+ import { CLIENT_ID_KEY } from './src/lib/clientId';
+-import { preloadLandingPicture } from './src/screens/landingLayout';
++
++/**
++ * One of earlyPicture.ts's functions, bundled with the lens it places by into
++ * a script that stands alone, to be written into the built page.
++ */
++const earlyScript = async (name: 'preloadLandingPicture' | 'placeEarlyPicture') => {
++  const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
++  const built = await build({
++    configFile: false,
++    logLevel: 'silent',
++    publicDir: false,
++    plugins: [
++      {
++        name: 'early-picture',
++        resolveId: (id) => (id === 'early-picture' ? id : null),
++        load: (id) =>
++          id === 'early-picture'
++            ? `import { ${name} } from ${JSON.stringify(entry)}; ${name}();`
++            : null,
++      },
++    ],
++    build: {
++      write: false,
++      minify: true,
++      rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
++    },
++  });
++  const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
++  return (output.output[0].code ?? '').trim();
++};
+ 
+ /**
+  * The start page shows a picture of its preview while three.js loads
+  * (LandingPicture): the built page starts it downloading from an inline
+- * script in its head, before the entry has loaded and run, on the start page
+- * alone (preloadLandingPicture).
++ * script in its head, before the stylesheet and the entry have loaded, on
++ * the start page alone (preloadLandingPicture).
+  */
+ export const preloadLandingPictureOnStartPage = (): Plugin => ({
+   name: 'preload-landing-picture',
+   apply: 'build',
+   async transformIndexHtml(html) {
+-    const { code, errors } = await minify(
+-      'landing-picture.js',
+-      `(${preloadLandingPicture.toString()})()`,
+-    );
+-    if (errors.length) throw new Error(`preload-landing-picture: ${errors[0].message}`);
++    const code = await earlyScript('preloadLandingPicture');
+     // After the viewport's tag: before it, a phone's innerWidth is the
+     // default 980 px, and the script would pick (and fetch) the tablet's picture
+     const viewport = /<meta name="viewport"[^>]*>/i;
+     if (!viewport.test(html))
+       throw new Error('preload-landing-picture: index.html has no <meta name="viewport">');
+-    return html.replace(viewport, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
++    return html.replace(viewport, (tag) => `${tag}\n    <script>${code}</script>`);
+   },
+ });
+ 
+ /**
+  * And places it from an inline script right after #root, so the browser
+  * paints it as soon as it has arrived, before the entry has loaded and run
+- * (src/screens/earlyPicture.ts, bundled here with the lens it places by).
++ * (placeEarlyPicture).
+  */
+ export const placeLandingPictureEarly = (): Plugin => ({
+   name: 'place-landing-picture-early',
+   apply: 'build',
+   async transformIndexHtml(html) {
+-    const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
+-    const built = await build({
+-      configFile: false,
+-      logLevel: 'silent',
+-      publicDir: false,
+-      plugins: [
+-        {
+-          name: 'early-picture',
+-          resolveId: (id) => (id === 'early-picture' ? id : null),
+-          load: (id) =>
+-            id === 'early-picture'
+-              ? `import { placeEarlyPicture } from ${JSON.stringify(entry)}; placeEarlyPicture();`
+-              : null,
+-        },
+-      ],
+-      build: {
+-        write: false,
+-        minify: true,
+-        rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
+-      },
+-    });
+-    const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
+-    const code = output.output[0].code ?? '';
++    const code = await earlyScript('placeEarlyPicture');
+     const root = '<div id="root"></div>';
+     if (!html.includes(root))
+       throw new Error('place-landing-picture-early: no #root in index.html');
+-    return html.replace(root, `${root}\n    <script>${code.trim()}</script>`);
++    return html.replace(root, `${root}\n    <script>${code}</script>`);
+   },
+ });
+ 
