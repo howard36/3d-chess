@@ -1,0 +1,1 @@
+hardFixed vs hard: 68.3% ± 5.8% (133 Elo) over 52 games {"resigned":43,"fifty":9}; hardFixed: 1988 ms, 1315661 positions a move; hard: 1321 ms, 905567 positions a move
