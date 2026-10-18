@@ -9,7 +9,7 @@
 //   node scripts/readme-image.mjs                     # writes ../docs/preview.jpg and public/og.jpg
 //   node scripts/readme-image.mjs --out /tmp/x.jpg    # somewhere else (.png for lossless)
 //   node scripts/readme-image.mjs --og /tmp/og.jpg    # the social image somewhere else
-//   node scripts/readme-image.mjs --width 1400 --height 800 --scale 2 --quality 90
+//   node scripts/readme-image.mjs --width 1400 --height 800 --scale 2 --qscale 2
 //
 // Starts its own Vite (no backend: the start page asks nothing of the
 // server), or uses SHOWCASE_URL if set. The preview's chunk is held back, so
@@ -17,9 +17,10 @@
 // tower is the picture in public/landing/, which scripts/landing-pictures.mjs
 // renders. Rerun this after anything visible changes on the start page (and
 // that one first, after a change to the preview's opening), and commit the
-// new pictures.
+// new pictures. ffmpeg encodes the JPEGs.
 
 import { chromium } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +37,11 @@ const OUT = path.resolve(opt('out', path.join(CLIENT, '..', 'docs', 'preview.jpg
 const WIDTH = Number(opt('width', '1400'));
 const HEIGHT = Number(opt('height', '800'));
 const SCALE = Number(opt('scale', '2'));
-const QUALITY = Number(opt('quality', '90'));
+// The JPEGs' quantizer (ffmpeg's -q:v, lower is finer), their colour kept at
+// full resolution (4:4:4): a browser's own JPEGs halve it (4:2:0), which
+// blurs the thin neon edges, the title's gradient and the tiles' rims. At 2
+// the social image is about 160 KB.
+const QSCALE = opt('qscale', '2');
 // The social image: the full width, 1.91:1 (1400 x 733 at the default size),
 // cut evenly from the top and bottom, where the garden is empty. The page as
 // a 1x screen draws it (the 1x picture): link previews show it at most 1200
@@ -83,26 +88,36 @@ async function firstFrame(browser, deviceScaleFactor) {
   return page;
 }
 
+/**
+ * A PNG as a 4:4:4 JPEG. -bitexact leaves ffmpeg's version out of the file,
+ * so the same frame writes the same bytes.
+ */
+function writeJpeg(png, file) {
+  execFileSync(
+    'ffmpeg',
+    ['-y', '-loglevel', 'error', '-f', 'png_pipe', '-i', '-', '-frames:v', '1', '-update', '1']
+      .concat(['-c:v', 'mjpeg', '-pix_fmt', 'yuvj444p', '-qmin', '1', '-q:v', QSCALE])
+      .concat(['-bitexact', file]),
+    { input: png },
+  );
+}
+
 const browser = await chromium.launch({ executablePath: EXECUTABLE });
 try {
   const page = await firstFrame(browser, SCALE);
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  const jpeg = !/\.png$/i.test(OUT);
-  await page.screenshot({
-    path: OUT,
-    type: jpeg ? 'jpeg' : 'png',
-    ...(jpeg ? { quality: QUALITY } : {}),
-  });
+  const shot = await page.screenshot({ type: 'png' });
+  if (/\.png$/i.test(OUT)) fs.writeFileSync(OUT, shot);
+  else writeJpeg(shot, OUT);
   console.log(OUT);
 
   const og = await firstFrame(browser, 1);
   fs.mkdirSync(path.dirname(OG), { recursive: true });
-  await og.screenshot({
-    path: OG,
-    type: 'jpeg',
-    quality: QUALITY,
+  const ogShot = await og.screenshot({
+    type: 'png',
     clip: { x: 0, y: Math.round((HEIGHT - OG_HEIGHT) / 2), width: WIDTH, height: OG_HEIGHT },
   });
+  writeJpeg(ogShot, OG);
   console.log(OG);
 } finally {
   await browser.close();
