@@ -52,6 +52,28 @@ test('the preview server sends every matching rule’s headers, query aside', ()
   expect(plugins).toEqual(['host-headers', 'host-redirects']);
 });
 
+test('the bench’s server reads the build’s own _headers, with the rules the build added', () => {
+  // As `vite preview --config` runs it: the default export's plugin, its file
+  // named relative to the build (keepHashedFiles and versionLandingPictures
+  // append the year-long rules there, never to public/_headers)
+  const dir = mkdtempSync(join(tmpdir(), 'preview-'));
+  try {
+    writeFileSync(join(dir, '_headers'), '/zz/*\n  X-Only-In-Build: 1\n');
+    let middleware: (req: { url?: string }, res: unknown, next: () => void) => void = () => {};
+    const server = {
+      config: { root: dir, build: { outDir: '.' } },
+      middlewares: { use: (fn: typeof middleware) => (middleware = fn) },
+    } as unknown as PreviewServer;
+    const [headers] = (config as { plugins: { configurePreviewServer: unknown }[] }).plugins;
+    (headers.configurePreviewServer as (s: PreviewServer) => void)(server);
+    const sent: Record<string, string> = {};
+    middleware({ url: '/zz/a' }, { setHeader: (n: string, v: string) => (sent[n] = v) }, () => {});
+    expect(sent).toEqual({ 'X-Only-In-Build': '1' });
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 test('the bench serves a game’s address the invitation’s page, as the host does (public/_redirects)', () => {
   const rules = parseRedirects(readFileSync(resolve(process.cwd(), 'public/_redirects'), 'utf8'));
   expect(rules.find((r) => r.path.test('/game/ABC123'))?.to).toBe('/invite');
