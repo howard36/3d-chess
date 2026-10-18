@@ -18,7 +18,7 @@ import type { Turn } from './history';
  * sees 12 squares from anywhere and cannot mate alone; the unicorn is held
  * to a quarter of the board; the queen is the only piece that mates alone.
  */
-const PIECE_VALUE: Record<PieceType, number> = {
+export const PIECE_VALUE: Record<PieceType, number> = {
   [PieceType.King]: 0,
   [PieceType.Queen]: 10,
   [PieceType.Knight]: 3,
