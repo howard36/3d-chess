@@ -42,6 +42,8 @@ interface EarlyKeys {
  * source), so it may use nothing from outside but its arguments.
  */
 export function startEarlySocket(url: string, keys: EarlyKeys): void {
+  // A game against the computer and the tutorial never use the server
+  if (/^\/(computer|learn)(\/|$)/.test(location.pathname)) return;
   try {
     const socket = new WebSocket(url);
     const early: EarlySocket = { socket, received: [], sent: null };

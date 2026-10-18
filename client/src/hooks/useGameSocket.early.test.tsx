@@ -59,6 +59,14 @@ describe('the early socket', () => {
     expect(window.__earlySocket!.sent).toBeNull();
   });
 
+  it('opens nothing where the server is never used: the computer’s games, the tutorial', () => {
+    for (const path of ['/computer', '/computer/abc123', '/learn', '/learn/rook']) {
+      window.history.pushState({}, '', path);
+      startEarlySocket(WS_URL, keys);
+      expect([path, window.__earlySocket]).toEqual([path, undefined]);
+    }
+  });
+
   it('is adopted once, while it is connecting or open', async () => {
     startEarlySocket(WS_URL, keys);
     expect(takeEarlySocket()).not.toBeNull();

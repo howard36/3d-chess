@@ -153,7 +153,8 @@ Key decisions:
   creator's `game_created`.
 - **The page's first socket.** The built page opens its socket before the app has loaded:
   an inline script at the top of `index.html` (`client/src/lib/earlySocket.ts`, injected by
-  `vite.config.ts`'s build-only `early-socket` plugin) opens it and, on `/game/:id`, sends
+  `vite.config.ts`'s build-only `early-socket` plugin) opens it (on every page but the
+  computer's and the tutorial's, which never use the server) and, on `/game/:id`, sends
   the first request the game screen would (`rejoin_game` with the seat stored for the game,
   else `look_game`), keeping the replies. `useGameSocket` adopts it on its first mount as
   session 1, its messages in its first render, and records what each session has sent, so
