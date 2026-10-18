@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/user/3d-chess/research/evaluation/spsa72.py", line 59, in <module>
+    write_x(pp, x + ck * d); write_x(mp, x - ck * d)
+                    ~~~^~~
+ValueError: operands could not be broadcast together with shapes (72,) (78,) 
