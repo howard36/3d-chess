@@ -122,10 +122,77 @@ the values move by at most 0.05, the queen by 0.15: tuned for strength 3.15, 2.7
 80k-node searches instead of the evaluation (75,000 positions, the hand-set evaluation), the
 hand-set reads 2.93, 2.80, 2.26, 1.30, 8.59, as its static evaluation does.
 
+## A second round
+
+**Each piece's strength curve** (`piecescale.py`, `curves/`, `curves/analyse.py`): the tuned
+evaluation with one piece's own numbers scaled to a given worth by removal, against the tuned
+evaluation, 2,000 games at 40k each (± 7 Elo):
+
+| Piece   | Tuned | Moved to (Elo)                  | The curve's peak |
+| ------- | ----: | ------------------------------- | ---------------- |
+| Knight  |  3.30 | 3.0 (−12), 3.6 (−7)             | 3.34             |
+| Bishop  |  2.89 | 2.6 (−22), 3.2 (−12)            | 2.94             |
+| Rook    |  2.35 | 2.0 (−22), 2.6 (−5), 2.84 (−24) | 2.41             |
+| Unicorn |  1.41 | 1.0 (−52), 1.2 (−8), 1.6 (−27)  | 1.35             |
+| Queen   |  8.78 | 7.8 (−1), 10.0 (−1), 11.2 (+9)  | none: flat       |
+
+The tuned worths sit at the peaks for the knight, bishop, rook and unicorn: the tuning found them,
+though their base numbers moved little (it moved mobility and the pawn's numbers instead). The
+queen's curve is flat from 7.8 to 11.2: strength does not mind where it stands in that range. The
+material that predicts the winner (`research/piece-values/`) costs strength in the rook (2.84: −24)
+and a little in the unicorn (1.2: −8).
+
+**Natural games from a different player.** 12,000 positions, one a game, from the hand-set
+evaluation with its rook's numbers raised to a worth of 2.84 (`gen_onepos.py --eval
+@curves/handset_R_2.84.txt`): material alone fitted to their results reads 2.90, 2.63, 2.11, 1.13,
+10.9 against 3.19, 2.90, 2.36, 1.11, 10.7 from the hand-set's own games. The pieces stand about 9%
+lower against the pawn, each by about two standard errors; the rook against the knight is unchanged
+(0.73 and 0.74). Who plays the games moves what material alone reads in them, but not towards that
+player's own values.
+
+**More terms** (`engine.c`'s further extensions; 1,000 games at 20k against the tuned evaluation):
+
+| Term                                                                            | Score                              |
+| ------------------------------------------------------------------------------- | ---------------------------------- |
+| The side to move, 15 cp                                                         | 59.7% ± 1.3%                       |
+| The same, at 40k                                                                | 56.7% ± 1.4%                       |
+| The side to move, 25 cp; 35 cp                                                  | 55.2%; 52.0%                       |
+| A knight, bishop or unicorn attacking a rook or queen, or a rook a queen, 30 cp | 47.8% ± 1.4%                       |
+| Attacks on the squares beside the enemy king, 8 cp (with the queen's)           | 49.6% (49.3%)                      |
+| Mobility counting only the squares no enemy pawn attacks                        | 50.0% ± 1.4%                       |
+| Pieces a pawn defends, 8 cp                                                     | 54.3% ± 2.2% after 380 games (cut) |
+
+SPSA with all of them (`spsa72.py`, `jx_start.txt`, two runs) raised the side to move to about 21,
+the threats to about 10, the defended pieces from 4 to 7, the pawn chains from 2 to 3.5, and kept the
+king's surroundings near 2.4. Only the side to move is in the game: the others need counts the
+board keeps as moves are played, as it does the pawn threats, and are left for later.
+
+**A second tuning** (from the tuned evaluation at 5,696 pairs; the later half of each run
+averaged, `polyak.py`), against the tuned evaluation at 40k: continuing as before, to 17,696
+pairs, 53.9% ± 1.0% (2,000 games); with the side to move's bonus (`jt_start.txt`, two runs to
+13,696 and 9,696 pairs, averaged from 7,696; every eighth step in `jt_a_traj.jsonl` and
+`jt_b_traj.jsonl`), 61.4% ± 1.3% (1,000 games), with the bonus at 19 cp as tuned, and 61.0% ±
+1.3% with it set to 15. These are the game's numbers now (`round2_final.txt`). Averaging the
+first run's later half instead of taking its last step scored 51.4% ± 1.4%: a run's end is only
+one point of a wandering path.
+
 ## The result
 
-The final numbers (`joint_final.txt`, as `evaluate.ts` holds them) against the hand-set
-evaluation:
+The game's numbers (`round2_final.txt`, the second round's, as `position.ts` and `evaluate.ts`
+hold them: `apply_numbers.py` writes both from a numbers file) against the hand-set evaluation:
+
+| Budget                                                   | Games | Score        | Elo  |
+| -------------------------------------------------------- | ----: | ------------ | ---- |
+| 40k nodes                                                | 2,000 | 75.1% ± 0.8% | +192 |
+| 80k nodes                                                | 1,000 | 76.1% ± 1.2% | +202 |
+| 160k nodes                                               |   500 | 77.5% ± 1.6% | +215 |
+| 40k nodes, against the first round's (`joint_final.txt`) | 1,000 | 61.4% ± 1.3% | +81  |
+
+The 160k row played the game's numbers; the others the numbers as tuned, before their rounding to
+tenths (which moves a cell's value by at most a centipawn). The bonus for the move costs the search nothing, and the rest is numbers, so the
+first round's speed (below) holds.
+
+The first round's numbers (`joint_final.txt`) against the hand-set evaluation:
 
 | Budget                                | Games | Score        | Elo  |
 | ------------------------------------- | ----: | ------------ | ---- |
@@ -161,6 +228,17 @@ python3 fit_search.py train.lab test.lab handset.txt fitR_ext.txt --ext --K 0.67
 python3 attrib.py joint_final.txt positions.txt
 ./engine evdump @joint_final.txt < all.lab > ev_final.txt && python3 distill.py --results ev_final.txt
 ./engine augment @joint_final.txt 7 2 < all.lab > aug_final.txt && python3 distill_aug.py aug_final.txt
+# a piece's strength curve: its numbers scaled to a worth, then a match against the evaluation
+python3 piecescale.py joint_final.txt R 2.6 curves/R_2.6.txt positions.txt
+python3 screen.py --nodes 40000 --n 2000 --new @curves/R_2.6.txt --old @joint_final.txt --tag cR26
+python3 curves/analyse.py .
+# the second round: SPSA with the further terms (here the side to move's bonus alone), resumed
+# from the first round's end, then the later half averaged
+cp jt_start.jsonl jtA.traj
+python3 spsa72.py --start jt_start.txt --tag jtA --fix 61,62,64,65,67,68,69,70,71 --pairs 13696 --resume
+python3 polyak.py jtA.traj jtA_avg.txt --from 7696
+# into the game (client/src/ai), rounded as it holds them; then check the port with ref.ts
+python3 apply_numbers.py round2_final.txt ../../client/src/ai rounded.txt
 # evaluate.ts from a numbers file, and the port against the JS engine (from client/, after npm ci)
 python3 gen_eval_ts.py numbers.txt ../../client/src/ai/evaluate.ts joint_final.txt
 npx vite-node ../research/evaluation/ref.ts moves 3000 0 in.txt js.txt
