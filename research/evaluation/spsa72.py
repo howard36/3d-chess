@@ -14,7 +14,7 @@ NAMES_Y = ['y threat', 'y kzone', 'y tempo', 'y prot', 'y chain', 'y iso', 'y kq
 CX_ = np.array([0.15, 0.15, 3, 1, 3, 10])
 CY_ = np.array([10, 2, 6, 3, 2, 3, 0, 0])
 CALL = np.concatenate([C, CX_, CY_])
-N = 78
+N = 72
 
 def write_x(path, x):
     with open(path, 'w') as f:
