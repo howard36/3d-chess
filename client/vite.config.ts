@@ -1,4 +1,5 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { build, defineConfig, minify } from 'vite';
@@ -7,68 +8,103 @@ import react from '@vitejs/plugin-react';
 import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
 import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import { CLIENT_ID_KEY } from './src/lib/clientId';
-import { preloadLandingPicture } from './src/screens/landingLayout';
+
+/**
+ * One of earlyPicture.ts's functions, bundled with the lens it places by into
+ * a script that stands alone, to be written into the built page.
+ */
+const earlyScript = async (name: 'preloadLandingPicture' | 'placeEarlyPicture') => {
+  const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
+  const built = await build({
+    configFile: false,
+    logLevel: 'silent',
+    publicDir: false,
+    define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) },
+    plugins: [
+      {
+        name: 'early-picture',
+        resolveId: (id) => (id === 'early-picture' ? id : null),
+        load: (id) =>
+          id === 'early-picture'
+            ? `import { ${name} } from ${JSON.stringify(entry)}; ${name}();`
+            : null,
+      },
+    ],
+    build: {
+      write: false,
+      minify: true,
+      rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
+    },
+  });
+  const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
+  return (output.output[0].code ?? '').trim();
+};
+
+/**
+ * The start page's pictures (public/landing/) are asked for with a version, a
+ * hash of every one of them, in their addresses (landingLens.ts, pictureSource),
+ * so the host keeps them a year, as it keeps the files under assets/: a
+ * returning visit paints the picture from its cache, without asking whether
+ * it changed. Pictures re-rendered are a new version, and a new address.
+ */
+export const landingVersion = (dir = resolve(import.meta.dirname, 'public/landing')): string => {
+  const hash = createHash('sha256');
+  for (const name of readdirSync(dir).sort())
+    hash.update(name).update(readFileSync(resolve(dir, name)));
+  return hash.digest('hex').slice(0, 8);
+};
+export const versionLandingPictures = (): Plugin => {
+  let outDir = 'dist';
+  return {
+    name: 'version-landing-pictures',
+    apply: 'build',
+    config: () => ({ define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) } }),
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    writeBundle() {
+      appendFileSync(
+        resolve(outDir, '_headers'),
+        `\n# The start page's pictures, asked for by their version (vite.config.ts, versionLandingPictures)\n/landing/*\n  Cache-Control: ${KEEP_A_YEAR}\n`,
+      );
+    },
+  };
+};
 
 /**
  * The start page shows a picture of its preview while three.js loads
  * (LandingPicture): the built page starts it downloading from an inline
- * script in its head, before the entry has loaded and run, on the start page
- * alone (preloadLandingPicture).
+ * script in its head, before the stylesheet and the entry have loaded, on
+ * the start page alone (preloadLandingPicture).
  */
 export const preloadLandingPictureOnStartPage = (): Plugin => ({
   name: 'preload-landing-picture',
   apply: 'build',
   async transformIndexHtml(html) {
-    const { code, errors } = await minify(
-      'landing-picture.js',
-      `(${preloadLandingPicture.toString()})()`,
-    );
-    if (errors.length) throw new Error(`preload-landing-picture: ${errors[0].message}`);
+    const code = await earlyScript('preloadLandingPicture');
     // After the viewport's tag: before it, a phone's innerWidth is the
     // default 980 px, and the script would pick (and fetch) the tablet's picture
     const viewport = /<meta name="viewport"[^>]*>/i;
     if (!viewport.test(html))
       throw new Error('preload-landing-picture: index.html has no <meta name="viewport">');
-    return html.replace(viewport, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
+    return html.replace(viewport, (tag) => `${tag}\n    <script>${code}</script>`);
   },
 });
 
 /**
  * And places it from an inline script right after #root, so the browser
  * paints it as soon as it has arrived, before the entry has loaded and run
- * (src/screens/earlyPicture.ts, bundled here with the lens it places by).
+ * (placeEarlyPicture).
  */
 export const placeLandingPictureEarly = (): Plugin => ({
   name: 'place-landing-picture-early',
   apply: 'build',
   async transformIndexHtml(html) {
-    const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
-    const built = await build({
-      configFile: false,
-      logLevel: 'silent',
-      publicDir: false,
-      plugins: [
-        {
-          name: 'early-picture',
-          resolveId: (id) => (id === 'early-picture' ? id : null),
-          load: (id) =>
-            id === 'early-picture'
-              ? `import { placeEarlyPicture } from ${JSON.stringify(entry)}; placeEarlyPicture();`
-              : null,
-        },
-      ],
-      build: {
-        write: false,
-        minify: true,
-        rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
-      },
-    });
-    const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
-    const code = output.output[0].code ?? '';
+    const code = await earlyScript('placeEarlyPicture');
     const root = '<div id="root"></div>';
     if (!html.includes(root))
       throw new Error('place-landing-picture-early: no #root in index.html');
-    return html.replace(root, `${root}\n    <script>${code.trim()}</script>`);
+    return html.replace(root, `${root}\n    <script>${code}</script>`);
   },
 });
 
@@ -376,6 +412,7 @@ export default defineConfig({
     keepSceneOutOfEntry(),
     invitePage(),
     socialImageOnPreviews(),
+    versionLandingPictures(),
     keepHashedFiles(),
   ],
   resolve: {
