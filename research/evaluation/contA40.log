@@ -1,0 +1,1 @@
+@contA_avg.txt vs @joint_final.txt at 40000 nodes: 0.552 ± 0.010 (+37 Elo) over 2000 games {'mate': 168, 'adjudicated': 1396, 'repetition': 194, 'fifty': 242}
