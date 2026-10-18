@@ -58,7 +58,7 @@ test('the built page places the start page’s picture right after #root, self-c
         const place = picturePlacement(width, height);
         expect(document.getElementById('landing-early')!.nextElementSibling?.id).toBe('root');
         expect(img!.getAttribute('src')).toBe(
-          `/landing/${place.layout}.webp?v=${landingVersion()}`,
+          `/landing/${place.picture}.webp?v=${landingVersion()}`,
         );
         expect(img!.style.width).toBe(`${place.width}px`);
       }

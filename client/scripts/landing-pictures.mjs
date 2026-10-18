@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Renders the start page's pictures of its preview, one for each of its
-// layouts (three/landingLens.ts, LANDING_PICTURES): the opening position from
+// Renders the start page's pictures of its preview (three/landingLens.ts,
+// LANDING_PICTURES: one for each of its layouts, and a phone's cut for the
+// taller phones): the opening position from
 // the preview's first angle, through the dev-only landing-pictures.html, as
 // AVIF and WebP into public/landing/. The start page shows the picture while
 // three.js loads and fades the live preview in over it, so a picture out of
@@ -8,8 +9,8 @@
 // pictures, after anything visible changes in the preview's opening (the
 // tower, the pieces, the garden, the lens), as for scripts/readme-image.mjs.
 //
-//   node scripts/landing-pictures.mjs                      # phone, tablet and wide, 1x and 2x
-//   node scripts/landing-pictures.mjs --layout wide --density 2x --out /tmp/pictures
+//   node scripts/landing-pictures.mjs                      # every picture, 1x and 2x
+//   node scripts/landing-pictures.mjs --picture wide --density 2x --out /tmp/pictures
 //
 // Starts its own Vite (no backend), or uses SHOWCASE_URL if set; ffmpeg (with
 // libaom-av1 and libwebp) encodes. Renders in software (SwiftShader).
@@ -30,7 +31,7 @@ const opt = (name, fallback) => {
 
 const CLIENT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.resolve(opt('out', path.join(CLIENT, 'public', 'landing')));
-const LAYOUTS = opt('layout', 'phone,tablet,wide').split(',');
+const PICTURES = opt('picture', 'phone-tall,phone,tablet,wide').split(',');
 const DENSITIES = opt('density', '1x,2x').split(',');
 // --keep-png also writes the lossless render beside them (for comparing encodings)
 const KEEP_PNG = argv.includes('--keep-png');
@@ -82,7 +83,7 @@ const browser = await chromium.launch({
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'landing-pictures-'));
 try {
   fs.mkdirSync(OUT, { recursive: true });
-  for (const layout of LAYOUTS)
+  for (const picture of PICTURES)
     for (const density of DENSITIES) {
       const context = await browser.newContext({
         viewport: { width: 400, height: 400 },
@@ -92,7 +93,7 @@ try {
       await context.addInitScript(STILL_CLOCK);
       const page = await context.newPage();
       page.on('pageerror', (e) => console.error(`[page] ${e.message}`));
-      await page.goto(`${base}/landing-pictures.html?layout=${layout}&density=${density}`);
+      await page.goto(`${base}/landing-pictures.html?picture=${picture}&density=${density}`);
       const { width, height } = await page.evaluate(() => window.__picture);
       await page.setViewportSize({ width: width / SCALE, height: height / SCALE });
       await page.waitForSelector('[data-testid="landing-canvas"] canvas', { timeout: 180000 });
@@ -106,7 +107,7 @@ try {
         same = last && shot.equals(last) ? same + 1 : 0;
         last = shot;
       }
-      const name = density === '1x' ? layout : `${layout}@2x`;
+      const name = density === '1x' ? picture : `${picture}@2x`;
       const png = path.join(KEEP_PNG ? OUT : work, `${name}.png`);
       fs.writeFileSync(png, last);
       const encode = (args, file) =>
