@@ -82,3 +82,10 @@ r3k4: @r3/jt3c4.txt vs @round2_final.txt at 40000 nodes: 0.552 ± 0.014 (+37 Elo
 ## The same with pawn chains against the hand-set evaluation, 40k
 r3h1: @r3/jt3c4.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.771 ± 0.012 (+211 Elo) over 1000 games {'adjudicated': 751, 'fifty': 86, 'mate': 95, 'repetition': 68}
 r3h2: @r3/jt3c4.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.783 ± 0.011 (+223 Elo) over 1000 games {'adjudicated': 725, 'fifty': 93, 'repetition': 78, 'mate': 104}
+## The game's numbers (round3_final.txt = r3/jt_avg3_r.txt) against the hand-set evaluation: 40k, 80k (two halves), 160k (two halves), and at equal time (36.2k against 40k)
+r3v40: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.752 ± 0.008 (+193 Elo) over 2000 games {'mate': 208, 'adjudicated': 1446, 'repetition': 146, 'fifty': 200}
+r3m1: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 80000 nodes: 0.777 ± 0.016 (+217 Elo) over 500 games {'adjudicated': 377, 'repetition': 33, 'fifty': 44, 'mate': 46}
+r3m2: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 80000 nodes: 0.751 ± 0.017 (+192 Elo) over 500 games {'adjudicated': 371, 'mate': 44, 'repetition': 35, 'fifty': 50}
+r3p1: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 160000 nodes: 0.756 ± 0.023 (+196 Elo) over 250 games {'adjudicated': 182, 'fifty': 25, 'repetition': 27, 'mate': 16}
+r3p2: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 160000 nodes: 0.770 ± 0.023 (+210 Elo) over 250 games {'adjudicated': 189, 'mate': 14, 'fifty': 28, 'repetition': 19}
+r3q1: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 40000 nodes (the candidate 36200): 0.720 ± 0.012 (+164 Elo) over 1000 games {'adjudicated': 711, 'mate': 101, 'fifty': 116, 'repetition': 72}

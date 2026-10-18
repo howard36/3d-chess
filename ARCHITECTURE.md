@@ -1253,10 +1253,11 @@ attacks; having the move; mobility (left out of the quiescence search where it c
 matter); the bishop pair; and, a side ahead, trading down and driving the bare king to a
 corner, which mates with king and queen. Its numbers were tuned for playing strength by self-play
 (`research/evaluation/`, its README for the method): at the same number of positions
-searched it scored 75.1% against the hand-set evaluation it replaced (2,000 games at 40,000
+searched it scored 75.2% against the hand-set evaluation it replaced (2,000 games at 40,000
 positions a move, about 190 Elo). The board keeps the king and pawn terms as moves are
 played, as it does the tables' sums (`position.ts`); they cost the search about 7% of its
-speed. In the browser it searches some 400,000 positions a second.
+speed, and at equal time it still scored 72.0%. In the browser it searches some 400,000
+positions a second.
 
 **The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
 engine, the search gives an exact score to every root move within a margin of the best, and

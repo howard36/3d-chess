@@ -213,12 +213,18 @@ barely move: removal 3.26, 2.92, 2.37, 1.35, 8.56.
 ## The result
 
 The game's numbers (`round3_final.txt`, the second round's runs continued, as `position.ts` and
-`evaluate.ts` hold them: `apply_numbers.py` writes both from a numbers file):
+`evaluate.ts` hold them: `apply_numbers.py` writes both from a numbers file) against the hand-set
+evaluation:
 
-| Budget                                                                   | Games | Score        | Elo |
-| ------------------------------------------------------------------------ | ----: | ------------ | --- |
-| 40k nodes, against the second round's first average (`round2_final.txt`) | 3,000 | 51.8% ± 0.8% | +13 |
+| Budget                                                                   | Games | Score        | Elo  |
+| ------------------------------------------------------------------------ | ----: | ------------ | ---- |
+| 40k nodes                                                                | 2,000 | 75.2% ± 0.8% | +193 |
+| 80k nodes                                                                | 1,000 | 76.4% ± 1.2% | +204 |
+| 160k nodes                                                               |   500 | 76.3% ± 1.6% | +203 |
+| 36.2k against 40k (equal time, below)                                    | 1,000 | 72.0% ± 1.2% | +164 |
+| 40k nodes, against the second round's first average (`round2_final.txt`) | 3,000 | 51.8% ± 0.8% | +13  |
 
+Against the hand-set evaluation the two averages score alike; head to head the later one is ahead.
 The bonus for the move costs the search nothing, and the rest is numbers, so the first round's
 speed (below) holds.
 
