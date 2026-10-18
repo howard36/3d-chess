@@ -12,15 +12,15 @@ import { otherSide } from './sides';
 import type { Turn } from './history';
 
 /**
- * Values for this board, not 2D chess's, to the nearest half pawn: measured
- * by engine self-play of imbalances from the starting position (queen 9.8,
- * knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4). On a 5-wide board a rook
- * sees 12 squares from anywhere and cannot mate alone; the unicorn is held
- * to a quarter of the board; the queen is the only piece that mates alone.
+ * What the "+N" counts each piece as, in pawns: knight and bishop 3, rook
+ * 2.5, unicorn 1.5, queen 9 (ARCHITECTURE.md "Piece values"). On a 5-wide
+ * board a rook sees 12 squares from anywhere and cannot mate alone; the
+ * unicorn is held to a quarter of the board; the queen is the only piece that
+ * mates alone.
  */
 export const PIECE_VALUE: Record<PieceType, number> = {
   [PieceType.King]: 0,
-  [PieceType.Queen]: 10,
+  [PieceType.Queen]: 9,
   [PieceType.Knight]: 3,
   [PieceType.Bishop]: 3,
   [PieceType.Rook]: 2.5,
