@@ -101,62 +101,82 @@ export type PictureDensity = '1x' | '2x';
 const PICTURE_DENSITIES: readonly PictureDensity[] = ['1x', '2x'];
 
 /**
- * A picture of the preview's first frame for each layout: the scene as the
- * layout's camera sees it, `centre` and `span` (the tangents of the picture's
- * middle and of its full height) and `aspect` (its width over its height)
- * taking in every common window of the layout, phones' with their browser's
- * bars too (landingLens.test.ts lists them), and a little more, which fades
- * into the night at its edges (PICTURE_FADE, drawn into the picture). Each in
- * two sizes in pixels: as fine as the preview's canvas draws on a screen of
- * that density in the layout's common windows (2x: the pixel budget's), and
- * the browser picks one by the screen's.
+ * A picture of the preview's first frame: the scene as its layout's camera
+ * sees it, `centre` and `span` (the tangents of the picture's middle and of
+ * its full height) and `aspect` (its width over its height) taking in the
+ * windows it is for, and a little more, which fades into the night at its
+ * edges (PICTURE_FADE, drawn into the picture). Each in two sizes in pixels:
+ * as fine as the preview's canvas draws on a screen of that density in the
+ * layout's common windows (2x: the pixel budget's), and the browser picks one
+ * by the screen's.
  */
 export interface LandingPicture {
+  layout: LandingLayout;
   centre: [number, number];
   span: number;
   aspect: number;
   pixels: Record<PictureDensity, [number, number]>;
 }
 
-export const LANDING_PICTURES: Record<LandingLayout, LandingPicture> = {
+/**
+ * The pictures, a layout's smallest first: a window takes the first of its
+ * layout's that it lies inside with the faded edges outside it
+ * (picturePlacement), so a phone decodes only about the part it shows. The
+ * last of each layout takes in every common window of the layout, phones'
+ * with their browser's bars too (landingLens.test.ts lists them); a phone's
+ * cut, as fine, takes in the taller ones (all but the smallest phones).
+ */
+export const LANDING_PICTURES = {
+  'phone-tall': {
+    layout: 'phone',
+    centre: [0, -0.0341],
+    span: 0.66234,
+    aspect: 0.503095,
+    pixels: { '1x': [534, 1060], '2x': [1052, 2092] },
+  },
   phone: {
+    layout: 'phone',
     centre: [0, -0.0586],
     span: 1.0041,
     aspect: 0.678161,
     pixels: { '1x': [1090, 1606], '2x': [2152, 3172] },
   },
   tablet: {
+    layout: 'tablet',
     centre: [0, -0.1145],
     span: 0.825,
     aspect: 0.959307,
     pixels: { '1x': [1662, 1732], '2x': [2976, 3102] },
   },
   wide: {
+    layout: 'wide',
     centre: [-0.2364, -0.0437],
     span: 0.7834,
     aspect: 2.402402,
     pixels: { '1x': [3200, 1332], '2x': [4892, 2036] },
   },
-};
+} satisfies Record<string, LandingPicture>;
+export type PictureName = keyof typeof LANDING_PICTURES;
+const PICTURE_NAMES = Object.keys(LANDING_PICTURES) as PictureName[];
 
 declare const __LANDING_VERSION__: string | undefined;
 /** The built page asks for the pictures by their version, which the host keeps a year (vite.config.ts, versionLandingPictures). */
 const VERSION = typeof __LANDING_VERSION__ === 'string' ? `?v=${__LANDING_VERSION__}` : '';
 
 /**
- * The address of a layout's picture (public/landing/, written by
+ * The address of a picture (public/landing/, written by
  * scripts/landing-pictures.mjs): AVIF, and WebP for a browser without it,
  * each at both densities.
  */
 export const pictureSource = (
-  layout: LandingLayout,
+  picture: PictureName,
   type: 'avif' | 'webp',
   density: PictureDensity = '1x',
-) => `/landing/${layout}${density === '1x' ? '' : '@2x'}.${type}${VERSION}`;
+) => `/landing/${picture}${density === '1x' ? '' : '@2x'}.${type}${VERSION}`;
 
-/** A `srcset` of a layout's picture at every density. */
-export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =>
-  PICTURE_DENSITIES.map((d) => `${pictureSource(layout, type, d)} ${d}`).join(', ');
+/** A `srcset` of a picture at every density. */
+export const pictureSourceSet = (picture: PictureName, type: 'avif' | 'webp') =>
+  PICTURE_DENSITIES.map((d) => `${pictureSource(picture, type, d)} ${d}`).join(', ');
 
 /**
  * The share of a picture's width and height, at each edge, that fades into
@@ -166,9 +186,10 @@ export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =
  */
 export const PICTURE_FADE = 0.03;
 
-/** Where a layout's picture lies in a window, in CSS px from its top left corner. */
+/** Which picture a window shows, and where it lies in it, in CSS px from its top left corner. */
 export interface PicturePlacement {
   layout: LandingLayout;
+  picture: PictureName;
   left: number;
   top: number;
   width: number;
@@ -176,20 +197,48 @@ export interface PicturePlacement {
 }
 
 /**
- * Where the picture goes so that it shows exactly what the preview's first
- * frame will in a `width` x `height` window: scaled by the window's lens
- * (CSS px per tangent) and moved by its shift.
+ * Which picture a `width` x `height` window shows (the first of its layout's
+ * that covers it, faded edges and all, or else the layout's last), and where
+ * it goes so that it shows exactly what the preview's first frame will:
+ * scaled by the window's lens (CSS px per tangent) and moved by its shift.
+ * The picture already `shown` stays while it still covers the window, so a
+ * phone's bars coming and going never fetch the other picture.
  */
-export function picturePlacement(width: number, height: number): PicturePlacement {
+export function picturePlacement(
+  width: number,
+  height: number,
+  shown?: PictureName,
+): PicturePlacement {
   const lens = landingLens(width, height);
-  const picture = LANDING_PICTURES[lens.layout];
   const perTangent = height / (2 * Math.tan((lens.fov * Math.PI) / 360));
-  const spanAcross = picture.span * picture.aspect;
-  return {
-    layout: lens.layout,
-    left: width / 2 + (picture.centre[0] - spanAcross / 2 - lens.shift[0]) * perTangent,
-    top: height / 2 - (picture.centre[1] + picture.span / 2 - lens.shift[1]) * perTangent,
-    width: spanAcross * perTangent,
-    height: picture.span * perTangent,
+  const place = (name: PictureName): PicturePlacement => {
+    const picture = LANDING_PICTURES[name];
+    const spanAcross = picture.span * picture.aspect;
+    return {
+      layout: lens.layout,
+      picture: name,
+      left: width / 2 + (picture.centre[0] - spanAcross / 2 - lens.shift[0]) * perTangent,
+      top: height / 2 - (picture.centre[1] + picture.span / 2 - lens.shift[1]) * perTangent,
+      width: spanAcross * perTangent,
+      height: picture.span * perTangent,
+    };
   };
+  const names = PICTURE_NAMES.filter((name) => LANDING_PICTURES[name].layout === lens.layout);
+  if (shown && names.includes(shown)) {
+    const kept = place(shown);
+    if (covers(kept, width, height)) return kept;
+  }
+  const placed = names.map(place);
+  return placed.find((p) => covers(p, width, height)) ?? placed[placed.length - 1];
 }
+
+/** Whether a placed picture covers the whole window with its faded edges outside it. */
+export const covers = (p: PicturePlacement, width: number, height: number): boolean => {
+  const [fx, fy] = [p.width * PICTURE_FADE, p.height * PICTURE_FADE];
+  return (
+    p.left + fx <= 0 &&
+    p.top + fy <= 0 &&
+    p.left + p.width - fx >= width &&
+    p.top + p.height - fy >= height
+  );
+};

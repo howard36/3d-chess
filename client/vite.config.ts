@@ -8,7 +8,37 @@ import react from '@vitejs/plugin-react';
 import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
 import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import { CLIENT_ID_KEY } from './src/lib/clientId';
-import { preloadLandingPicture } from './src/screens/landingLayout';
+
+/**
+ * One of earlyPicture.ts's functions, bundled with the lens it places by into
+ * a script that stands alone, to be written into the built page.
+ */
+const earlyScript = async (name: 'preloadLandingPicture' | 'placeEarlyPicture') => {
+  const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
+  const built = await build({
+    configFile: false,
+    logLevel: 'silent',
+    publicDir: false,
+    define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) },
+    plugins: [
+      {
+        name: 'early-picture',
+        resolveId: (id) => (id === 'early-picture' ? id : null),
+        load: (id) =>
+          id === 'early-picture'
+            ? `import { ${name} } from ${JSON.stringify(entry)}; ${name}();`
+            : null,
+      },
+    ],
+    build: {
+      write: false,
+      minify: true,
+      rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
+    },
+  });
+  const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
+  return (output.output[0].code ?? '').trim();
+};
 
 /**
  * The start page's pictures (public/landing/) are asked for with a version, a
@@ -44,64 +74,37 @@ export const versionLandingPictures = (): Plugin => {
 /**
  * The start page shows a picture of its preview while three.js loads
  * (LandingPicture): the built page starts it downloading from an inline
- * script in its head, before the entry has loaded and run, on the start page
- * alone (preloadLandingPicture).
+ * script in its head, before the stylesheet and the entry have loaded, on
+ * the start page alone (preloadLandingPicture).
  */
 export const preloadLandingPictureOnStartPage = (): Plugin => ({
   name: 'preload-landing-picture',
   apply: 'build',
   async transformIndexHtml(html) {
-    const { code, errors } = await minify(
-      'landing-picture.js',
-      `(${preloadLandingPicture.toString()})(${JSON.stringify(landingVersion())})`,
-    );
-    if (errors.length) throw new Error(`preload-landing-picture: ${errors[0].message}`);
+    const code = await earlyScript('preloadLandingPicture');
     // After the viewport's tag: before it, a phone's innerWidth is the
     // default 980 px, and the script would pick (and fetch) the tablet's picture
     const viewport = /<meta name="viewport"[^>]*>/i;
     if (!viewport.test(html))
       throw new Error('preload-landing-picture: index.html has no <meta name="viewport">');
-    return html.replace(viewport, (tag) => `${tag}\n    <script>${code.trim()}</script>`);
+    return html.replace(viewport, (tag) => `${tag}\n    <script>${code}</script>`);
   },
 });
 
 /**
  * And places it from an inline script right after #root, so the browser
  * paints it as soon as it has arrived, before the entry has loaded and run
- * (src/screens/earlyPicture.ts, bundled here with the lens it places by).
+ * (placeEarlyPicture).
  */
 export const placeLandingPictureEarly = (): Plugin => ({
   name: 'place-landing-picture-early',
   apply: 'build',
   async transformIndexHtml(html) {
-    const entry = resolve(import.meta.dirname, 'src/screens/earlyPicture.ts');
-    const built = await build({
-      configFile: false,
-      logLevel: 'silent',
-      publicDir: false,
-      define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) },
-      plugins: [
-        {
-          name: 'early-picture',
-          resolveId: (id) => (id === 'early-picture' ? id : null),
-          load: (id) =>
-            id === 'early-picture'
-              ? `import { placeEarlyPicture } from ${JSON.stringify(entry)}; placeEarlyPicture();`
-              : null,
-        },
-      ],
-      build: {
-        write: false,
-        minify: true,
-        rolldownOptions: { input: 'early-picture', output: { format: 'iife' } },
-      },
-    });
-    const output = (Array.isArray(built) ? built[0] : built) as { output: { code?: string }[] };
-    const code = output.output[0].code ?? '';
+    const code = await earlyScript('placeEarlyPicture');
     const root = '<div id="root"></div>';
     if (!html.includes(root))
       throw new Error('place-landing-picture-early: no #root in index.html');
-    return html.replace(root, `${root}\n    <script>${code.trim()}</script>`);
+    return html.replace(root, `${root}\n    <script>${code}</script>`);
   },
 });
 
