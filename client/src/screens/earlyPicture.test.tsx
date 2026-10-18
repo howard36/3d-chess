@@ -1,10 +1,17 @@
 import { render } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { LandingPicture } from './LandingPicture';
-import { EARLY_PICTURE_ID, earlyPicture, placeEarlyPicture } from './earlyPicture';
+import { picturePlacement } from '../three/landingLens';
+import {
+  EARLY_PICTURE_ID,
+  earlyPicture,
+  placeEarlyPicture,
+  preloadLandingPicture,
+} from './earlyPicture';
 
 afterEach(() => {
   document.body.innerHTML = '';
+  document.head.querySelectorAll('link[rel="preload"]').forEach((l) => l.remove());
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
 });
@@ -59,4 +66,42 @@ test('any other page places none', () => {
   window.history.replaceState(null, '', '/new');
   placeEarlyPicture();
   expect(document.getElementById(EARLY_PICTURE_ID)).toBeNull();
+});
+
+/** The preload the built page's head makes in a window this size. */
+const preload = (width: number, height: number) => {
+  vi.stubGlobal('innerWidth', width);
+  vi.stubGlobal('innerHeight', height);
+  preloadLandingPicture();
+  return [...document.head.querySelectorAll<HTMLLinkElement>('link[rel="preload"]')];
+};
+
+test('the start page preloads, in any window, the very picture its page shows', () => {
+  for (let w = 300; w <= 2000; w += 37) {
+    for (const h of [
+      w - 1,
+      w,
+      w + 1,
+      Math.round(w * 0.6),
+      Math.round(w * 1.8),
+      Math.round(w * 2.1),
+    ]) {
+      const links = preload(w, h);
+      expect(links).toHaveLength(1);
+      expect(links[0].getAttribute('as')).toBe('image');
+      expect(links[0].getAttribute('type')).toBe('image/avif');
+      const { container, unmount } = render(<LandingPicture />);
+      expect(links[0].getAttribute('imagesrcset')).toBe(
+        container.querySelector('source')!.getAttribute('srcset'),
+      );
+      expect(links[0].getAttribute('href')).toContain(`/${picturePlacement(w, h).picture}.avif`);
+      links[0].remove();
+      unmount();
+    }
+  }
+});
+
+test('no other page preloads it', () => {
+  window.history.replaceState(null, '', '/new');
+  expect(preload(390, 844)).toHaveLength(0);
 });

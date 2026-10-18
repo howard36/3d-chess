@@ -8,7 +8,7 @@ import { usePixelBudget } from '../three/pixelBudget';
 import { LANDING_VIEW, landingFrameRings, landingViewDirection } from '../three/landingView';
 import { LANDING_CAMERAS, LANDING_PICTURES, landingLens } from '../three/landingLens';
 import { LANDING_BANDS } from './landingLayout';
-import type { LandingLayout } from './landingLayout';
+import type { PictureName } from '../three/landingLens';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { demoFrame, demoLog, demoOrder } from '../game/demo';
@@ -127,9 +127,9 @@ function DemoDirector({
   return null;
 }
 
-/** The view of a layout's picture (LANDING_PICTURES): its camera, and a lens that takes in the whole picture. */
-const pictureLens = (picture: LandingLayout) => () => ({
-  distance: LANDING_CAMERAS[picture].distance,
+/** The view of a picture (LANDING_PICTURES): its layout's camera, and a lens that takes in the whole picture. */
+const pictureLens = (picture: PictureName) => () => ({
+  distance: LANDING_CAMERAS[LANDING_PICTURES[picture].layout].distance,
   fov: (2 * Math.atan(LANDING_PICTURES[picture].span / 2) * 180) / Math.PI,
   shift: LANDING_PICTURES[picture].centre,
 });
@@ -147,7 +147,7 @@ const pictureLens = (picture: LandingLayout) => () => ({
  * (Reveal), and only then sets off, telling the page with `onShown`.
  *
  * With `picture` (the dev-only landing-pictures.html, for
- * scripts/landing-pictures.mjs), it draws that layout's picture instead: the
+ * scripts/landing-pictures.mjs), it draws that picture instead: the
  * opening, still, through a lens that takes in the whole picture, as finely
  * as the screen asks.
  */
@@ -156,7 +156,7 @@ export function LandingPreview({
   picture,
 }: {
   onShown?: () => void;
-  picture?: LandingLayout;
+  picture?: PictureName;
 }) {
   const pixelRatio = usePixelBudget();
   const veil = React.useRef<HTMLDivElement>(null);
