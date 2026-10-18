@@ -28,6 +28,10 @@
 // show it from several sides.
 // --pose yaw,pitch,zoom holds the camera still at that offset from the
 // opening view (degrees, degrees, distance factor).
+// --entrance starts the video on the game's first frame instead, as the
+// lobby hands over, so one take runs from the tower building itself and the
+// armies forming through the whole game; the camera stays in the opening
+// view through the entrance, then sways in (and, with --zoom 0.85, nearer).
 // Needs ffmpeg with libx264 on PATH, or FFMPEG=/path/to/ffmpeg.
 //
 // --review photographs the board for a legibility check instead of recording
@@ -160,6 +164,9 @@ const INTERACT = flag('interact');
 const ORBIT = flag('orbit');
 const INTRO = flag('intro');
 const LOBBY = flag('lobby');
+const ENTRANCE = flag('entrance');
+// --entrance --zoom 0.85: the camera eases that much nearer as it sways in
+const ENTRANCE_ZOOM = Number(opt('zoom', 1));
 const FPS = 30;
 const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
@@ -806,6 +813,11 @@ const PACE = {
   // move), while the pulse on his level plays on behind it
   result: 1.6,
   tail: 1.0,
+  // --entrance
+  entranceTail: 0.3, // the entrance over, before the pointer comes in
+  swayIn: 2.5, // the camera from rest into its sway
+  firstConsider: 1.4, // the first piece's moves on show
+  check: 0.6, // a check held a moment longer
 };
 
 // waitForFunction polls on requestAnimationFrame by default, which the
@@ -1795,7 +1807,10 @@ async function main() {
     await ctx.addInitScript(VIRTUAL_CLOCK);
     await ctx.addInitScript(SHOW_HELPERS);
     // --intro: on the virtual clock from the start, so the entrance waits for it
-    if (INTRO) await ctx.addInitScript(() => window.__vclock.enable());
+    // (--entrance: White's page alone; the opponent's plays in real time)
+    if (INTRO || (ENTRANCE && ctx === contexts[0])) {
+      await ctx.addInitScript(() => window.__vclock.enable());
+    }
   }
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
   for (const p of [pageA, pageB]) {
@@ -1808,16 +1823,18 @@ async function main() {
   await pageA.getByRole('button', { name: 'Play a friend' }).click();
   await pageA.getByRole('button', { name: /^White/ }).click();
   // --intro: the pick plays out on the stepped clock before the page moves on
-  if (INTRO) await stepUntil([pageA], pageA, () => location.pathname.startsWith('/game/'));
+  if (INTRO || ENTRANCE) {
+    await stepUntil([pageA], pageA, () => location.pathname.startsWith('/game/'));
+  }
   await pageA.waitForURL(/\/game\/[A-Z0-9]+/);
   await pageB.goto(pageA.url());
   await pageB.getByRole('button', { name: 'Join game' }).click();
-  if (INTRO) {
+  if (INTRO || ENTRANCE) {
     // The arrival and the handover, up to the game's first frame on the
     // recorded page: its board up, the lobby's canvas gone from over it
-    const rec = opt('seat', 'white') === 'black' ? pageB : pageA;
+    const rec = INTRO && opt('seat', 'white') === 'black' ? pageB : pageA;
     await stepUntil(
-      [pageA, pageB],
+      INTRO ? [pageA, pageB] : [pageA],
       rec,
       () => !!window.__show?.ready() && !document.querySelector('[data-testid="lobby-canvas"]'),
     );
@@ -1859,8 +1876,15 @@ async function main() {
   const opp = rec === white ? black : white;
   // The opponent's page is only there to answer; keep its renderer cheap.
   await opp.setViewportSize({ width: 400, height: 300 });
-  // (--interact's other page only types, so never draws, but needs its clock too)
-  await startClocks(INTERACT ? [rec, opp] : [rec]);
+  if (ENTRANCE) {
+    if (rec !== pageA) throw new Error('--entrance records the creator, who picked White');
+    // The fonts reach the label textures before the first frame is drawn
+    await rec.evaluate(() => document.fonts.ready);
+    await rec.waitForTimeout(500);
+  } else {
+    // (--interact's other page only types, so never draws, but needs its clock too)
+    await startClocks(INTERACT ? [rec, opp] : [rec]);
+  }
 
   const cdp = await rec.context().newCDPSession(rec);
   if (flag('profile')) {
@@ -1940,7 +1964,9 @@ async function main() {
   const ffmpeg = STILLS ? null : startEncoder(VIDEO, 'slow', 20);
 
   let frame = 0;
-  let cursor = { x: WIDTH * 0.62, y: HEIGHT * 0.92 };
+  let entranceFrames = 0;
+  // With the entrance the pointer comes in from below the window
+  let cursor = { x: WIDTH * 0.62, y: ENTRANCE ? HEIGHT + 40 : HEIGHT * 0.92 };
   let press = 0;
   // Camera path: a slow reveal, then a gentle sway for the rest of the game.
   const pose = opt('pose');
@@ -1948,6 +1974,16 @@ async function main() {
     if (pose) return pose.split(',').map(Number);
     // --interact holds the seat's opening view
     if (INTERACT) return [0, 0, 1];
+    if (ENTRANCE) {
+      // The entrance leaves the camera in the opening view: sway in from rest
+      const t = (f - entranceFrames) / FPS;
+      const k = ease(Math.min(t / PACE.swayIn, 1));
+      const sway = TOUR ? 40 : 8;
+      const rate = TOUR ? (2 * Math.PI) / 26 : 0.3;
+      const yaw = sway * k * Math.sin(t * rate);
+      const pitch = (TOUR ? 5 : 2) * k * Math.sin(t * 0.21);
+      return [yaw, pitch, 1 + (ENTRANCE_ZOOM - 1) * k];
+    }
     const t = f / FPS;
     // Stills skip the opening swing and show the board from its opening view
     const intro = STILLS ? 1 : Math.min(t / PACE.swing, 1);
@@ -2264,7 +2300,26 @@ async function main() {
     console.log(`interact took ${elapsed()}`);
   }
 
-  await hold(STILLS ? 0.2 : PACE.intro);
+  if (ENTRANCE) {
+    // The entrance, frame by frame, the camera left to it
+    const elapsed = stopwatch();
+    let after = 0;
+    while (after < PACE.entranceTail * FPS) {
+      await rec.evaluate((ms) => {
+        window.__r3fState.get().invalidate();
+        window.__vclock.step(ms);
+      }, 1000 / FPS);
+      if (ffmpeg) await writeFrame(ffmpeg, cdp, 92);
+      frame++;
+      if (await rec.evaluate(() => !!document.querySelector('[data-intro="done"]'))) after++;
+      if (frame > FPS * 20) throw new Error('the entrance never ended');
+    }
+    entranceFrames = frame;
+    console.log(`entrance: ${frame} frames in ${elapsed()}`);
+    await opp.waitForSelector('[data-intro="done"]', { state: 'attached', timeout: 120000 });
+  } else {
+    await hold(STILLS ? 0.2 : PACE.intro);
+  }
   await still('start');
 
   for (let i = 0; i < Math.min(PLIES, GAME.length); i++) {
@@ -2297,7 +2352,8 @@ async function main() {
               { cause: e },
             );
           });
-        await hold(PACE.consider);
+        // --entrance lingers on the first piece's moves, across the levels
+        await hold(ENTRANCE && i === 0 ? PACE.firstConsider : PACE.consider);
         if (i === 0) await still('selected');
       }
       if (await glideTo(to, 'cell', PACE.place)) {
@@ -2322,8 +2378,11 @@ async function main() {
       await still('capture-midflight');
     }
     if (i === GAME.length - 1) break;
-    await hold(whiteMoves ? PACE.afterWhite : PACE.afterBlack);
-    if ((await white.evaluate(() => window.__show.turn())).check) await still('check');
+    const check = (await white.evaluate(() => window.__show.turn())).check;
+    await hold(
+      (whiteMoves ? PACE.afterWhite : PACE.afterBlack) + (ENTRANCE && check ? PACE.check : 0),
+    );
+    if (check) await still('check');
   }
 
   if (PLIES >= GAME.length) {

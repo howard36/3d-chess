@@ -7,7 +7,8 @@
 // three.js loads and fades the live preview in over it, so a picture out of
 // date shows as a change at the handover: rerun this, and commit the
 // pictures, after anything visible changes in the preview's opening (the
-// tower, the pieces, the garden, the lens), as for scripts/readme-image.mjs.
+// tower, the pieces, the garden, the lens), then scripts/readme-image.mjs,
+// whose picture is the start page showing these.
 //
 //   node scripts/landing-pictures.mjs                      # every picture, 1x and 2x
 //   node scripts/landing-pictures.mjs --picture wide --density 2x --out /tmp/pictures
