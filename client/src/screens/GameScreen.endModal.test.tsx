@@ -1,5 +1,6 @@
 import { MATE_HOLD_MS } from '../lib/mate';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocketMessage } from '../types/messages';
 import { Board } from '../engine';
@@ -103,6 +104,14 @@ describe('the result card after a mate', () => {
     act(() => {
       fireEvent.keyDown(screen.getByRole('button', { name: 'Rematch' }), { key: 'Escape' });
     });
+    expect(result()).not.toBeInTheDocument();
+  });
+
+  it('closes with Escape after a click on the card itself, off its buttons', async () => {
+    render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
+    // A click on its words would leave the focus on the page, out of Escape's reach
+    await userEvent.click(within(result()!).getByRole('heading'));
+    await userEvent.keyboard('{Escape}');
     expect(result()).not.toBeInTheDocument();
   });
 
