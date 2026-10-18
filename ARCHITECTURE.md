@@ -903,6 +903,10 @@ video:
 cd client && node scripts/showcase.mjs --out /tmp/showcase   # ffmpeg on PATH
 ```
 
+`--entrance` starts the video on the game's first frame instead, as the lobby hands over, so
+one take runs from the tower building itself through the whole game (with `--tour` and
+`--zoom 0.82` at `--width 1080 --height 1080`, a square cut ready to share).
+
 `--review` photographs the board for a legibility check: the opening, a selected piece
 with quiet and capture destinations (and the pointer on a destination and on a piece), the
 last move's line and a check, each from 13 camera poses, top-down included (or
@@ -1467,9 +1471,10 @@ repo secrets. The frontend is deployed separately by Cloudflare Pages' GitHub
 integration (configured in Cloudflare, not in this repo); it shows up as the "Cloudflare
 Pages" check on pull requests.
 
-Link previews read `client/index.html`'s meta tags (title, description, and `og:image`,
-`public/og.jpg`: the README's picture cut to 1.91:1, written by `scripts/readme-image.mjs`
-from the start page's first frame, drawn at 1x). A game's link is an invitation, so the build also writes
+Link previews read `client/index.html`'s meta tags (title, description, and `og:image`
+and `twitter:image`, `public/og.jpg`: the README's picture cut to 1.91:1, written by
+`scripts/readme-image.mjs` from the start page's first frame, drawn at 1x, as the
+browser's own JPEG: X's cards showed no picture for ffmpeg's). A game's link is an invitation, so the build also writes
 `invite.html`, the same page with the invitation's `og:title` and description
 (`invitePage` in `vite.config.ts`, which fails the build if a tag it replaces is missing), and
 `public/_redirects` has Cloudflare Pages serve it at `/game/*`; every other address gets
