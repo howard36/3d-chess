@@ -32,17 +32,22 @@ export const landingLayoutOf = (width: number, height: number): LandingLayout =>
  * this function's source, so it must stand alone (landingLayout.test.ts
  * checks it picks the layout landingLayoutOf does). Only on the start page.
  */
-export function preloadLandingPicture(): void {
+export function preloadLandingPicture(version = ''): void {
   if (location.pathname !== '/') return;
   const [width, height] = [innerWidth, innerHeight];
   const layout = height >= width ? (width >= 600 ? 'tablet' : 'phone') : 'wide';
+  // The pictures' version, as the page's own addresses carry it (pictureSource)
+  const v = version ? `?v=${version}` : '';
   const link = document.createElement('link');
   link.rel = 'preload';
   link.setAttribute('as', 'image');
   link.type = 'image/avif';
-  link.href = `/landing/${layout}.avif`;
+  link.href = `/landing/${layout}.avif${v}`;
   // The picture as fine as the screen, as the page's own picks it (pictureSourceSet)
-  link.setAttribute('imagesrcset', `/landing/${layout}.avif 1x, /landing/${layout}@2x.avif 2x`);
+  link.setAttribute(
+    'imagesrcset',
+    `/landing/${layout}.avif${v} 1x, /landing/${layout}@2x.avif${v} 2x`,
+  );
   link.setAttribute('fetchpriority', 'high');
   document.head.appendChild(link);
 }

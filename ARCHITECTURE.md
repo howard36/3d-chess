@@ -1443,7 +1443,9 @@ preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 a frame, browsers must not guess file types, and a link the player follows sends only the
 site's name. The build adds a rule keeping each file it wrote under `/assets/` a year (their
 names carry their hash; `keepHashedFiles` in `vite.config.ts`), one rule a file, so a name the
-deploy lacks is never kept, and `assets/404.html` makes it a 404; anything else a returning
+deploy lacks is never kept, and `assets/404.html` makes it a 404. The start page's pictures
+are kept a year too (`/landing/*`, `versionLandingPictures`): the built page asks for them
+with `?v=` and a hash of them all, so a re-render is a new address. Anything else a returning
 browser asks for again (Pages' default). The bench's `vite preview` sends the build's headers
 (`client/bench/preview.config.ts`), so its returning visit is cached as a player's is, and
 serves a game's address the invitation's page, as `public/_redirects` has the host do.

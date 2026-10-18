@@ -8,8 +8,10 @@ import { parseHeaders } from './bench/preview.config';
 import config, {
   KEEP_A_YEAR,
   keepHashedFiles,
+  landingVersion,
   placeLandingPictureEarly,
   preloadLandingPictureOnStartPage,
+  versionLandingPictures,
 } from './vite.config';
 
 test('the built page preloads its picture after the viewport tag, where a phone knows its width', async () => {
@@ -55,7 +57,9 @@ test('the built page places the start page’s picture right after #root, self-c
       else {
         const place = picturePlacement(width, height);
         expect(document.getElementById('landing-early')!.nextElementSibling?.id).toBe('root');
-        expect(img!.getAttribute('src')).toBe(`/landing/${place.layout}.webp`);
+        expect(img!.getAttribute('src')).toBe(
+          `/landing/${place.layout}.webp?v=${landingVersion()}`,
+        );
         expect(img!.style.width).toBe(`${place.width}px`);
       }
     }
@@ -66,6 +70,51 @@ test('the built page places the start page’s picture right after #root, self-c
   }
 });
 
+test('the built page’s preload asks for the very addresses its early picture shows, by their version', async () => {
+  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+  const head = preloadLandingPictureOnStartPage().transformIndexHtml as (
+    h: string,
+  ) => Promise<string>;
+  const body = placeLandingPictureEarly().transformIndexHtml as (h: string) => Promise<string>;
+  const built = await body(await head(html));
+  const scripts = [...built.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  try {
+    vi.stubGlobal('innerWidth', 390);
+    vi.stubGlobal('innerHeight', 844);
+    window.history.replaceState(null, '', '/');
+    document.body.innerHTML = '<div id="root"></div>';
+    for (const script of scripts) new Function(script)();
+    const link = document.head.querySelector('link[rel="preload"][as="image"]')!;
+    const source = document.querySelector('#landing-early source')!;
+    expect(link.getAttribute('imagesrcset')).toBe(source.getAttribute('srcset'));
+    expect(link.getAttribute('href')).toContain(`?v=${landingVersion()}`);
+    link.remove();
+  } finally {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+  }
+});
+
+test('the pictures’ version changes with any of them, and the host keeps them a year', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'landing-'));
+  try {
+    writeFileSync(join(dir, 'phone.avif'), 'a');
+    const before = landingVersion(dir);
+    writeFileSync(join(dir, 'phone.avif'), 'b');
+    expect(landingVersion(dir)).not.toBe(before);
+    writeFileSync(join(dir, '_headers'), '');
+    const plugin = versionLandingPictures();
+    (plugin.configResolved as (c: unknown) => void)({ root: dir, build: { outDir: '.' } });
+    (plugin.writeBundle as () => void)();
+    const rules = parseHeaders(readFileSync(join(dir, '_headers'), 'utf8'));
+    expect(rules.find((r) => r.path.test('/landing/phone@2x.avif'))?.headers).toEqual([
+      ['Cache-Control', KEEP_A_YEAR],
+    ]);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 test('the build runs the start page’s scripts', () => {
   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
@@ -73,6 +122,7 @@ test('the build runs the start page’s scripts', () => {
     expect.arrayContaining([
       'preload-landing-picture',
       'place-landing-picture-early',
+      'version-landing-pictures',
       'keep-hashed-files',
     ]),
   );

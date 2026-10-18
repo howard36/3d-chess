@@ -139,6 +139,10 @@ export const LANDING_PICTURES: Record<LandingLayout, LandingPicture> = {
   },
 };
 
+declare const __LANDING_VERSION__: string | undefined;
+/** The built page asks for the pictures by their version, which the host keeps a year (vite.config.ts, versionLandingPictures). */
+const VERSION = typeof __LANDING_VERSION__ === 'string' ? `?v=${__LANDING_VERSION__}` : '';
+
 /**
  * The address of a layout's picture (public/landing/, written by
  * scripts/landing-pictures.mjs): AVIF, and WebP for a browser without it,
@@ -148,7 +152,7 @@ export const pictureSource = (
   layout: LandingLayout,
   type: 'avif' | 'webp',
   density: PictureDensity = '1x',
-) => `/landing/${layout}${density === '1x' ? '' : '@2x'}.${type}`;
+) => `/landing/${layout}${density === '1x' ? '' : '@2x'}.${type}${VERSION}`;
 
 /** A `srcset` of a layout's picture at every density. */
 export const pictureSourceSet = (layout: LandingLayout, type: 'avif' | 'webp') =>

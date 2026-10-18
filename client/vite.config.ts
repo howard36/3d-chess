@@ -1,4 +1,5 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { build, defineConfig, minify } from 'vite';
@@ -8,6 +9,37 @@ import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
 import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import { CLIENT_ID_KEY } from './src/lib/clientId';
 import { preloadLandingPicture } from './src/screens/landingLayout';
+
+/**
+ * The start page's pictures (public/landing/) are asked for with a version, a
+ * hash of every one of them, in their addresses (landingLens.ts, pictureSource),
+ * so the host keeps them a year, as it keeps the files under assets/: a
+ * returning visit paints the picture from its cache, without asking whether
+ * it changed. Pictures re-rendered are a new version, and a new address.
+ */
+export const landingVersion = (dir = resolve(import.meta.dirname, 'public/landing')): string => {
+  const hash = createHash('sha256');
+  for (const name of readdirSync(dir).sort())
+    hash.update(name).update(readFileSync(resolve(dir, name)));
+  return hash.digest('hex').slice(0, 8);
+};
+export const versionLandingPictures = (): Plugin => {
+  let outDir = 'dist';
+  return {
+    name: 'version-landing-pictures',
+    apply: 'build',
+    config: () => ({ define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) } }),
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    writeBundle() {
+      appendFileSync(
+        resolve(outDir, '_headers'),
+        `\n# The start page's pictures, asked for by their version (vite.config.ts, versionLandingPictures)\n/landing/*\n  Cache-Control: ${KEEP_A_YEAR}\n`,
+      );
+    },
+  };
+};
 
 /**
  * The start page shows a picture of its preview while three.js loads
@@ -21,7 +53,7 @@ export const preloadLandingPictureOnStartPage = (): Plugin => ({
   async transformIndexHtml(html) {
     const { code, errors } = await minify(
       'landing-picture.js',
-      `(${preloadLandingPicture.toString()})()`,
+      `(${preloadLandingPicture.toString()})(${JSON.stringify(landingVersion())})`,
     );
     if (errors.length) throw new Error(`preload-landing-picture: ${errors[0].message}`);
     // After the viewport's tag: before it, a phone's innerWidth is the
@@ -47,6 +79,7 @@ export const placeLandingPictureEarly = (): Plugin => ({
       configFile: false,
       logLevel: 'silent',
       publicDir: false,
+      define: { __LANDING_VERSION__: JSON.stringify(landingVersion()) },
       plugins: [
         {
           name: 'early-picture',
@@ -376,6 +409,7 @@ export default defineConfig({
     keepSceneOutOfEntry(),
     invitePage(),
     socialImageOnPreviews(),
+    versionLandingPictures(),
     keepHashedFiles(),
   ],
   resolve: {
