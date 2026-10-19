@@ -75,7 +75,7 @@ describe('a board that fails to load', () => {
     expect(document.querySelector('[data-intro]')).toHaveAttribute('data-intro', 'done');
     // The move box stays the first Tab stop, ahead of the retry
     await userEvent.tab();
-    expect(screen.getByRole('button', { name: 'Retry' })).not.toHaveFocus();
+    expect(screen.getByRole('textbox', { name: /Type a move/ })).toHaveFocus();
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await vi.waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
