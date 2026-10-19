@@ -21,6 +21,8 @@ import {
   DIST,
   KING,
   PHASE_MAX,
+  SIDE_HI,
+  SIDE_LO,
   TERMS,
   T_BISHOPS,
   T_EG,
@@ -35,7 +37,7 @@ import {
   T_THREATS,
   WHITE_SIDE,
 } from './position';
-import type { Position } from './position';
+import type { Position, Weights } from './position';
 import type { EvalNumbers } from './numbers';
 
 export { DIST } from './position';
@@ -145,8 +147,52 @@ const toward50 = (score: number, halfmoves: number) =>
  * so the quiescence search leaves it out where it cannot matter (LAZY).
  */
 export const mobilityScore = (pos: Position) => {
-  const m = pos.mobility(pos.w.mobility);
-  return toward50(pos.side === WHITE_SIDE ? m : -m, pos.halfmoves);
+  // Kept by the board's own hash (the side to move taken out), as the
+  // transposition table keeps a search's results, for one set of weights
+  if (pos.w !== owner) {
+    owner = pos.w;
+    age++;
+  }
+  const black = pos.side !== WHITE_SIDE;
+  const lo = black ? pos.hashLo ^ SIDE_LO : pos.hashLo;
+  const hi = black ? pos.hashHi ^ SIDE_HI : pos.hashHi;
+  const slot = lo & MOBILITY_MASK;
+  let m: number;
+  if (mobilityAge[slot] === age && mobilityCheck[slot] === hi) {
+    m = mobilityValue[slot];
+  } else {
+    m = pos.mobility(pos.w.mobility);
+    mobilityAge[slot] = age;
+    mobilityCheck[slot] = hi;
+    mobilityValue[slot] = m;
+  }
+  return toward50(black ? -m : m, pos.halfmoves);
+};
+
+/**
+ * The boards' mobility met in a search, by slot (the hash's low bits) with
+ * the high half to check: a board's mobility is the same wherever the search
+ * meets it again (the next iteration, a re-search, another move order).
+ * forgetMobility() at each search's start empties it (and the first time makes
+ * it), so a search costs the same whatever searched before it on the thread.
+ */
+const MOBILITY_MASK = (1 << 16) - 1;
+// Made at the first search's start, not when the worker loads (until then
+// nothing is kept: a read past the end is never a match, a write is dropped)
+let mobilityCheck = new Int32Array(0);
+let mobilityValue = new Int32Array(0);
+let mobilityAge = new Int32Array(0);
+let age = 1;
+// The weights the kept mobility was counted by: another set forgets it
+let owner: Weights | null = null;
+
+export const forgetMobility = () => {
+  if (mobilityAge.length === 0) {
+    mobilityCheck = new Int32Array(MOBILITY_MASK + 1);
+    mobilityValue = new Int32Array(MOBILITY_MASK + 1);
+    mobilityAge = new Int32Array(MOBILITY_MASK + 1);
+  }
+  age++;
 };
 
 /** The most mobility is taken to swing a position by. */
