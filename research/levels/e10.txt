@@ -1,0 +1,1 @@
+easy vs easy{"sight":{"ease":0,"miss":1},"margin":80,"temperature":26,"noise":14}: 57.0% ± 2.4% (49 Elo) over 400 games, +217 =22 -161 {"resigned":250,"repetition":1,"mate":128,"fifty":21}; easy: 3 ms, 649 positions a move; easy{"sight":{"ease":0,"miss":1},"margin":80,"temperature":26,"noise":14}: 3 ms, 633 positions a move

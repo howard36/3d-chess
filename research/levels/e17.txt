@@ -1,0 +1,1 @@
+easy{"sight":{"ease":0,"miss":1},"margin":80,"temperature":26,"noise":14} vs medium{"maxDepth":2}: 3.8% ± 0.9% (-564 Elo) over 400 games, +13 =4 -383 {"resigned":301,"mate":95,"fifty":4}; easy{"sight":{"ease":0,"miss":1},"margin":80,"temperature":26,"noise":14}: 3 ms, 829 positions a move; medium{"maxDepth":2}: 14 ms, 6949 positions a move

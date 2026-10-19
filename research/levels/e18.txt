@@ -1,0 +1,1 @@
+easy vs medium{"maxDepth":2}: 7.9% ± 1.3% (-427 Elo) over 400 games, +28 =7 -365 {"mate":122,"resigned":271,"fifty":7}; easy: 3 ms, 825 positions a move; medium{"maxDepth":2}: 13 ms, 6763 positions a move
