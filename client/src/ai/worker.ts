@@ -16,7 +16,8 @@ self.onmessage = (event: MessageEvent<ThinkRequest>) => {
         ? { id, score: assessPosition(records) }
         : { id, move: chooseMove(records, difficulty, seed) };
   } catch (e) {
-    reply = { id, error: String(e) };
+    // (with its stack, which the page logs: where the search failed)
+    reply = { id, error: e instanceof Error && e.stack ? e.stack : String(e) };
   }
   self.postMessage(reply);
 };
