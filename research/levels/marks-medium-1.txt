@@ -1,0 +1,1 @@
+medium: 1550 moves in 10 games; per 100 moves brilliant 0.2, inaccuracy 6.4, mistake 1.7, blunder 1.6; blunders per 100 quiet moves 0.0 (of 399), per 100 tense 3.9 (of 440)
