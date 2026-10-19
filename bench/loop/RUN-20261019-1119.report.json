@@ -2,7 +2,7 @@
   "title": "Perf run 20261019-1119",
   "eyebrow": "3D chess · perf-iteration · run 20261019-1119 · speed run",
   "heading": "Frames at rest now redraw only what changed: the opponent's move shows in half the time",
-  "meta": "<p>This speed run kept one change, in two commits (<code>71974d8</code>, <code>bb81dc2</code>), plus two fixes from the review (<code>d190b8c</code>, <code>99b09bb</code>). It is on branch <code>improve/20261019-1119</code>, from base <code>a854807</code>.</p><p>While the camera rests, a frame now redraws only the part of the screen where something changed: the piece that moved, the marks that came and went. Everything else stays as the last frame left it. In the final A/B of all 16 primary rows against the base, 6 pairs, <b>the opponent's move appears in 163 ms instead of 319 ms (×0.506, called better)</b>. A picked-up piece appears in 127 ms instead of 265 ms (×0.452, better in all 6 pairs, not called). No primary row was called worse. Every frame drawn in part is checked pixel for pixel against the same frame drawn whole, at desktop and phone size.</p>",
+  "meta": "<p>This speed run kept one change, in four code commits (<code>71974d8</code>, <code>bb81dc2</code>, <code>d190b8c</code>, <code>5b1f70e</code>), plus a check from the review (<code>99b09bb</code>). The squash merge makes them one commit on main. It is on branch <code>improve/20261019-1119</code>, from base <code>a854807</code>.</p><p>While the camera rests, a frame now redraws only the part of the screen where something changed: the piece that moved, the marks that came and went. Everything else stays as the last frame left it. In the final A/B of all 16 primary rows against the base, 6 pairs, <b>the opponent's move appears in 163 ms instead of 319 ms (×0.506, called better)</b>. A picked-up piece appears in 127 ms instead of 265 ms (×0.452, better in all 6 pairs, not called). No primary row was called worse. Every frame drawn in part is checked pixel for pixel against the same frame drawn whole, at desktop and phone size.</p>",
   "needs": {
     "intro": "<p>Nothing here blocks the merge. All three items are information the skill asks for; none needs a decision.</p>",
     "items": [
@@ -12,12 +12,15 @@
         "recommend": "No decision needed."
       },
       {
-        "title": "Information: rows more than 3% worse at the median pair, none called",
-        "body": "<p>The skill lists a primary row here when it is worse in every pair or more than 3% worse at its median pair, called or not. In the final A/B (6 pairs, <code>ab-20261019-1119-final.md</code>):</p><ul><li><b>Start page usable, desktop:</b> ×1.273, 4 of 6 pairs worse (0.87 1.37 1.53 1.17 1.51 0.95).</li><li><b>Start page usable, phone:</b> ×1.035, 4 of 6 worse. <b>Phone, returning:</b> ×1.060, 5 of 6 worse (one pair 1.89).</li><li><b>Start page shows the board, desktop:</b> ×1.070, 4 of 6 worse (0.61 to 1.48).</li></ul><p>The start page's own code did not change. The scene's code, which the desktop start page downloads for its live preview, grew by 1.9 KiB (the new <code>damage.ts</code>); the phone shows a picture instead. In step 2 of this run, the same desktop rows leaned ×1.096 and ×1.131 between two commits with no start-page change at all. This lean has shown up in several runs (ledger DL1, FC1). The next general run should measure it with an A/A of identical code.</p>",
-        "recommend": "No decision needed. The next general run re-checks the start page with an A/A.",
+        "title": "Trade-off: the start page downloads 1.9 KiB more, and its rows leaned slower (none called)",
+        "body": "<p>The skill lists a primary row here when it is worse in every pair or more than 3% worse at its median pair, called or not. In the final A/B (6 pairs, <code>ab-20261019-1119-final.md</code>):</p><ul><li><b>Start page usable, desktop:</b> ×1.273, 4 of 6 pairs worse (0.87 1.37 1.53 1.17 1.51 0.95).</li><li><b>Start page usable, phone:</b> ×1.035, 4 of 6 worse. <b>Phone, returning:</b> ×1.060, 5 of 6 worse (one pair 1.89).</li><li><b>Start page shows the board, desktop:</b> ×1.070, 4 of 6 worse (0.61 to 1.48).</li></ul><p>The start page's own code did not change, but the scene's code, which the desktop start page downloads for its live preview, grew by 1.9 KiB in every pair (596.2 → 598.1 KiB, +0.3%: the new <code>damage.ts</code>); the phone shows a picture instead. CLAUDE.md counts start-page bytes, so this is a trade-off against the moves it speeds up, not noise. The change stays in because it is the run's only called win; ledger DR12 keeps <code>damage.ts</code> out of the preview's chunk and wins the bytes back (it needs a cold-load A/B, set for the next speed run). In step 2 of this run, the same desktop rows leaned ×1.096 and ×1.131 between two commits with no start-page change at all. This lean has shown up in several runs (ledger DL1, FC1). The next general run should measure it with an A/A of identical code.</p>",
+        "recommend": "No decision needed. DR12 removes the bytes next speed run; the next general run re-checks the start page with an A/A.",
         "charts": [
           {
-            "rows": { "change": "final: b353b1b vs a854807, --primary, 6 pairs", "only": "^Cold load of the start screen · .*(enabled|board)" },
+            "rows": {
+              "change": "final: b353b1b vs a854807, --primary, 6 pairs",
+              "only": "^Cold load of the start screen · .*(enabled|board)"
+            },
             "caption": "Start page rows, b353b1b against a854807, 6 pairs (ab-20261019-1119-final.md)."
           }
         ]
@@ -37,7 +40,10 @@
         "body": "<p><code>b353b1b</code> (the app as in <code>99b09bb</code>) against <code>a854807</code>, 6 pairs, 50 minutes: ×1.117 over the 16 rows. The opponent's move is called better; no row is called worse. Of 111 diagnostics, 3 are called better (the opponent's picture handed to the GPU 101 → 34 ms, the longest gap between pictures after a move −27%, draw calls in the player's move 75 → 57.5) and 1 worse: the longest time spent preparing one picture after a move, 7.33 → 14.1 ms. That is the cost of comparing every object with the last frame; ledger DR3, DR6 and DR7 aim to cut it. Memory: the heap +1.1% on a reopened 2,000-ply game, geometries and textures flat.</p>",
         "charts": [
           {
-            "rows": { "change": "final: b353b1b vs a854807, --primary, 6 pairs", "only": "PRIMARY" },
+            "rows": {
+              "change": "final: b353b1b vs a854807, --primary, 6 pairs",
+              "only": "PRIMARY"
+            },
             "caption": "b353b1b against a854807, 6 pairs (ab-20261019-1119-final.md).",
             "target": 1.2
           }
@@ -48,7 +54,11 @@
         "body": "<p><code>bb81dc2</code> against <code>a854807</code>, moves and picks only, 10 pairs: the opponent's move 271 → 106 ms (×0.394, called better); the player's move ×0.760 and the pick ×0.438, every pair better, not called.</p>",
         "charts": [
           {
-            "rows": { "change": "0930:5", "variant": "whole (damage + culling) vs a854807, 10 pairs", "only": "PRIMARY" },
+            "rows": {
+              "change": "0930:5",
+              "variant": "whole (damage + culling) vs a854807, 10 pairs",
+              "only": "PRIMARY"
+            },
             "caption": "bb81dc2 against a854807, 10 pairs (ab-20261019-1119-damage-all.md).",
             "target": 1.2
           }
@@ -59,7 +69,10 @@
         "body": "<p><code>a854807</code> against <code>3b587b4</code>, 6 pairs: no primary row and no diagnostic called; ×0.953 over 16 rows. The desktop start page leaned slower (board ×1.131, 4 of 6) on code with no start-page change; cold load alone at 8 pairs gave the same lean, uncalled.</p>",
         "charts": [
           {
-            "rows": { "change": "regression check: a854807 vs 3b587b4 (last run's base)", "only": "PRIMARY" },
+            "rows": {
+              "change": "regression check: a854807 vs 3b587b4 (last run's base)",
+              "only": "PRIMARY"
+            },
             "caption": "a854807 against 3b587b4, 6 pairs (ab-20261019-1119-regress.md).",
             "target": 1.2
           }
@@ -85,11 +98,15 @@
       {
         "title": "Exactness checked at phone size, and shown to fail when broken (99b09bb)",
         "body": "<p><code>e2e/damage.spec.ts</code> plays four moves with full motion and, every display frame, draws the frame in part and then whole and compares every pixel. It now also runs at 390×844 with three device pixels per CSS pixel, and it compares only frames whose garden came from its saved copy, so a frame that retakes the copy cannot fail it by chance. With culling broken on purpose (everything with a known place hidden), 44 of 53 and 50 of 60 frames differ and the test fails; the code as committed passes.</p>"
+      },
+      {
+        "title": "The exactness check's hook is dev only (5b1f70e)",
+        "body": "<p><code>e2e/damage.spec.ts</code> forces a whole frame through <code>scene.userData.wholeFrames</code>. It is now read only in a dev build, so the build drops it (no <code>wholeFrames</code> in <code>dist/assets</code>). The spec counts second draws that stayed scissored and expects none, so on a build it fails instead of comparing a frame with itself: with the hook ignored, 69 frames failed. Not re-measured: the build loses one property read per frame.</p>"
       }
     ]
   },
   "removed": {
-    "intro": "<p>One duplicate removed (<code>d190b8c</code>): the new <code>damage.ts</code> had copied three helpers from <code>backdropCache.tsx</code> (<code>pushAll</code>, <code>pushValue</code>, <code>same</code>), and one copy had already drifted. The garden's signature now uses the tower's helpers. <code>backdropCache.tsx</code> −37 lines, <code>damage.ts</code> +4. The whole run adds about 400 lines of product code (<code>damage.ts</code>, 380) and about 300 of tests.</p>",
+    "intro": "<p>One duplicate removed (<code>d190b8c</code>), part of the same change: the new <code>damage.ts</code> had copied three helpers from <code>backdropCache.tsx</code> (<code>pushAll</code>, <code>pushValue</code>, <code>same</code>), and one copy had already drifted. The garden's signature now uses the tower's helpers. <code>client/src/three/scene</code> −25 lines (<code>backdropCache.tsx</code> +10 −37, <code>damage.ts</code> +17 −15); duplicated functions 3 → 0 (34 lines); decision points −22. The garden's signature now also reads a texture's version and strings; no garden material has either, so its numbers are unchanged today. The e2e hook <code>scene.userData.wholeFrames</code> left the build (<code>5b1f70e</code>: read only in a dev build). The whole run adds about 400 lines of product code (<code>damage.ts</code>, 380) and about 300 of tests.</p>",
     "items": []
   },
   "rejected": {
@@ -106,7 +123,7 @@
     ]
   },
   "choices": {
-    "intro": "<ul><li>The change was built as one rectangle around everything that changed, not several. One rectangle is exact by construction; several are the next step (DR2).</li><li>The two commits were judged as one change, as the ledger planned it. The culling step alone was better in 20 of 20 pairs on the opponent's move over two A/Bs, but never called on its own.</li><li>Exactness is checked by an e2e that compares a frame drawn in part with the same frame drawn whole, not by screenshots against the base: frames of a moving scene cannot be compared pixel for pixel across two runs. The test forces the whole frame through <code>scene.userData.wholeFrames</code>, read in the shipped render path (DR9 proposes a cleaner hook).</li><li>The one diagnostic called worse (longest preparing time after a move, +7 ms at its maximum) is accepted as the change's cost, because the moves it serves are faster. It was not re-measured against the commit before the review fixes: those only make the garden's signature also read a texture's version, and the garden has no textures.</li><li>The start page's desktop lean was not re-measured here; a cold-load A/B takes about 45 minutes and the start page's code did not change.</li><li>The reviewers' other items were checked against the code and logged as DR5–DR11 for later runs; bb81dc2's missing evidence pointer is in the PR description instead of a rewritten commit.</li></ul>",
+    "intro": "<ul><li>The change was built as one rectangle around everything that changed, not several. One rectangle is exact by construction; several are the next step (DR2).</li><li>The commits were judged as one change, as the ledger planned it. The culling step (<code>bb81dc2</code>) has no called share of its own: alone it was better in 20 of 20 pairs on the opponent's move over two A/Bs, but never called; its draw-call cut is called. A strict per-commit reading of the speed rule would drop it.</li><li><code>71974d8</code>'s own figures were measured on the working tree before the commit (the same app without the e2e hook and docs); the final A/B is the figure tied to a commit.</li><li>Exactness is checked by an e2e that compares a frame drawn in part with the same frame drawn whole, not by screenshots against the base: frames of a moving scene cannot be compared pixel for pixel across two runs. The test forces the whole frame through <code>scene.userData.wholeFrames</code>, which only a dev build reads (<code>5b1f70e</code>); on a build the spec fails rather than comparing a frame with itself.</li><li>The one diagnostic called worse (longest preparing time after a move, +7 ms at its maximum) is accepted as the change's cost, because the moves it serves are faster. It was not re-measured against the commit before the review fixes: those only make the garden's signature also read a texture's version, and the garden has no textures.</li><li>The start page's desktop lean was not re-measured here; a cold-load A/B takes about 45 minutes and the start page's code did not change.</li><li>The reviewers' other items were checked against the code and logged as DR5–DR11 for later runs; bb81dc2's missing evidence pointer is in the PR description instead of a rewritten commit.</li><li>Improve stopped at 16:50 with about 42 minutes left, after two ideas in a row did not pay (RT1, CH1). It should have asked for fresh ideas or tried CC2, FM1, QK1 or KP1; they go first in the next speed run.</li><li>Two trade-offs stay in the PR, named as such: the start page's bytes (+1.9 KiB, DR12) and <code>preserveDrawingBuffer</code> on phones (DR8). Parking them would park the run's only called win.</li></ul>",
     "items": []
   },
   "notConfirmed": {
@@ -114,7 +131,7 @@
     "items": []
   },
   "next": {
-    "intro": "<ol><li>Speed run: several rectangles per frame (DR2) for the player's move and the pick; the first frame at rest (DR7); a cheaper per-frame signature (DR3, DR6). Then CC2, FM1, QK1, KP1.</li><li>General run: stronger guards for the partial frames (DR9: a bound on the redrawn share for a pick and a reply), checks for objects the signature cannot see (DR10), the culled list per canvas (DR11), and an A/A of the start page (DL1, FC1, VR3).</li><li>On a real phone: DR8.</li></ol>",
+    "intro": "<ol><li>Speed run: first the ideas this run left untried (CC2, FM1 with QK1, KP1); then several rectangles per frame (DR2) for the player's move and the pick; the start page's bytes back (DR12); the first frame at rest (DR7); a cheaper per-frame signature (DR3, DR6). After two misses in a row, ask for fresh ideas while time remains.</li><li>General run: stronger guards for the partial frames (DR9: a bound on the redrawn share for a pick and a reply), checks for objects the signature cannot see (DR10), the culled list per canvas (DR11), and an A/A of the start page (DL1, FC1, VR3).</li><li>On a real phone: DR8.</li></ol>",
     "items": []
   }
 }
