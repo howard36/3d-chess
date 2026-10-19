@@ -104,11 +104,10 @@ const ENGINE_RATE = 1_000_000;
  * (`knows`), looking as far ahead and seeing as much of what is hard to see
  * on five levels (`sight`) as one would, and choosing more loosely in a
  * fight than in a quiet position; each game in a style of its own. Their
- * strengths, measured by self-play (research/levels/), with Medium at 1500:
- * Easy about 620 Elo below it, Hard about 550 above. Each plays to a depth or
- * on a budget of positions, so the same on any device (but for Medium's
- * longest searches, about one move in 200 on a fast machine, which its time
- * cuts short on a slow one). Besides them, two players the game
+ * strengths, measured by self-play (research/levels/): Medium about halfway
+ * between Easy and Hard, some 600 Elo from each. Each plays to a depth (Easy,
+ * one ply) or on a budget of positions (Medium and Hard, 30,000), so the same
+ * on any device. Besides them, two players the game
  * does not offer: the engine at full stretch (`hardFixed`, the old Hard on a
  * budget of positions) and the expert, the strongest it plays.
  */
@@ -124,14 +123,17 @@ export const LEVELS: Record<Player, Level> = {
     sight: { ease: 0, miss: 1 },
     style: 0.3,
   },
+  // The advanced player's judgement on Hard's budget of positions: it never
+  // searches more than Hard, and loses to it by knowing less and seeing less
   medium: {
     knows: 'advanced',
-    maxDepth: 3,
-    timeMs: 800,
+    maxDepth: 40,
+    timeMs: 1800,
+    nodes: 30_000,
     quiescence: 8,
     margin: 53,
-    temperature: 19,
-    noise: 11,
+    temperature: 29,
+    noise: 5,
     sight: { ease: 0.05, miss: 1 },
     style: 0.25,
   },

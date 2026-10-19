@@ -35,6 +35,7 @@ export const CANDIDATES: Record<string, { base: Player; level: Partial<Level> }>
       knows: 'handset',
       maxDepth: 3,
       timeMs: 800,
+      nodes: undefined,
       quiescence: 8,
       margin: 90,
       temperature: 22,
@@ -42,6 +43,18 @@ export const CANDIDATES: Record<string, { base: Player; level: Partial<Level> }>
       blindness: 0.18,
       sight: undefined,
       style: 0,
+    },
+  },
+  // Medium as its owner tied with it, the player the scale is standardised on
+  // (1500): three plies, on the clock (0.8 s), choosing at temperature 19
+  medium1500: {
+    base: 'medium',
+    level: {
+      maxDepth: 3,
+      timeMs: 800,
+      nodes: undefined,
+      temperature: 19,
+      noise: 11,
     },
   },
   // A beginner: the beginner's numbers, its move and the reply, short captures
@@ -65,6 +78,8 @@ export const CANDIDATES: Record<string, { base: Player; level: Partial<Level> }>
     level: {
       knows: 'advanced',
       maxDepth: 3,
+      timeMs: 800,
+      nodes: undefined,
       quiescence: 8,
       margin: 40,
       temperature: 14,
