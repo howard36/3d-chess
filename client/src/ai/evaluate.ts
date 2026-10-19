@@ -115,16 +115,23 @@ export const mobilityScore = (pos: Position) => {
  * The boards' mobility met in a search, by slot (the hash's low bits) with
  * the high half to check: a board's mobility is the same wherever the search
  * meets it again (the next iteration, a re-search, another move order).
- * forgetMobility() at each search's start empties it, so a search costs the
- * same whatever searched before it on the thread.
+ * forgetMobility() at each search's start empties it (and the first time makes
+ * it), so a search costs the same whatever searched before it on the thread.
  */
 const MOBILITY_MASK = (1 << 16) - 1;
-const mobilityCheck = new Int32Array(MOBILITY_MASK + 1);
-const mobilityValue = new Int32Array(MOBILITY_MASK + 1);
-const mobilityAge = new Int32Array(MOBILITY_MASK + 1);
+// Made at the first search's start, not when the worker loads (until then
+// nothing is kept: a read past the end is never a match, a write is dropped)
+let mobilityCheck = new Int32Array(0);
+let mobilityValue = new Int32Array(0);
+let mobilityAge = new Int32Array(0);
 let age = 1;
 
 export const forgetMobility = () => {
+  if (mobilityAge.length === 0) {
+    mobilityCheck = new Int32Array(MOBILITY_MASK + 1);
+    mobilityValue = new Int32Array(MOBILITY_MASK + 1);
+    mobilityAge = new Int32Array(MOBILITY_MASK + 1);
+  }
   age++;
 };
 

@@ -52,9 +52,8 @@ const BISHOP_END = ROOK_END + BISHOP_VECTORS.length;
 const SLIDER_OF = new Int8Array(DIRS).map((_, d) =>
   d < ROOK_END ? ROOK : d < BISHOP_END ? BISHOP : UNICORN,
 );
-/** RAY[(cell * 26 + d) * 4 + n]: the n-th cell along direction d; RAY_LEN its length. */
-const RAY = new Int8Array(CELLS * DIRS * 4);
-const RAY_LEN = new Uint8Array(CELLS * DIRS);
+/** LINE[king * 125 + cell]: the direction from `king` along which `cell` lies (-1 if none). */
+const LINE = new Int8Array(CELLS * CELLS).fill(-1);
 /** KNIGHT_TO[cell * 24 + i]: the knight's squares, KNIGHT_LEN[cell] of them. */
 const KNIGHT_TO = new Int8Array(CELLS * 24);
 const KNIGHT_LEN = new Uint8Array(CELLS);
@@ -76,12 +75,8 @@ for (let c = 0; c < CELLS; c++) {
   const y = CY[c];
   const z = CZ[c];
   QUEEN_VECTORS.forEach(([dz, dx, dy], d) => {
-    let n = 0;
-    while (n < 4 && inBoard(x + dx * (n + 1), y + dy * (n + 1), z + dz * (n + 1))) {
-      RAY[(c * DIRS + d) * 4 + n] = cellOf(x + dx * (n + 1), y + dy * (n + 1), z + dz * (n + 1));
-      n++;
-    }
-    RAY_LEN[c * DIRS + d] = n;
+    for (let n = 1; n <= 4 && inBoard(x + dx * n, y + dy * n, z + dz * n); n++)
+      LINE[c * CELLS + cellOf(x + dx * n, y + dy * n, z + dz * n)] = d;
   });
   for (const [dx, dy, dz] of KNIGHT_DELTAS) {
     if (inBoard(x + dx, y + dy, z + dz))
@@ -104,15 +99,6 @@ for (let c = 0; c < CELLS; c++) {
       if (inBoard(x - dx, y - dy, z - dz))
         PAWN_FROM[side][c * 5 + PAWN_FROM_LEN[side][c]++] = cellOf(x - dx, y - dy, z - dz);
     }
-  }
-}
-
-/** LINE[king * 125 + cell]: the direction from `king` along which `cell` lies (-1 if none). */
-const LINE = new Int8Array(CELLS * CELLS).fill(-1);
-for (let c = 0; c < CELLS; c++) {
-  for (let d = 0; d < DIRS; d++) {
-    for (let n = 0; n < RAY_LEN[c * DIRS + d]; n++)
-      LINE[c * CELLS + RAY[(c * DIRS + d) * 4 + n]] = d;
   }
 }
 
