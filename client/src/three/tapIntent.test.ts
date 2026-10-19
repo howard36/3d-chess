@@ -1,24 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   aimingLens,
-  askingLens,
   convexHull,
   decideTap,
   distanceToHull,
-  fromLens,
-  inRect,
   LENS_PX,
   LENS_REACH_PX,
-  LENS_SPACING_PX,
   LENS_ZOOM,
-  MAX_CANDIDATES,
+  MOVE_ODDS,
   NOTHING_PX,
   pickInLens,
-  recordTap,
-  spreadOf,
-  TAP_SPREAD_PX,
-  TIE_ODDS,
-  CANDIDATE_ODDS,
   tapTarget,
   toLens,
 } from './tapIntent';
@@ -161,29 +152,35 @@ describe('decideTap', () => {
     });
   });
 
-  it('asks between two moves a tap lies between, the likelier first', () => {
-    const targets = [mark('m', 100, 100), mark('n', 122, 100)];
-    expect(decideTap([109, 100], targets, { holding: true, direct: null })).toEqual({
-      act: 'ask',
-      ids: ['m', 'n'],
+  it('plays a move whose mark the ray hit first, however close its neighbour', () => {
+    const targets = [mark('m', 100, 100), mark('n', 120, 100)];
+    expect(decideTap([109, 100], targets, { holding: true, direct: 'm' })).toEqual({
+      act: 'take',
+      id: 'm',
+    });
+    // Even nearer the other's middle: the ray's hit is what the finger is on
+    expect(decideTap([111, 100], targets, { holding: true, direct: 'm' })).toEqual({
+      act: 'take',
+      id: 'm',
     });
   });
 
-  it('asks even when the ray hit one of two close marks', () => {
-    const targets = [mark('m', 100, 100), mark('n', 120, 100)];
-    const decision = decideTap([108, 100], targets, { holding: true, direct: 'm' });
-    expect(decision).toEqual({ act: 'ask', ids: ['m', 'n'] });
+  it('plays the likelier of two moves a tap lies between, its ray hitting neither', () => {
+    const targets = [mark('m', 100, 100), mark('n', 122, 100)];
+    expect(decideTap([109, 100], targets, { holding: true, direct: null })).toEqual({
+      act: 'take',
+      id: 'm',
+    });
+    expect(decideTap([113, 100], targets, { holding: true, direct: null })).toEqual({
+      act: 'take',
+      id: 'n',
+    });
   });
 
-  it('asks between a move and a piece nearly as likely', () => {
-    const targets = [mark('m', 100, 100), piece('p', 100, 70)];
-    const decision = decideTap([100, 86], targets, { holding: true, direct: null });
-    expect(decision).toEqual({ act: 'ask', ids: ['m', 'p'] });
-  });
-
-  it(`plays the likelier move when the next is less than 1 / ${TIE_ODDS} as likely`, () => {
-    const targets = [mark('m', 100, 100), mark('n', 136, 100), piece('p', 100, 66)];
-    expect(decideTap([104, 103], targets, { holding: true, direct: null })).toEqual({
+  it(`counts a move ${MOVE_ODDS} times a piece while one is held`, () => {
+    const targets = [mark('m', 100, 100, false), piece('p', 100, 70)];
+    // Nearer the pawn, but not by enough
+    expect(decideTap([100, 88], targets, { holding: true, direct: null })).toEqual({
       act: 'take',
       id: 'm',
     });
@@ -227,119 +224,38 @@ describe('decideTap', () => {
       id: 'm',
     });
   });
-
-  it(`asks about ${MAX_CANDIDATES} at most, each at least 1 / ${CANDIDATE_ODDS} as likely as the likeliest`, () => {
-    const targets = Array.from({ length: 8 }, (_, k) =>
-      mark(String(k), 100 + 9 * Math.cos(k), 100 + 9 * Math.sin(k), false),
-    );
-    const decision = decideTap([100, 100], targets, { holding: true, direct: null });
-    expect(decision.act).toBe('ask');
-    if (decision.act === 'ask') expect(decision.ids).toHaveLength(MAX_CANDIDATES);
-  });
-
-  it('asks less of a steadier hand', () => {
-    const targets = [mark('m', 100, 100), mark('n', 130, 100)];
-    const tap: ScreenPoint = [108, 100];
-    expect(decideTap(tap, targets, { holding: true, direct: null, spread: 14 }).act).toBe('ask');
-    expect(decideTap(tap, targets, { holding: true, direct: null, spread: 6 })).toEqual({
-      act: 'take',
-      id: 'm',
-    });
-  });
 });
 
 describe('the magnifier', () => {
   const view = { width: 390, height: 844, top: 100 };
 
-  it('sets the two closest candidates a fingertip apart, within its zoom', () => {
-    const candidates = [mark('m', 200, 400), mark('n', 214, 400)];
-    const lens = askingLens([207, 402], candidates, view);
-    expect(lens.zoom).toBe(LENS_SPACING_PX / 14);
-    const [a, b] = candidates.map((c) => toLens(c.centre, lens));
-    expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeCloseTo(LENS_SPACING_PX);
-    // Apart, the least zoom; on top of each other, the most
-    expect(askingLens([0, 0], [mark('m', 200, 400), mark('n', 230, 400)], view).zoom).toBe(
-      LENS_ZOOM.min,
-    );
-    expect(askingLens([0, 0], [mark('m', 200, 400), mark('n', 201, 400)], view).zoom).toBe(
-      LENS_ZOOM.max,
-    );
-  });
-
-  it('shows the two likeliest whole, zooming out only when they spread', () => {
-    const whole = (c: TapTarget, lens: ReturnType<typeof askingLens>) =>
-      c.hull.every((p) => inRect(toLens(p, lens), lens.frame));
-    // Close together, and a third far off: the two big, the third left out
-    const near = [mark('m', 150, 400), mark('n', 168, 400), mark('o', 280, 400)];
-    const lens = askingLens([160, 400], near, view);
-    expect(lens.zoom).toBeGreaterThanOrEqual(LENS_ZOOM.min);
-    expect(whole(near[0], lens) && whole(near[1], lens)).toBe(true);
-    expect(whole(near[2], lens)).toBe(false);
-    // The two likeliest far apart: zoomed out to show them
-    const spread = [mark('m', 150, 400), mark('o', 260, 400), mark('n', 160, 400)];
-    const out = askingLens([200, 400], spread, view);
-    expect(out.zoom).toBeLessThan(LENS_ZOOM.min);
-    expect(whole(spread[0], out) && whole(spread[1], out)).toBe(true);
-  });
-
   it('stands above the finger, below it when there is no room, and inside the window', () => {
-    const candidates = [mark('m', 200, 400), mark('n', 220, 400)];
-    const above = askingLens([210, 600], candidates, view);
+    const above = aimingLens([210, 600], view);
     expect(above.frame.y + above.frame.height).toBeLessThan(600);
     expect(above.frame.width).toBe(LENS_PX);
-    const below = askingLens([210, 200], candidates, view);
+    const below = aimingLens([210, 200], view);
     expect(below.frame.y).toBeGreaterThan(200);
-    const edge = askingLens([5, 600], candidates, view);
+    const edge = aimingLens([5, 600], view);
     expect(edge.frame.x).toBeGreaterThanOrEqual(0);
-    const narrow = askingLens([100, 600], candidates, { width: 200, height: 400 });
+    const narrow = aimingLens([100, 600], { width: 200, height: 400 });
     expect(narrow.frame.x + narrow.frame.width).toBeLessThanOrEqual(200);
   });
 
-  it('maps between the view and the lens both ways', () => {
+  it('shows the view round the finger, enlarged, the finger at its middle', () => {
     const lens = aimingLens([200, 500], view);
-    expect(lens.zoom).toBe(LENS_ZOOM.aim);
-    // The finger at the middle of the lens
+    expect(lens.zoom).toBe(LENS_ZOOM);
     const [x, y] = toLens([200, 500], lens);
     expect(x).toBeCloseTo(lens.frame.x + lens.frame.width / 2);
     expect(y).toBeCloseTo(lens.frame.y + lens.frame.height / 2);
-    const back = fromLens(toLens([190, 507], lens), lens);
-    expect(back[0]).toBeCloseTo(190);
-    expect(back[1]).toBeCloseTo(507);
+    const [x2] = toLens([210, 500], lens);
+    expect(x2 - x).toBeCloseTo(10 * LENS_ZOOM);
   });
 
-  it('picks the candidate a tap in it is nearest, within its reach', () => {
+  it('picks the target the sight is nearest, within its reach', () => {
     const candidates = [mark('m', 200, 400), mark('n', 214, 400)];
     expect(pickInLens([201, 400], candidates, 4)).toBe('m');
     expect(pickInLens([213, 401], candidates, 4)).toBe('n');
     expect(pickInLens([200, 400 + (LENS_REACH_PX + 4) / 4 + 3.5], candidates, 4)).toBe(null);
     expect(pickInLens([200, 400], [], 4)).toBe(null);
-  });
-});
-
-describe("the player's spread", () => {
-  it('is the default until the player has tapped', () => {
-    expect(spreadOf(null)).toBe(TAP_SPREAD_PX);
-    expect(spreadOf({ n: 0, sumSq: 0 })).toBe(TAP_SPREAD_PX);
-  });
-
-  it('follows their taps, within bounds', () => {
-    let steady = { n: 0, sumSq: 0 };
-    let shaky = { n: 0, sumSq: 0 };
-    for (let k = 0; k < 40; k++) {
-      steady = recordTap(steady, [4, 3]);
-      shaky = recordTap(shaky, [20, 15]);
-    }
-    expect(spreadOf(steady)).toBeLessThan(TAP_SPREAD_PX);
-    expect(spreadOf(steady)).toBeGreaterThanOrEqual(6);
-    expect(spreadOf(shaky)).toBe(14);
-  });
-
-  it('keeps only the latest taps', () => {
-    let record = { n: 0, sumSq: 0 };
-    for (let k = 0; k < 200; k++) record = recordTap(record, [20, 0]);
-    expect(record.n).toBe(60);
-    for (let k = 0; k < 400; k++) record = recordTap(record, [2, 0]);
-    expect(record.n).toBe(60);
-    expect(record.sumSq / record.n).toBeLessThan(10);
   });
 });

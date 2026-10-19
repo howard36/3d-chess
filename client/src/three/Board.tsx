@@ -537,9 +537,9 @@ const Board = (props: BoardProps) => {
   useLayoutEffect(() => {
     latestProbe.current = probe;
   });
-  // --- A finger's taps: each goes to what it was meant for, or, when two
-  // moves are nearly as likely, the magnifier asks which (tapIntent.ts,
-  // useTouchIntent.ts). A mouse click keeps exactly the hit it makes.
+  // --- A finger's taps: each goes at once to what it was meant for
+  // (tapIntent.ts, useTouchIntent.ts). A mouse click keeps exactly the hit it
+  // makes.
   const touch = useTouchIntent(
     grid,
     (o) => cellAt.get(o.position.toArray().join(',')),
@@ -605,7 +605,7 @@ const Board = (props: BoardProps) => {
   return (
     <>
       <HoverProbe probe={latestProbe} onHover={onHover} />
-      <Magnifier state={touch.lens} onTap={touch.lensTap} />
+      <Magnifier state={touch.lens} />
       <group
         ref={grid}
         name="board-grid"

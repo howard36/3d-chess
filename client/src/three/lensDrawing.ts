@@ -13,8 +13,7 @@ import type { LensState } from './useTouchIntent';
 // link them all again, for its colour space). The garden is left out
 // (BackdropCache hides it for the pass, keeping its copy), so the square's
 // ground is plain dark and the board stands out. A small DOM layer over the
-// canvas draws the square's frame and rings the candidates, and, while it
-// asks, takes every tap: one in the square picks, one outside closes it.
+// canvas draws the square's frame, the sight and the target under it.
 
 /** The frame's width (CSS px): the board is drawn inside it. */
 export const LENS_BORDER_PX = 3;
@@ -125,30 +124,22 @@ const SHADE = 'rgba(0,0,0,0.6)';
 
 /**
  * Draws the overlay of `state` in `svg` (sized to the canvas, `width` x
- * `height`): a veil round the square while it asks, the square's frame, and
- * the candidates ringed where the square shows them (while aiming, the one
- * under the finger, and a sight on the finger's point).
+ * `height`): the square's frame, the target under the sight ringed where the
+ * square shows it, and the sight on the finger's point.
  */
 export function drawOverlay(svg: SVGSVGElement, state: LensState, width: number, height: number) {
   svg.replaceChildren();
   svg.setAttribute('width', String(width));
   svg.setAttribute('height', String(height));
-  const { lens, mode } = state;
+  const { lens } = state;
   const { x, y, width: w, height: h } = lens.frame;
   const b = LENS_BORDER_PX;
-  if (mode === 'ask') {
-    add(svg, 'path', {
-      fill: 'rgba(2,3,8,0.4)',
-      'fill-rule': 'evenodd',
-      d: `M0 0H${width}V${height}H0Z M${x} ${y}h${w}v${h}h${-w}Z`,
-    });
-  }
   const clip = add(add(svg, 'defs', {}), 'clipPath', { id: 'lens-clip' });
   add(clip, 'rect', { x: x + b, y: y + b, width: w - 2 * b, height: h - 2 * b });
   const inside = add(svg, 'g', { 'clip-path': 'url(#lens-clip)' });
-  for (const c of state.candidates) {
-    if (mode === 'aim' && c.id !== state.aimed) continue;
-    const points = c.hull
+  const aimed = state.targets.find((t) => t.id === state.aimed);
+  if (aimed) {
+    const points = aimed.hull
       .map((p) => toLens(p, lens))
       .map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`)
       .join(' ');
@@ -156,19 +147,17 @@ export function drawOverlay(svg: SVGSVGElement, state: LensState, width: number,
     add(inside, 'polygon', { ...line, fill: 'none', stroke: SHADE, 'stroke-width': 5 });
     add(inside, 'polygon', {
       ...line,
-      'data-cell': c.id,
+      'data-cell': aimed.id,
       fill: 'rgba(230,238,255,0.08)',
-      stroke: c.id === state.aimed ? AIMED : LIGHT,
+      stroke: AIMED,
       'stroke-width': 2,
     });
   }
-  if (mode === 'aim') {
-    // Where the finger aims: the middle of the square
-    const at = { cx: x + w / 2, cy: y + h / 2 };
-    add(inside, 'circle', { ...at, r: 9, fill: 'none', stroke: SHADE, 'stroke-width': 4 });
-    add(inside, 'circle', { ...at, r: 9, fill: 'none', stroke: LIGHT, 'stroke-width': 1.5 });
-    add(inside, 'circle', { ...at, r: 1.75, fill: LIGHT });
-  }
+  // Where the finger aims: the middle of the square
+  const at = { cx: x + w / 2, cy: y + h / 2 };
+  add(inside, 'circle', { ...at, r: 9, fill: 'none', stroke: SHADE, 'stroke-width': 4 });
+  add(inside, 'circle', { ...at, r: 9, fill: 'none', stroke: LIGHT, 'stroke-width': 1.5 });
+  add(inside, 'circle', { ...at, r: 1.75, fill: LIGHT });
   const frame = { fill: 'none' };
   add(svg, 'rect', {
     ...frame,

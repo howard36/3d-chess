@@ -1,16 +1,14 @@
 // What a finger's tap on the board was meant for. On a phone the board's
 // pieces are about 17 x 28 CSS px and a move's mark about 20 x 7, often 20 px
 // from the next, while a careful finger lands about 10 px (1.5 mm) from where
-// it aimed: no rule for guessing tells close neighbours apart reliably at that
-// scale (e2e/tapIntent.spec.ts measures it). So every tap goes to its likeliest
-// meaning, never to nothing when something is in reach, and only when two
-// moves are nearly as likely (a wrong move is the mistake no tap undoes) does
-// the board show the candidates enlarged (the magnifier, Magnifier.tsx) for
-// the next tap to pick one. A piece is cheap to pick up wrongly (one more tap
-// fixes it), so picking up always takes the best guess.
+// it aimed. A tap acts at once, always: on what its ray hits first (nearest
+// the camera), as a player expects of what is under their finger, or else on
+// the likeliest of everything in reach, never on nothing when something is
+// near. A player who wants a precise pick holds the finger still and slides
+// it: the magnifier follows it (aimingLens; Magnifier.tsx).
 //
 // Pure geometry over screen points in CSS pixels; useTouchIntent.ts measures
-// the scene and asks.
+// the scene.
 
 /** A point on screen, in CSS pixels. */
 export type ScreenPoint = readonly [number, number];
@@ -23,14 +21,11 @@ export interface ScreenRect {
   height: number;
 }
 
-/** How far a finger's tap lands from where it was aimed (CSS px, one axis's standard deviation), until a player's own is known. */
+/** How far a finger's tap lands from where it was aimed (CSS px, one axis's standard deviation). */
 export const TAP_SPREAD_PX = 10;
 
 /** While a piece is held, how much likelier a tap near a move means the move than another piece. */
 export const MOVE_ODDS = 2;
-
-/** How much likelier a tap means what its ray hit than what it only lies near. */
-export const DIRECT_ODDS = 2;
 
 /**
  * How far (CSS px) a tap must land from everything the player can act on to
@@ -38,17 +33,6 @@ export const DIRECT_ODDS = 2;
  * 9 mm. A near miss beside a lone mark is still that mark.
  */
 export const NOTHING_PX = 56;
-
-/**
- * When the likeliest meaning is a move and the next is at least 1 / TIE_ODDS
- * as likely, the magnifier asks between them, and with them anything else at
- * least 1 / CANDIDATE_ODDS as likely.
- */
-export const TIE_ODDS = 3;
-export const CANDIDATE_ODDS = 10;
-
-/** The magnifier shows this many candidates at most. */
-export const MAX_CANDIDATES = 4;
 
 export interface TapTarget<Id = string> {
   id: Id;
@@ -65,8 +49,7 @@ export interface TapTarget<Id = string> {
   centre: ScreenPoint;
 }
 
-export type TapDecision<Id = string> =
-  { act: 'take'; id: Id } | { act: 'ask'; ids: Id[] } | { act: 'none' };
+export type TapDecision<Id = string> = { act: 'take'; id: Id } | { act: 'none' };
 
 const cross = (o: ScreenPoint, a: ScreenPoint, b: ScreenPoint) =>
   (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -167,57 +150,41 @@ export interface TapContext<Id> {
   holding: boolean;
   /** What the tap's ray hit directly among the targets, if anything. */
   direct: Id | null;
-  /** The finger's spread (TAP_SPREAD_PX until the player's own is known). */
-  spread?: number;
 }
 
 /**
  * What a tap at `tap` does, among the targets the player can act on:
- * - a tap whose ray hits a piece takes that piece;
- * - otherwise each target's odds are weighed (oddsOf; what the ray hit
- *   counts DIRECT_ODDS times, a move MOVE_ODDS times while a piece is held),
- *   against a tap meant for nothing (one NOTHING_PX clear of everything);
- * - the likeliest acts, unless it is a move and the next is at least
- *   1 / TIE_ODDS as likely: then everything at least 1 / CANDIDATE_ODDS as
- *   likely (up to MAX_CANDIDATES) is asked about.
+ * - a tap whose ray hits a target first takes it (a piece, a mark, or the
+ *   piece a capture takes), whatever lies near it;
+ * - otherwise each target's odds are weighed (oddsOf; a move counts
+ *   MOVE_ODDS times while a piece is held), and the likeliest is taken,
+ *   unless the tap lies NOTHING_PX clear of everything: then nothing.
  */
 export function decideTap<Id>(
   tap: ScreenPoint,
   targets: readonly TapTarget<Id>[],
-  { holding, direct, spread = TAP_SPREAD_PX }: TapContext<Id>,
+  { holding, direct }: TapContext<Id>,
 ): TapDecision<Id> {
   const hit = direct === null ? undefined : targets.find((t) => t.id === direct);
-  if (hit?.kind === 'piece') return { act: 'take', id: hit.id };
-  const weighed = targets.map((target) => {
-    let odds = oddsOf(tap, target, spread);
-    if (target === hit) odds *= DIRECT_ODDS;
+  if (hit) return { act: 'take', id: hit.id };
+  let best: { target: TapTarget<Id>; odds: number } | null = null;
+  for (const target of targets) {
+    let odds = oddsOf(tap, target, TAP_SPREAD_PX);
     if (holding && target.kind === 'destination') odds *= MOVE_ODDS;
-    return { target, odds };
-  });
+    if (!best || odds > best.odds) best = { target, odds };
+  }
   // (A tap NOTHING_PX from everything was meant for none of it)
-  const nothing = Math.exp(-(NOTHING_PX * NOTHING_PX) / (2 * spread * spread));
-  weighed.sort((a, b) => b.odds - a.odds);
-  const [best] = weighed;
-  if (!best || best.odds < nothing) return { act: 'none' };
-  if (best.target.kind === 'piece') return { act: 'take', id: best.target.id };
-  const next = weighed[1];
-  if (!next || next.odds * TIE_ODDS < best.odds) return { act: 'take', id: best.target.id };
-  const ids = weighed
-    .filter((w) => w.odds * CANDIDATE_ODDS >= best.odds)
-    .slice(0, MAX_CANDIDATES)
-    .map((w) => w.target.id);
-  return { act: 'ask', ids };
+  const nothing = Math.exp(-(NOTHING_PX * NOTHING_PX) / (2 * TAP_SPREAD_PX * TAP_SPREAD_PX));
+  return best && best.odds >= nothing ? { act: 'take', id: best.target.id } : { act: 'none' };
 }
 
 // --- The magnifier --------------------------------------------------------------
 
 /** The lens's side (CSS px), on a window wide enough for it. */
-export const LENS_PX = 264;
-/** How far apart the lens sets its two closest candidates (CSS px): a fingertip. */
-export const LENS_SPACING_PX = 56;
-/** The lens's enlargement, at least and at most. */
-export const LENS_ZOOM = { min: 3, max: 5, aim: 3.5 } as const;
-/** How far a tap in the lens may lie from a candidate (lens px) and still pick it. */
+export const LENS_PX = 216;
+/** The lens's enlargement. */
+export const LENS_ZOOM = 3.5;
+/** How far the sight may lie from a target (lens px) and still pick it. */
 export const LENS_REACH_PX = 40;
 /** The lens keeps this far from the window's edges, and this far clear of the finger. */
 const LENS_MARGIN_PX = 8;
@@ -253,63 +220,16 @@ const frameAt = (finger: ScreenPoint, side: number, view: LensView): ScreenRect 
   return { x, y, width: side, height: side };
 };
 
-const sideFor = (view: LensView) =>
-  Math.max(Math.min(LENS_PX, view.width - 2 * LENS_MARGIN_PX, view.height / 3), 96);
-
-/**
- * The lens for asking which of `candidates` (likeliest first) a tap at
- * `finger` meant: enlarged so the two closest stand LENS_SPACING_PX apart
- * (within LENS_ZOOM), centred on the two likeliest and zooming out only as
- * far as shows those two whole, beside the finger. A less likely candidate
- * may fall outside it: the lens keeps the likely ones big rather than shrink
- * them all to show every one.
- */
-export function askingLens(
-  finger: ScreenPoint,
-  candidates: readonly TapTarget<unknown>[],
-  view: LensView,
-): Lens {
-  const side = sideFor(view);
-  let closest = Infinity;
-  for (let i = 0; i < candidates.length; i++) {
-    for (let j = i + 1; j < candidates.length; j++) {
-      closest = Math.min(closest, dist(candidates[i].centre, candidates[j].centre));
-    }
-  }
-  const wanted = Math.min(Math.max(LENS_SPACING_PX / closest, LENS_ZOOM.min), LENS_ZOOM.max);
-  // The two likeliest whole in the lens, with a fingertip's half round them
-  const likeliest = boundsOf(candidates.slice(0, 2).flatMap((c) => c.hull));
-  const fits = (side - LENS_SPACING_PX) / Math.max(likeliest.width, likeliest.height, 1);
-  const zoom = Math.max(Math.min(wanted, fits), 1.5);
-  const span = side / zoom;
-  const [cx, cy] = [likeliest.x + likeliest.width / 2, likeliest.y + likeliest.height / 2];
-  return {
-    crop: { x: cx - span / 2, y: cy - span / 2, width: span, height: span },
-    frame: frameAt(finger, side, view),
-    zoom,
-  };
-}
-
-/** The lens for aiming by hand: the view round the finger, beside it. */
+/** The lens for aiming by hand: the view round the finger, enlarged, beside it. */
 export function aimingLens(finger: ScreenPoint, view: LensView): Lens {
-  const side = sideFor(view);
-  const span = side / LENS_ZOOM.aim;
+  const side = Math.max(Math.min(LENS_PX, view.width - 2 * LENS_MARGIN_PX, view.height / 3), 96);
+  const span = side / LENS_ZOOM;
   return {
     crop: { x: finger[0] - span / 2, y: finger[1] - span / 2, width: span, height: span },
     frame: frameAt(finger, side, view),
-    zoom: LENS_ZOOM.aim,
+    zoom: LENS_ZOOM,
   };
 }
-
-/** Whether a point lies in a rectangle. */
-export const inRect = ([x, y]: ScreenPoint, r: ScreenRect) =>
-  x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
-
-/** A point in the lens's frame as the point of the view it shows. */
-export const fromLens = ([x, y]: ScreenPoint, lens: Lens): ScreenPoint => [
-  lens.crop.x + (x - lens.frame.x) / lens.zoom,
-  lens.crop.y + (y - lens.frame.y) / lens.zoom,
-];
 
 /** A point of the view as shown in the lens's frame. */
 export const toLens = ([x, y]: ScreenPoint, lens: Lens): ScreenPoint => [
@@ -318,9 +238,9 @@ export const toLens = ([x, y]: ScreenPoint, lens: Lens): ScreenPoint => [
 ];
 
 /**
- * The candidate a point of the view (`at`, as fromLens gives it) picks, seen
- * through a lens of `zoom`: the nearest by its shape, the more central of two
- * close ones, within LENS_REACH_PX of the lens; null when none is in reach.
+ * The target the sight at `at` (a point of the view) picks, seen through a
+ * lens of `zoom`: the nearest by its shape, the more central of two close
+ * ones, within LENS_REACH_PX of the lens; null when none is in reach.
  */
 export function pickInLens<Id>(
   at: ScreenPoint,
@@ -336,33 +256,3 @@ export function pickInLens<Id>(
   }
   return best?.id ?? null;
 }
-
-// --- The player's own spread ----------------------------------------------------
-
-/** What is known of a player's taps: how many, and their squared distances from what they meant. */
-export interface SpreadRecord {
-  n: number;
-  sumSq: number;
-}
-
-/** The spread's bounds, and how many taps the default counts as until a player's own outweigh it. */
-const SPREAD_BOUNDS = { min: 6, max: 14 } as const;
-const PRIOR_TAPS = 8;
-/** Only the latest taps count, so a player's spread follows them (a new phone, a steadier hand). */
-const MAX_TAPS = 60;
-
-/** A record with one more tap, landed `offset` (CSS px) from the middle of what it meant. */
-export const recordTap = (record: SpreadRecord, offset: ScreenPoint): SpreadRecord => {
-  const sq = offset[0] * offset[0] + offset[1] * offset[1];
-  if (record.n < MAX_TAPS) return { n: record.n + 1, sumSq: record.sumSq + sq };
-  // Full: the new tap takes an average one's place
-  return { n: record.n, sumSq: record.sumSq + sq - record.sumSq / record.n };
-};
-
-/** The player's spread from their record: the default until their taps outweigh it, within bounds. */
-export const spreadOf = (record: SpreadRecord | null): number => {
-  if (!record || record.n === 0) return TAP_SPREAD_PX;
-  // A tap's squared distance from its aim averages twice one axis's variance
-  const variance = (PRIOR_TAPS * TAP_SPREAD_PX ** 2 + record.sumSq / 2) / (PRIOR_TAPS + record.n);
-  return Math.min(Math.max(Math.sqrt(variance), SPREAD_BOUNDS.min), SPREAD_BOUNDS.max);
-};

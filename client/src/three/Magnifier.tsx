@@ -1,37 +1,27 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { WebGLRenderer } from 'three';
-import { FINGER_SLOP_PX } from './tap';
 import { drawLens, drawOverlay } from './lensDrawing';
-import type { ScreenPoint } from './tapIntent';
 import type { LensState } from './useTouchIntent';
 
-// The magnifier (tapIntent.ts, drawn by lensDrawing.ts): while there is one,
-// the lens pass follows each frame of the view, and a DOM layer over the
-// canvas draws its frame and, while it asks, takes every tap.
+// The magnifier (tapIntent.ts, drawn by lensDrawing.ts) while a finger aims
+// by hand: the lens pass follows each frame of the view, and a DOM layer
+// over the canvas, which takes no touch, draws its frame and its sight.
 
-/**
- * The magnifier for `state` (useTouchIntent's), drawn while there is one.
- * While it asks, every tap on the canvas comes to `onTap` (canvas CSS px)
- * and nothing under it hears the touch.
- */
+/** The magnifier for `state` (useTouchIntent's), drawn while there is one. */
 export interface MagnifierProps {
   state: LensState | null;
-  /** A tap on the canvas while the magnifier asks (canvas CSS px). */
-  onTap: (at: ScreenPoint) => void;
 }
 
-export function Magnifier({ state, onTap }: MagnifierProps) {
+export function Magnifier({ state }: MagnifierProps) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
   const connected = useThree((s) => s.events.connected) as HTMLElement | null | undefined;
   const shown = useRef<LensState | null>(state);
-  const latestTap = useRef(onTap);
   useLayoutEffect(() => {
     shown.current = state;
-    latestTap.current = onTap;
   });
 
   // The second pass, after each frame of the view while there is a lens
@@ -61,7 +51,7 @@ export function Magnifier({ state, onTap }: MagnifierProps) {
     invalidate();
   }, [state, invalidate]);
 
-  // The overlay: the frame and rings, and while asking, every tap
+  // The overlay: the frame, the sight and the target under it
   const layer = useRef<{ el: HTMLDivElement; svg: SVGSVGElement } | null>(null);
   useEffect(() => {
     const host = connected ?? gl.domElement.parentElement;
@@ -73,40 +63,9 @@ export function Magnifier({ state, onTap }: MagnifierProps) {
       position: 'absolute',
       inset: '0',
       zIndex: '1',
-      touchAction: 'none',
       pointerEvents: 'none',
       display: 'none',
     });
-    let press: { id: number; x: number; y: number } | null = null;
-    const pointAt = (e: { x: number; y: number }): ScreenPoint => {
-      const rect = gl.domElement.getBoundingClientRect();
-      return [e.x - rect.left, e.y - rect.top];
-    };
-    const stop = (e: Event) => e.stopPropagation();
-    const down = (e: PointerEvent) => {
-      e.stopPropagation();
-      if (press === null) press = { id: e.pointerId, x: e.clientX, y: e.clientY };
-    };
-    const up = (e: PointerEvent) => {
-      e.stopPropagation();
-      if (!press || press.id !== e.pointerId) return;
-      const was = press;
-      press = null;
-      const still = Math.hypot(e.clientX - was.x, e.clientY - was.y) <= FINGER_SLOP_PX;
-      // Where the finger touched
-      if (still && e.type === 'pointerup') latestTap.current(pointAt(was));
-    };
-    const click = (e: Event) => {
-      e.stopPropagation();
-      e.preventDefault();
-    };
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-    el.addEventListener('pointermove', stop);
-    el.addEventListener('click', click);
-    el.addEventListener('wheel', stop);
-    el.addEventListener('contextmenu', click);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     Object.assign(svg.style, { position: 'absolute', inset: '0', overflow: 'visible' });
     el.appendChild(svg);
@@ -123,18 +82,12 @@ export function Magnifier({ state, onTap }: MagnifierProps) {
     const { el, svg } = layer.current;
     if (!state) {
       el.style.display = 'none';
-      el.style.pointerEvents = 'none';
       svg.replaceChildren();
-      delete el.dataset.mode;
-      delete el.dataset.candidates;
       delete el.dataset.aimed;
       return;
     }
     const rect = gl.domElement.getBoundingClientRect();
     el.style.display = 'block';
-    el.style.pointerEvents = state.mode === 'ask' ? 'auto' : 'none';
-    el.dataset.mode = state.mode;
-    el.dataset.candidates = state.mode === 'ask' ? state.candidates.map((c) => c.id).join(' ') : '';
     el.dataset.aimed = state.aimed ?? '';
     drawOverlay(svg, state, rect.width, rect.height);
   }, [state, gl]);
