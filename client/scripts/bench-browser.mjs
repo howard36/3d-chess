@@ -2193,11 +2193,17 @@ async function selectSection(browser) {
         const zxy = squares[i % squares.length];
         const at = await squarePixel(page, zxy);
         if (!at) throw new Error(`no pixel reaches ${zxy}`);
-        const [t, warm, warmLink] = await page.evaluate(() => [
-          window.__benchNow(),
-          document.querySelector('canvas')?.dataset.warm === 'done',
-          document.querySelector('canvas')?.dataset.warmLink ?? null,
-        ]);
+        const [t, warm, warmLink, firstWaits] = await page.evaluate(() => {
+          const { dataset } = document.querySelector('canvas') ?? { dataset: {} };
+          return [
+            window.__benchNow(),
+            dataset.warm === 'done',
+            dataset.warmLink ?? null,
+            // How the first frame's two waits on the GPU ended
+            // (rendererSetup.ts linkBeforeFirstFrame), or null where unstamped
+            dataset.firstLink ? [dataset.firstLink, dataset.firstDrawn ?? null] : null,
+          ];
+        });
         await page.mouse.click(at.x, at.y);
         await waitFrameAfter(page, t);
         await quietMain(page);
@@ -2213,6 +2219,7 @@ async function selectSection(browser) {
             // read back at rest; anything else leaves the read-backs to the
             // warm frame), or null before it was asked
             warmLink,
+            firstWaits,
             frame: drawn - t,
             gpu: frame[5] ? frame[5] - t : null,
             render: frame[1],
@@ -2320,6 +2327,17 @@ async function selectSection(browser) {
             .filter((p) => p?.warmLink)
             .map((p) => (p.warmLink === 'idle' ? 0 : 1)),
           'count; 1 when the warm-up’s picture had to wait for the GPU to finish the shaders',
+        ),
+        countStat(
+          'First board picture: the GPU did not answer a wait before or after it',
+          picks
+            .slice(0, 1)
+            .filter((p) => p?.firstWaits)
+            .map((p) => p.firstWaits)
+            .map(([link, drawn]) =>
+              link === 'timeout' || (link !== 'nofence' && drawn === 'none') ? 1 : 0,
+            ),
+          'count; 1 when a wait ran out (GPU_WAIT_MAX, 10 s), which shows as a slow first board picture',
         ),
         stat(
           'Picking up a piece: time spent preparing the picture',
