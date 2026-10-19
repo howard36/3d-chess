@@ -28,7 +28,12 @@ const gpu = vi.hoisted(() => {
   return {
     fences,
     context,
-    gl: { getContext: () => context, render: () => {}, domElement: canvas },
+    gl: {
+      getContext: () => context,
+      render: () => {},
+      getScissorTest: () => false,
+      domElement: canvas,
+    },
   };
 });
 vi.mock('@react-three/fiber', () => ({

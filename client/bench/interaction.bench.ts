@@ -27,8 +27,8 @@ import { CELLS } from '../src/three/layout';
 import { labelAnchors } from '../src/three/scene/labelAnchors';
 import type { AnchorState } from '../src/three/scene/labelAnchors';
 import { layout, PIECE_SCALE } from '../src/three/scene/palette';
-import { resolveTap } from '../src/three/tapAssist';
-import type { ScreenPoint, TapTarget } from '../src/three/tapAssist';
+import { decideTap, tapTarget } from '../src/three/tapIntent';
+import type { ScreenPoint, TapTarget } from '../src/three/tapIntent';
 import type { Vec3 } from '../src/three/types';
 import { busiestPiece, queenStorm, seeded, inRounds } from './fixtures';
 import { emit } from './report';
@@ -129,7 +129,7 @@ const probe = (scene: Scene, raycaster: Raycaster, destinations: ReadonlyMap<str
   );
 };
 
-/** useTapAssist's outline of a mesh: its vertices projected to CSS px. */
+/** measureTapTargets' outline of a mesh: its vertices projected to CSS px. */
 const v = new Vector3();
 const outlineOf = (mesh: Mesh, camera: PerspectiveCamera, width: number, height: number) => {
   const position = mesh.geometry.getAttribute('position');
@@ -142,7 +142,7 @@ const outlineOf = (mesh: Mesh, camera: PerspectiveCamera, width: number, height:
   return out;
 };
 
-/** A tap the direct hit test missed: project every actionable target, pick the nearest. */
+/** A finger's tap: project every actionable target, weigh what the tap meant. */
 const assist = (
   scene: Scene,
   camera: PerspectiveCamera,
@@ -153,24 +153,16 @@ const assist = (
 ) => {
   const targets: TapTarget[] = [];
   for (const key of destinations) {
-    targets.push({
-      id: key,
-      kind: 'destination',
-      outline: outlineOf(scene.boxes.get(key)!, camera, ...size),
-    });
+    targets.push(tapTarget(key, 'destination', outlineOf(scene.boxes.get(key)!, camera, ...size)));
   }
   for (const key of pieces) {
-    targets.push({
-      id: key,
-      kind: 'piece',
-      outline: outlineOf(scene.pieces.get(key)!, camera, ...size),
-    });
+    targets.push(tapTarget(key, 'piece', outlineOf(scene.pieces.get(key)!, camera, ...size)));
   }
-  return resolveTap(tap, targets, destinations.length > 0);
+  return decideTap(tap, targets, { holding: destinations.length > 0, direct: null });
 };
 
 const HOVER = 'I1 · Hover: every pointer move over the board';
-const TAP = 'I2 · Tap assist: a finger tap that missed';
+const TAP = 'I2 · Tap intent: what a finger tap meant';
 const LABELS = 'I3 · Label placement: every frame the camera moves';
 const FIT = 'I4 · Camera fit: every window resize';
 
@@ -186,9 +178,9 @@ emit('interaction', {
       'to `resolveHover` (`three/hover.ts`) to find the cell under the pointer. Rays through a grid ' +
       'of points across a 1280×800 canvas from the opening camera; stand-in 16-segment proxies.',
     [TAP]:
-      'On a touch screen, a tap that hits nothing actionable projects every actionable target’s ' +
-      'outline to the screen and picks the nearest within 22 px (`useTapAssist.ts` + ' +
-      '`tapAssist.ts`: a convex hull and a distance per target). Phone canvas 390×844.',
+      'On a touch screen, every tap projects every actionable target’s outline to the screen ' +
+      'and weighs what the tap meant (`useTouchIntent.ts` + `tapIntent.ts`: a convex hull and ' +
+      'a distance per target). Phone canvas 390×844.',
     [LABELS]:
       '`labelAnchors` (`three/scene/labelAnchors.ts`) runs in `useFrame` on every rendered frame ' +
       'to place the 15 file, rank and level labels with hysteresis. Each iteration is one frame of ' +
@@ -290,28 +282,30 @@ inRounds(({ normal }) => {
       },
       normal,
     );
-    // Degenerate outlines straight into resolveTap: every point on one line, or all the same point
-    const line: TapTarget[] = Array.from({ length: 125 }, (_, k) => ({
-      id: String(k),
-      kind: 'piece',
-      outline: Array.from({ length: 200 }, (_, p): ScreenPoint => [k * 3 + p * 0.01, k * 7]),
-    }));
-    const dots: TapTarget[] = Array.from({ length: 125 }, (_, k) => ({
-      id: String(k),
-      kind: 'piece',
-      outline: Array.from({ length: 200 }, (): ScreenPoint => [k * 3, k * 7]),
-    }));
+    // Degenerate outlines straight into the targets: every point on one line, or all the same point
+    const line = Array.from({ length: 125 }, (_, k) =>
+      Array.from({ length: 200 }, (_, p): ScreenPoint => [k * 3 + p * 0.01, k * 7]),
+    );
+    const dots = Array.from({ length: 125 }, (_, k) =>
+      Array.from({ length: 200 }, (): ScreenPoint => [k * 3, k * 7]),
+    );
+    const decide = (outlines: ScreenPoint[][]) =>
+      decideTap(
+        [100, 200],
+        outlines.map((o, k) => tapTarget(String(k), 'piece', o)),
+        { holding: false, direct: null },
+      );
     bench(
       'degenerate ⚠: 125 targets, 200 collinear points each',
       () => {
-        sink = resolveTap([100, 200], line);
+        sink = decide(line);
       },
       normal,
     );
     bench(
       'degenerate ⚠: 125 targets, 200 coincident points each',
       () => {
-        sink = resolveTap([100, 200], dots);
+        sink = decide(dots);
       },
       normal,
     );

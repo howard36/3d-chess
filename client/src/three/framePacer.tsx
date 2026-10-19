@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { restoreCulled } from './scene/damage';
 
 /**
  * A stepped clock (window.__vclock: the showcase's recordings, orbit.spec)
@@ -57,6 +58,10 @@ export const PaceOnGpu = () => {
       fence.current = null;
     }
     gl.render(scene, camera);
+    // (a frame drawn in part, backdropCache.tsx, leaves no scissor and
+    // nothing hidden behind)
+    if (gl.getScissorTest()) gl.setScissorTest(false);
+    restoreCulled();
     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
     const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
     if (!sync) return;

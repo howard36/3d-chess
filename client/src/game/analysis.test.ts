@@ -42,7 +42,12 @@ describe('a position the game ended in', () => {
       score: 0,
       mate: 0,
     });
-    for (const result of ['stalemate', 'repetition', 'fifty-moves'] as const) {
+    for (const result of [
+      'stalemate',
+      'insufficient-material',
+      'repetition',
+      'fifty-moves',
+    ] as const) {
       expect(endedAnalysis({ result })).toEqual({ best: null, score: 0 });
     }
   });

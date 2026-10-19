@@ -2,6 +2,7 @@ import React from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
+import { FINGER_SLOP_PX } from './tap';
 import { layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
@@ -91,6 +92,7 @@ vi.mock('./scene/selection', () => ({
     return <group userData={{ selectionRing: true }} position={floor} />;
   },
 }));
+// The magnifier draws through the renderer and the page: here, only what Board hands it
 vi.mock('./scene/grid', () => ({
   Grid: (props: GridProps) => {
     drawn.grids.push(props);
@@ -265,7 +267,23 @@ async function mountBoard(props: Partial<BoardProps> = {}) {
   const { camera, gl, scene } = three!;
   const rect = { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0 };
   vi.spyOn(gl.domElement, 'getBoundingClientRect').mockReturnValue(rect as DOMRect);
-  return { renderer, camera, canvas: gl.domElement, scene, width: rect.width, height: rect.height };
+  /** Renders the board again with other props, keeping it mounted. */
+  const rerender = (next: Partial<BoardProps>) =>
+    renderer.update(
+      <>
+        <Grab />
+        <Board board={createTestBoard()} currentTurn="white" {...next} />
+      </>,
+    );
+  return {
+    renderer,
+    camera,
+    canvas: gl.domElement,
+    scene,
+    width: rect.width,
+    height: rect.height,
+    rerender,
+  };
 }
 
 describe('Board', () => {
@@ -1650,14 +1668,14 @@ describe('Board and what it hands the scene', () => {
   });
 });
 
-// Tap assist, end to end through Board's handlers: the board seen through a
-// fixed camera on an 800x600 canvas, and clicks carrying a pointer type and
-// a position, as a browser sends them.
-describe('Board tap assist', () => {
+// A finger's taps, end to end through Board's handlers: the board seen
+// through a fixed camera on an 800x600 canvas, and clicks carrying a pointer
+// type and a position, as a browser sends them.
+describe("Board: a finger's taps", () => {
   const W = 800;
   const H = 600;
   async function tapBoard(props: Partial<BoardProps> = {}) {
-    const { renderer, camera, scene } = await mountBoard(props);
+    const { renderer, camera, scene, canvas, rerender } = await mountBoard(props);
     const cam = camera as PerspectiveCamera;
     cam.fov = 40;
     cam.aspect = W / H;
@@ -1672,6 +1690,10 @@ describe('Board tap assist', () => {
       const p = new Vector3(x, y, z).project(cam);
       return [((p.x + 1) / 2) * W, ((1 - p.y) / 2) * H] as const;
     };
+    const pointer = (type: string, x: number, y: number, pointerType: string) =>
+      canvas.dispatchEvent(
+        Object.assign(new Event(type), { pointerId: 1, pointerType, clientX: x, clientY: y }),
+      );
     const click = (x: number, y: number, pointerType = 'touch', type = 'click') => ({
       type,
       pointerType,
@@ -1681,25 +1703,44 @@ describe('Board tap assist', () => {
     });
     return {
       renderer,
+      rerender,
       pixel,
-      /** A tap whose ray hits an empty square: the grid's own click. */
-      onEmptySquare: (x: number, y: number, pointerType?: string) =>
+      /**
+       * A finger touching at (x, y) and lifting `drift` px to the right, then
+       * the click the browser makes of it (here on nothing on the board), saying
+       * it came from `clickType` (Safari says a mouse).
+       */
+      finger: (x: number, y: number, { drift = 0, clickType = 'touch' } = {}) =>
         act(async () => {
+          pointer('pointerdown', x, y, 'touch');
+          if (drift) pointer('pointermove', x + drift, y, 'touch');
+          pointer('pointerup', x + drift, y, 'touch');
+          grid.props.onPointerMissed(click(x + drift, y, clickType));
+        }),
+      /** A mouse's click at (x, y) whose ray hits an empty square: the grid's own click. */
+      mouseOnEmptySquare: (x: number, y: number) =>
+        act(async () => {
+          pointer('pointerdown', x, y, 'mouse');
+          pointer('pointerup', x, y, 'mouse');
           grid.props.onClick({
             stopPropagation: () => {},
             delta: 0,
-            nativeEvent: click(x, y, pointerType),
+            nativeEvent: click(x, y, 'mouse'),
           });
         }),
-      /** A tap whose ray hits nothing on the board. */
-      onNothing: (x: number, y: number, pointerType?: string, type?: string) =>
+      /** A mouse's click at (x, y) whose ray hits nothing on the board. */
+      mouseOnNothing: (x: number, y: number) =>
         act(async () => {
-          grid.props.onPointerMissed(click(x, y, pointerType, type));
+          pointer('pointerdown', x, y, 'mouse');
+          pointer('pointerup', x, y, 'mouse');
+          grid.props.onPointerMissed(click(x, y, 'mouse'));
         }),
-      /** A tap whose ray hits this piece. */
-      onPiece: (node: ReactThreeTestInstance, x: number, y: number) =>
+      /** A long press's context menu, which r3f reports as a miss. */
+      longPressMenu: (x: number, y: number) =>
         act(async () => {
-          node.props.onClick({ stopPropagation: () => {}, delta: 0, nativeEvent: click(x, y) });
+          pointer('pointerdown', x, y, 'touch');
+          grid.props.onPointerMissed(click(x, y, 'touch', 'contextmenu'));
+          pointer('pointercancel', x, y, 'touch');
         }),
     };
   }
@@ -1781,23 +1822,39 @@ describe('Board tap assist', () => {
   it("gives a finger's tap beside a piece to that piece", async () => {
     const board = await tapBoard();
     const [x, y] = beside(board.pixel);
-    await board.onEmptySquare(x, y);
+    await board.finger(x, y);
+    expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
+  });
+
+  it('reads a tap from the finger, though its click says a mouse made it (Safari)', async () => {
+    const board = await tapBoard();
+    const [x, y] = beside(board.pixel);
+    await board.finger(x, y, { clickType: 'mouse' });
+    expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
+  });
+
+  it(`takes a finger that rolls up to ${FINGER_SLOP_PX} px as a tap, and one that travels further as a turn`, async () => {
+    const board = await tapBoard();
+    const [x, y] = beside(board.pixel);
+    await board.finger(x, y, { drift: FINGER_SLOP_PX + 1 });
+    expect(highlightedCells(board.renderer)).toHaveLength(0);
+    await board.finger(x, y, { drift: FINGER_SLOP_PX - 1 });
     expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
   });
 
   it('leaves a mouse click beside a piece alone', async () => {
     const board = await tapBoard();
     const [x, y] = beside(board.pixel);
-    await board.onEmptySquare(x, y, 'mouse');
+    await board.mouseOnEmptySquare(x, y);
     expect(highlightedCells(board.renderer)).toHaveLength(0);
-    await board.onNothing(x, y, 'mouse');
+    await board.mouseOnNothing(x, y);
     expect(highlightedCells(board.renderer)).toHaveLength(0);
   });
 
-  it("never assists a long press's context menu", async () => {
+  it("never takes a long press's context menu for a tap", async () => {
     const board = await tapBoard();
     const [x, y] = beside(board.pixel);
-    await board.onNothing(x, y, 'touch', 'contextmenu');
+    await board.longPressMenu(x, y);
     expect(highlightedCells(board.renderer)).toHaveLength(0);
   });
 
@@ -1807,7 +1864,7 @@ describe('Board tap assist', () => {
     await press(findPiece(board.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
     const [destination] = highlightedCells(board.renderer);
     const [x, y] = board.pixel(destination.props.position);
-    await board.onNothing(x, y);
+    await board.finger(x, y);
     expect(onMove).toHaveBeenCalledTimes(1);
     expect(onMove.mock.calls[0][0].to).toEqual(fromZXY(destination.props.userData.zxy));
   });
@@ -1815,16 +1872,54 @@ describe('Board tap assist', () => {
   it('puts the piece down when a tap is out of reach of everything', async () => {
     const board = await tapBoard();
     await press(findPiece(board.renderer, PieceType.Pawn, 'white', LEVEL_B_PAWN));
-    await board.onNothing(4, 4);
+    await board.finger(4, 4);
     expect(highlightedCells(board.renderer)).toHaveLength(0);
   });
 
-  it("gives a tap on the opponent's piece to the own piece it was meant for", async () => {
-    const board = await tapBoard();
-    const black = findPiece(board.renderer, PieceType.Pawn, 'black');
-    const [x, y] = beside(board.pixel);
-    await board.onPiece(black, x, y);
-    expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
+  // The rook on Aa1 picked up, and the two of its destinations closest on
+  // screen, with a tap halfway between them
+  async function between(onMove = vi.fn()) {
+    const board = await tapBoard({ board: captureBoard(), onMove });
+    await press(findPiece(board.renderer, PieceType.Rook, 'white'));
+    const marks = highlightedCells(board.renderer).map((cell) => {
+      const [x, y, z] = cell.props.position as [number, number, number];
+      return { zxy: cell.props.userData.zxy as string, at: board.pixel([x, y + FLOOR_Y, z]) };
+    });
+    let pair = [marks[0], marks[1]];
+    const apart = (a: (typeof marks)[0], b: (typeof marks)[0]) =>
+      Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1]);
+    for (const a of marks) {
+      for (const b of marks) if (a !== b && apart(a, b) < apart(pair[0], pair[1])) pair = [a, b];
+    }
+    const mid = [(pair[0].at[0] + pair[1].at[0]) / 2, (pair[0].at[1] + pair[1].at[1]) / 2] as const;
+    return { board, onMove, pair, mid };
+  }
+
+  it('plays at once the nearer of two close destinations a tap lies between', async () => {
+    const { board, onMove, pair, mid } = await between();
+    // A little nearer the second
+    const at = [
+      mid[0] + (pair[1].at[0] - mid[0]) * 0.3,
+      mid[1] + (pair[1].at[1] - mid[1]) * 0.3,
+    ] as const;
+    await board.finger(...at);
+    expect(onMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('plays a mouse click on a mark at once, however close its neighbour', async () => {
+    const { board, onMove, pair } = await between();
+    const cell = highlightedCells(board.renderer).find(
+      (c) => c.props.userData.zxy === pair[0].zxy,
+    )!;
+    const [x, y] = pair[0].at;
+    await act(async () => {
+      cell.props.onClick({
+        stopPropagation: () => {},
+        delta: 0,
+        nativeEvent: { type: 'click', pointerType: 'mouse', button: 0, clientX: x, clientY: y },
+      });
+    });
+    expect(onMove).toHaveBeenCalledTimes(1);
   });
 });
 
