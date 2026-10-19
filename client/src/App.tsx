@@ -12,6 +12,7 @@ import LearnRoute from './screens/learn/LearnRoute';
 import NotFound from './screens/NotFound';
 import { useGameSocket } from './hooks/useGameSocket';
 import type { GameSocket } from './hooks/useGameSocket';
+import { SERVERLESS_PATH } from './lib/earlySocket';
 import React from 'react';
 
 // One GameScreen per game: moving between two game pages (browser history can
@@ -60,8 +61,9 @@ function ComputerGameRoute() {
 }
 
 function App() {
-  const gameSocket = useGameSocket();
   const location = useLocation();
+  // No socket where the server is never used (it opens on the way to /new)
+  const gameSocket = useGameSocket(!SERVERLESS_PATH.test(location.pathname));
   const { reset } = gameSocket;
   const gameId = matchPath('/game/:gameId', location.pathname)?.params.gameId ?? null;
   const previousGameId = React.useRef(gameId);

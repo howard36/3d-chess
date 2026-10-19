@@ -31,7 +31,7 @@ import { useEndCard } from './useEndCard';
 import GameView from './GameView';
 import { selectInvitation } from '../game/invitation';
 import { otherSide, sideName } from '../game/sides';
-import type { Color } from '../types/messages';
+import type { Color, WebSocketMessage } from '../types/messages';
 import { InvitationCard, InviteCard } from './lobby/LobbyCards';
 import { Stone } from './TurnPill';
 import { useLobbyView } from './lobby/lobbyContext';
@@ -96,6 +96,15 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const [pageStart] = React.useState(() => gameSocket.messages.length);
   // The place in the log of the error the user last dismissed
   const [dismissedAt, setDismissedAt] = React.useState(-1);
+  // A request goes once until something comes back: the buttons stay live
+  // until the server's echo, and a second tap within the round trip (a
+  // phone's double tap) would only be refused, its error left standing
+  const askedAt = React.useRef(new Map<WebSocketMessage['type'], number>());
+  const ask = (message: WebSocketMessage) => {
+    if (askedAt.current.get(message.type) === gameSocket.messages.length) return;
+    askedAt.current.set(message.type, gameSocket.messages.length);
+    gameSocket.send(message);
+  };
   // Render mirror of the persisted role; localStorage is the source of truth
   const computerColor = computer?.color ?? null;
   const arrival = useLocation().state as RematchArrival | null;
@@ -571,10 +580,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
         actions={{
           offer: drawOffer,
           disabled: actionsDisabled,
-          onResign: () => gameSocket.send({ type: 'resign' }),
-          onOfferDraw: () => gameSocket.send({ type: 'offer_draw' }),
-          onAnswerDraw: (accept) =>
-            gameSocket.send({ type: accept ? 'accept_draw' : 'decline_draw' }),
+          onResign: () => ask({ type: 'resign' }),
+          onOfferDraw: () => ask({ type: 'offer_draw' }),
+          onAnswerDraw: (accept) => ask({ type: accept ? 'accept_draw' : 'decline_draw' }),
           // Once the player has a move to take back: against the computer at
           // once, against a friend by asking (once a move, like a draw)
           takeBack: computer
@@ -587,10 +595,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
                   !boardDisabled &&
                   takebackRequest.canOffer &&
                   history.moveRecords.some((m) => m.by === color),
-                onTakeBack: () => gameSocket.send({ type: 'request_takeback' }),
+                onTakeBack: () => ask({ type: 'request_takeback' }),
                 request: takebackRequest,
                 onAnswer: (accept) =>
-                  gameSocket.send({ type: accept ? 'accept_takeback' : 'decline_takeback' }),
+                  ask({ type: accept ? 'accept_takeback' : 'decline_takeback' }),
               },
         }}
         rematch={
@@ -610,9 +618,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
                   state: rematch,
                   seat: color,
                   disabled: actionsDisabled,
-                  onOffer: () => gameSocket.send({ type: 'offer_rematch' }),
+                  onOffer: () => ask({ type: 'offer_rematch' }),
                   onAnswer: (accept) =>
-                    gameSocket.send({ type: accept ? 'accept_rematch' : 'decline_rematch' }),
+                    ask({ type: accept ? 'accept_rematch' : 'decline_rematch' }),
                   onJoin: joinRematch,
                 }
         }

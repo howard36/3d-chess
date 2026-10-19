@@ -1,5 +1,6 @@
 import { MATE_HOLD_MS } from '../lib/mate';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocketMessage } from '../types/messages';
 import { Board } from '../engine';
@@ -7,24 +8,8 @@ import { fromZXY } from '../engine/coords';
 import { fakeSocket, gameScreenAt } from './testSupport';
 import { SHORT_GAME } from '../game/shortGame';
 
-// As in App.test.tsx: no WebGL in jsdom, so the three.js layer is stubbed.
-vi.mock('@react-three/fiber', () => ({
-  Canvas: () => <div data-testid="r3f-canvas" />,
-}));
-vi.mock('../three/CameraControls', () => ({ CameraControls: () => null }));
-vi.mock('../three/FitCameraToBoard', () => ({ FitCameraToBoard: () => null }));
-vi.mock('../three/scene/stage', () => ({ Stage: () => null }));
-vi.mock('../three/scene/backdropCache', () => ({
-  BackdropCache: ({ children }: { children?: unknown }) => children ?? null,
-}));
-vi.mock('../three/framePacer', () => ({ PaceOnGpu: () => null }));
-vi.mock('../three/scene/warm', () => ({
-  WarmPrograms: () => null,
-}));
-vi.mock('../three/intro/IntroDirector', () => ({
-  IntroDirector: () => null,
-}));
-vi.mock('../three/Board', () => ({ default: () => null }));
+// No WebGL in jsdom: the board's canvas (GameView's lazy GameCanvas) is stubbed.
+vi.mock('./GameCanvas', () => ({ default: () => <div data-testid="r3f-canvas" /> }));
 // The mated king's topple, which the card follows: fired by hand here
 const topple = vi.hoisted(() => ({ listeners: new Set<() => void>() }));
 vi.mock('../three/toppled', () => ({
@@ -119,6 +104,14 @@ describe('the result card after a mate', () => {
     act(() => {
       fireEvent.keyDown(screen.getByRole('button', { name: 'Rematch' }), { key: 'Escape' });
     });
+    expect(result()).not.toBeInTheDocument();
+  });
+
+  it('closes with Escape after a click on the card itself, off its buttons', async () => {
+    render(screenFor([{ type: 'game_state', color: 'white', started: true, moves: records }]));
+    // A click on its words would leave the focus on the page, out of Escape's reach
+    await userEvent.click(within(result()!).getByRole('heading'));
+    await userEvent.keyboard('{Escape}');
     expect(result()).not.toBeInTheDocument();
   });
 

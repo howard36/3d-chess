@@ -105,6 +105,19 @@ const NO_GRADES: readonly (Grade | null | undefined)[] = [];
 const moveWords = (moves: MoveRecord[], notation: readonly MoveNotation[], i: number) =>
   notation[i] ? notationWords(notation[i]) : formatMove(moves[i]);
 
+/** A move drawn in its pieces' icons and said in words, or in words alone without its notation. */
+const Said = ({ notation, words }: { notation?: MoveNotation | null; words: string }) =>
+  notation ? (
+    <>
+      <span aria-hidden>
+        <MoveText notation={notation} />
+      </span>
+      <span className="sr-only">{words}</span>
+    </>
+  ) : (
+    words
+  );
+
 /** A move's mark after it: the glyph, its grade in words for a screen reader. */
 const Mark = ({ grade }: { grade: Grade }) => (
   <>
@@ -392,6 +405,11 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   const shownGrade = (shown > 0 && analysis?.grades[shown - 1]) || null;
   const best = analysis?.best ?? null;
   const bestNotation = analysis?.bestNotation ?? null;
+  const bestWords = best
+    ? bestNotation
+      ? notationWords(bestNotation)
+      : formatMove(best as MoveRecord)
+    : '';
   const stepButton = (s: ReviewStep, off: boolean) => (
     <button
       type="button"
@@ -422,16 +440,11 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
         onClick={() => setAsked(!open)}
       >
         <span className="sr-only">Move list, at</span> {plyNumber(shown)}
-        {shownNote ? (
+        {shown > 0 && (
           <>
             {' '}
-            <span aria-hidden>
-              <MoveText notation={shownNote} />
-            </span>
-            <span className="sr-only">{shownWords}</span>
+            <Said notation={shownNote} words={shownWords} />
           </>
-        ) : (
-          shown > 0 && ` ${shownWords}`
         )}
         {shownGrade && <Mark grade={shownGrade} />}
       </button>
@@ -477,17 +490,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       {open && best && (
         <p className="hud-best" data-testid="best-move">
           <span className="hud-best-line" aria-hidden />
-          Best{' '}
-          {bestNotation ? (
-            <>
-              <span aria-hidden>
-                <MoveText notation={bestNotation} />
-              </span>
-              <span className="sr-only">{notationWords(bestNotation)}</span>
-            </>
-          ) : (
-            formatMove(best as MoveRecord)
-          )}
+          Best <Said notation={bestNotation} words={bestWords} />
         </p>
       )}
       {!stepsFirst && steps}
@@ -500,9 +503,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
           : shown === 0
             ? 'Starting position.'
             : `Move ${shown} of ${applied}: ${shownWords}${shownGrade ? `, ${shownGrade}` : ''}.${
-                best
-                  ? ` Best ${bestNotation ? notationWords(bestNotation) : formatMove(best as MoveRecord)}.`
-                  : ''
+                best ? ` Best ${bestWords}.` : ''
               }`}
       </div>
       {/* How the review ended, said when it does (the bar and the counts are seen) */}

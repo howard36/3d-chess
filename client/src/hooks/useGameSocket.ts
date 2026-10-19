@@ -95,7 +95,12 @@ export interface GameSocket {
   reset: () => void;
 }
 
-export function useGameSocket(): GameSocket {
+/**
+ * The page's socket to the game server. `connected` false (the computer's
+ * pages and the tutorial, which never use the server) holds no socket: it
+ * opens when the page moves to one that does.
+ */
+export function useGameSocket(connected = true): GameSocket {
   // The socket the page opened before the app loaded, if any (first mount only)
   const [early] = useState<{ socket: EarlySocket; open: boolean; seen: number } | null>(() => {
     const e = takeEarlySocket();
@@ -173,6 +178,7 @@ export function useGameSocket(): GameSocket {
   const adoptRef = useRef(early);
 
   useEffect(() => {
+    if (!connected) return;
     let disposed = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -293,7 +299,7 @@ export function useGameSocket(): GameSocket {
       socketRef.current?.close();
       socketRef.current = null;
     };
-  }, [generation]);
+  }, [generation, connected]);
 
   return {
     send,
