@@ -116,7 +116,7 @@ const termsCounted = (pos: Position) => {
   return [...fresh.terms.subarray(0, TERMS)];
 };
 
-it('keeps the sums evaluate() reads, and finds a move illegal, as a fresh look would', () => {
+it('keeps the sums evaluate() reads, and finds a move illegal or a check, as a fresh look would', () => {
   // Every move the rules allow but for the king's safety, from each position
   // of random games: the sums kept against a count over the pieces, and
   // make()'s verdict against looking for an attack on the king
@@ -124,6 +124,7 @@ it('keeps the sums evaluate() reads, and finds a move illegal, as a fresh look w
   const out = new Int32Array(512);
   let made = 0;
   let illegal = 0;
+  let gaveCheck = 0;
   for (let game = 0; game < 12; game++) {
     const pos = Position.start();
     for (let ply = 0; ply < 160; ply++) {
@@ -131,9 +132,16 @@ it('keeps the sums evaluate() reads, and finds a move illegal, as a fresh look w
       const legal: number[] = [];
       for (let i = 0; i < n; i++) {
         const side = pos.side;
+        const quiet = !moveCaptured(out[i]) && !movePromotion(out[i]);
+        const checks = quiet && pos.givesCheck(out[i]);
         const ok = pos.make(out[i]);
         const k = pos.king[side];
         expect(ok).toBe(k < 0 || !pos.attacked(k, side ^ 1));
+        // givesCheck() sees, before the move, what inCheck() finds after it
+        if (quiet) {
+          expect(checks).toBe(pos.inCheck());
+          if (checks) gaveCheck++;
+        }
         expect(termsKept(pos)).toEqual(termsCounted(pos));
         if (ok) legal.push(out[i]);
         else illegal++;
@@ -148,6 +156,7 @@ it('keeps the sums evaluate() reads, and finds a move illegal, as a fresh look w
     }
   }
   expect(made).toBeGreaterThan(50_000);
+  expect(gaveCheck).toBeGreaterThan(500);
   expect(illegal).toBeGreaterThan(500);
 }, 30_000);
 

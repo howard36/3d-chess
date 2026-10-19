@@ -9,7 +9,7 @@
 // can also hide moves from the search (`hidden`): the moves its player would
 // not notice, the opponent's long lines across levels.
 
-import { LAZY, VALUE, evaluate, mobilityScore } from './evaluate';
+import { LAZY, VALUE, evaluate, forgetMobility, mobilityScore } from './evaluate';
 import { FIFTY_MOVE_PLIES } from '../engine/draws';
 import { KING, PAWN, QUEEN, moveCaptured, movePiece, movePromotion, moveTo } from './position';
 import type { Position } from './position';
@@ -79,17 +79,36 @@ const UPPER = 3;
  */
 const ATTACKER_ORDER = [0, 0, 3, 3, 2, 1, 4, 5];
 
+/**
+ * The tables a search works in, one set a thread: a search clears what it
+ * reads before reading it (ttFlag gates the rest of the table, and the move
+ * lists are written before they are read), and runs start to finish without
+ * yielding, so the searches of one thread can share them.
+ */
+const makeTables = () => ({
+  ttCheck: new Int32Array(TT_SIZE),
+  ttMove: new Int32Array(TT_SIZE),
+  ttScore: new Int16Array(TT_SIZE),
+  ttDepth: new Int8Array(TT_SIZE),
+  ttFlag: new Uint8Array(TT_SIZE),
+  moves: new Int32Array(MAX_PLY * MOVES_PER_PLY),
+  order: new Int32Array(MAX_PLY * MOVES_PER_PLY),
+  killers: new Int32Array(MAX_PLY * 2),
+  history: new Int32Array(16 * 125),
+});
+let shared: ReturnType<typeof makeTables> | null = null;
+
 export class Searcher {
-  private readonly ttCheck = new Int32Array(TT_SIZE);
-  private readonly ttMove = new Int32Array(TT_SIZE);
-  private readonly ttScore = new Int16Array(TT_SIZE);
-  private readonly ttDepth = new Int8Array(TT_SIZE);
-  private readonly ttFlag = new Uint8Array(TT_SIZE);
-  private readonly moves = new Int32Array(MAX_PLY * MOVES_PER_PLY);
-  private readonly order = new Int32Array(MAX_PLY * MOVES_PER_PLY);
-  private readonly killers = new Int32Array(MAX_PLY * 2);
+  private readonly ttCheck: Int32Array;
+  private readonly ttMove: Int32Array;
+  private readonly ttScore: Int16Array;
+  private readonly ttDepth: Int8Array;
+  private readonly ttFlag: Uint8Array;
+  private readonly moves: Int32Array;
+  private readonly order: Int32Array;
+  private readonly killers: Int32Array;
   /** history[piece * 125 + to]: how often a quiet move there has cut off. */
-  private readonly history = new Int32Array(16 * 125);
+  private readonly history: Int32Array;
   private nodes = 0;
   private stopped = false;
   private deadline = 0;
@@ -101,7 +120,18 @@ export class Searcher {
   /** The ply (Position.ply) of the position searched from. */
   private rootPly = 0;
 
-  constructor(private readonly pos: Position) {}
+  constructor(private readonly pos: Position) {
+    const t = (shared ??= makeTables());
+    this.ttCheck = t.ttCheck;
+    this.ttMove = t.ttMove;
+    this.ttScore = t.ttScore;
+    this.ttDepth = t.ttDepth;
+    this.ttFlag = t.ttFlag;
+    this.moves = t.moves;
+    this.order = t.order;
+    this.killers = t.killers;
+    this.history = t.history;
+  }
 
   search(limits: SearchLimits): SearchResult {
     const pos = this.pos;
@@ -117,6 +147,7 @@ export class Searcher {
     this.killers.fill(0);
     this.history.fill(0);
     this.ttFlag.fill(0);
+    forgetMobility();
     const margin = limits.margin;
 
     // The legal root moves, in move-ordering order to begin with
@@ -280,9 +311,14 @@ export class Searcher {
     let seen = 0;
     const startAlpha = alpha;
     const futile = !pv && !inCheck && depth === 1 && staticEval + 220 <= alpha;
+    // Pruned quiet moves are told apart without playing them (see below)
+    const quick = futile && !pos.inCheck(pos.side ^ 1);
     for (let i = base; i < end; i++) {
       const m = this.pickNext(i, end);
       const quiet = !moveCaptured(m) && !movePromotion(m);
+      // As the test after make() below finds it, sooner: once a move has been
+      // searched, a quiet move that gives no check is pruned here, legal or not
+      if (quick && quiet && seen > 0 && !pos.givesCheck(m)) continue;
       if (!pos.make(m)) {
         pos.unmake(m);
         continue;
