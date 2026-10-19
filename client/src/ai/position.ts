@@ -572,9 +572,10 @@ export class Position {
         const step = STEP[d];
         let t = pk + step;
         if (t === pt) return true;
-        // A king reaches one step only; others along an open line (the cell left counts as open)
+        // A king reaches one step only; others along an open line (never
+        // through the cell left: on this line, the piece checked from it already)
         if (type !== KING) {
-          while (t !== pt && (pad[t] === 0 || t === pf)) t += step;
+          while (t !== pt && pad[t] === 0) t += step;
           if (t === pt) return true;
         }
       }
@@ -583,13 +584,13 @@ export class Position {
     const d = LINE[k * CELLS + from];
     if (d < 0) return false;
     const step = STEP[d];
-    const first = pk + step;
-    let t = first;
+    let t = pk + step;
     let q: number;
     while ((q = t === pt ? 1 : t === pf ? 0 : pad[t]) === 0) t += step;
     if (t === pt || !(q & (side === BLACK_SIDE ? BLACK : WHITE_BIT))) return false;
+    // (not a king: one next to the other checks already)
     const p = q & 7;
-    return p === QUEEN || p === SLIDER_OF[d] || (t === first && p === KING);
+    return p === QUEEN || p === SLIDER_OF[d];
   }
 
   /** Whether `side`'s king is attacked. */
