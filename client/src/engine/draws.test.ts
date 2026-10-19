@@ -47,6 +47,33 @@ it('tells positions apart by their pieces and by the side to move', () => {
   expect(positionHash(swapped, 'white')).not.toBe(positionHash(start, 'white'));
 });
 
+it('hashes by all 53 bits, the two halves independent', () => {
+  // A hash is its pieces' keys XORed together, so it can take as many values
+  // as the keys span bits. Were the keys' halves linked by a fixed linear
+  // function (as a generator linear in its bits, such as xorshift, links
+  // them), they would span 32 bits, and two positions would share a hash
+  // once in 2^32 where it should be 2^53.
+  const basis: bigint[] = [];
+  for (const color of ['white', 'black'] as const) {
+    for (const type of Object.values(PieceType)) {
+      for (let z = 0; z < 5; z++)
+        for (let x = 0; x < 5; x++)
+          for (let y = 0; y < 5; y++) {
+            const board = new Board();
+            board.setPiece({ x, y, z }, { type, color });
+            let v = BigInt(positionHash(board, 'white'));
+            // Reduced by the basis so far, highest bit first: what is left is new
+            for (const b of basis) if ((v ^ b) < v) v ^= b;
+            if (v) {
+              basis.push(v);
+              basis.sort((p, q) => (p < q ? 1 : -1));
+            }
+          }
+    }
+  }
+  expect(basis.length).toBe(53);
+});
+
 it('counts a promoted pawn as the piece it became', () => {
   const board = new Board();
   board.setPiece(fromZXY('Aa1'), { type: PieceType.King, color: 'white' });
