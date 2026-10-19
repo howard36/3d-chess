@@ -2040,17 +2040,7 @@ async function computerSection(browser) {
               longest: maxOf([0, ...busy]),
             };
           });
-          // Where the way in goes (from the click): the game's address, the
-          // game's first commit (the lobby's arrival), its canvas, its first frame
-          const since = (t) => (t == null ? null : t - pick);
-          const steps = {
-            navigated: since(s.stage.find((x) => x[0] >= pick && /^\/computer\/./.test(x[1]))?.[0]),
-            arrive: since(s.stage.find((x) => x[0] >= pick && x[2] === 'arrive')?.[0]),
-            canvas: since(s.r3fAt),
-            firstFrame: since(s.renders[0]?.[0]),
-          };
           runs.push({
-            steps,
             wayInFrame: firstFrameEnd(s) - pick,
             wayInUsable: usable - pick,
             workers: s.workers.length,
