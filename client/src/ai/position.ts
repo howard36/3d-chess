@@ -552,6 +552,28 @@ export class Position {
     return this.terms[o + T_MATERIAL] === 0 && this.terms[o + T_MATERIAL + 1] === 0;
   }
 
+  /** In king and pawn against king, the pawn's cell; otherwise -1. */
+  lonePawn(): number {
+    const o = this.ply * TERMS;
+    const t = this.terms;
+    if (t[o + T_PIECES] !== 0 || t[o + T_PIECES + 1] !== 0) return -1;
+    const pawn = this.w.value[PAWN];
+    const white = t[o + T_MATERIAL];
+    const black = t[o + T_MATERIAL + 1];
+    if (!(white === pawn && black === 0) && !(white === 0 && black === pawn)) return -1;
+    const side = white ? WHITE_SIDE : BLACK_SIDE;
+    for (let w = side << 2; w < (side << 2) + 4; w++) {
+      let bits = this.occ[w];
+      while (bits !== 0) {
+        const low = bits & -bits;
+        bits ^= low;
+        const c = ((w & 3) << 5) | (31 - Math.clz32(low));
+        if ((this.board[c] & 7) === PAWN) return c;
+      }
+    }
+    return -1;
+  }
+
   /** The plies played since the last capture or pawn move (a hundred draw). */
   get halfmoves(): number {
     return this.clocks[this.ply];

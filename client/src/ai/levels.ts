@@ -67,6 +67,8 @@ export interface Level {
    * fraction (0.3: by up to 30%), and a liking for one kind of piece.
    */
   style?: number;
+  /** Knows king and pawn against king exactly, as an expert does (kpk.ts). */
+  endgames?: boolean;
 }
 
 /**
@@ -144,6 +146,7 @@ export const LEVELS: Record<Player, Level> = {
     noise: 0,
     sight: { ease: 0.45, miss: 0.5 },
     style: 0.2,
+    endgames: true,
   },
   // The engine on a budget of positions: its moves at a million positions a
   // second, the same strength on any device

@@ -1271,7 +1271,15 @@ always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate; the kings left alone draw at once. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` judges by one of four sets of
+side behind takes a repetition when it is offered. The review, a draw offered to the computer
+and Hard also know one ending exactly (`endgames`, `kpk.ts`): king and pawn against king, which
+the search can't tell won from drawn, since a pawn up looks winning for as long as the stronger
+king can wander without repeating (a review once marked a move a blunder in a drawn one). The
+first time a search meets it with the pawn on a square, it solves that square and every one
+ahead of the pawn, backwards from mate, stalemate and the pawn lost (about 10 ms a square, a
+third of a second for a pawn that hasn't moved; kept for the worker's life, nothing stored
+ahead of time), and scores such a position a draw, or its judgement and 5 pawns more.
+`kpk.test.ts` checks it against the engine's own moves. `evaluate.ts` judges by one of four sets of
 numbers (`numbers.ts`), by what the player knows (`Knowledge`). The hand-set one, which the
 engine at full stretch still judges by (`ENGINE`: a draw offered to the computer,
 `hardFixed`), scores material at its own values (queen 9.8, knight 3.2,
@@ -1362,7 +1370,7 @@ the machine's cores and at most three, one position each at a time, handed out f
 start (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
 in from the first move on and the page's going stops it; each position is a search of its
 own, so the marks are the same however the positions are split: the expert's numbers, as deep
-as it gets and every capture to its end, margin 0, no noise or blind spots, but bounded by 120,000 positions
+as it gets and every capture to its end, king and pawn against king exactly, margin 0, no noise or blind spots, but bounded by 120,000 positions
 searched (`ANALYSIS_NODES`, about a third of a second in the browser) rather than the
 clock, so a game reviewed anywhere gets the same marks (1.5 s is a backstop for a slow
 machine), and looking past a forced move (`deepenForced`; a move needs no choosing, but its

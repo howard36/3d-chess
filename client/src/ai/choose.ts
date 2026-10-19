@@ -283,6 +283,7 @@ export function chooseMove(
     margin,
     quiescence: level.quiescence,
     hidden,
+    endgames: level.endgames,
     now: options.now,
   });
   if (!result.move) return null;
@@ -345,6 +346,7 @@ export function assessPosition(
     maxNodes: options.maxNodes,
     margin: 0,
     quiescence,
+    endgames: true,
     now: options.now,
   }).score;
 }
@@ -391,6 +393,7 @@ export function analysePosition(
     margin: 0,
     quiescence,
     deepenForced: true,
+    endgames: true,
     now: options.now,
   });
   const analysis: PositionAnalysis = {
