@@ -9,12 +9,11 @@ import type { MoveMade, Promotion, WebSocketMessage } from '../types/messages';
  * Seven games the computer played against itself on Hard, chosen from a
  * thousand (research/levels/selfplay.ts, games 0–999) for something happening
  * all the way through: after the opening, never more than 10 plies without a
- * capture, a check or a promotion (once 14, of long moves between the levels),
- * and a mate soon after the game is decided rather than a long chase. Between
- * them: both sides winning, short games and long ones, queens traded early,
- * late and never, no promotion and two, a lead thrown away, and a bishop's
- * mate beside the queens'.
- * Moves as the wire has them (`=Q` on a promotion), White first.
+ * capture, a check or a promotion (once 14, in the bishop's game), and a mate
+ * soon after the game is decided rather than a long chase. Between them: both
+ * sides winning, short games and long ones, queens traded early, late and
+ * never, no promotion and two, a lead thrown away, and a bishop's mate beside
+ * the queens'. Moves as the wire has them (`=Q` on a promotion), White first.
  */
 const GAMES: readonly (readonly string[])[] = [
   // 900: White mates, 89 plies
