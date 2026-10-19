@@ -107,13 +107,23 @@ const GameCanvas = ({
           width: '100%',
           touchAction: 'none',
           WebkitTapHighlightColor: 'transparent',
+          // A finger held still is a slow tap: never the system's callout or a selection
+          WebkitTouchCallout: 'none',
+          userSelect: 'none',
           opacity: `var(${INTRO_SCENE_VAR}, 1)`,
         }}
         camera={{ position: layout.viewDirection, fov: 36 }}
         // A pixel budget rather than r3f's fixed cap: the screen's own
         // ratio up to 2x, a large high-density window a little under it
         dpr={pixelRatio}
-        gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
+        // The canvas keeps its picture: a frame at rest redraws only what
+        // changed (backdropCache.tsx, damage.ts)
+        gl={{
+          antialias: true,
+          preserveDrawingBuffer: true,
+          toneMapping: NeutralToneMapping,
+          toneMappingExposure: 1,
+        }}
         // A chess position is static: render only when something changes.
         // React commits and OrbitControls invalidate on their own; the
         // animations (the move glide, the lift, the scene's effects, the
@@ -133,7 +143,7 @@ const GameCanvas = ({
       >
         <IntroContext.Provider value={clock}>
           {/* The garden, drawn from a copy while the camera is at rest */}
-          <BackdropCache>
+          <BackdropCache partial={introOver && drawn}>
             <Stage orientation={color ?? 'white'} />
           </BackdropCache>
           <Board
