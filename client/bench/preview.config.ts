@@ -47,12 +47,17 @@ export function parseHeaders(text: string): HeaderRule[] {
   return rules;
 }
 
-/** Sends each matching rule's headers, in the file's order (a relative `file` is in the build). */
+/**
+ * Sends each matching rule's headers, in the file's order (a relative `file`
+ * is in the build). A build with no `_headers` (the first recorded run's, the
+ * long view's base) is served with none, as its host served it.
+ */
 export const hostHeaders = (file: string): Plugin => ({
   name: 'host-headers',
   configurePreviewServer(server) {
     const outDir = resolve(server.config.root, server.config.build.outDir);
-    const rules = parseHeaders(readFileSync(resolve(outDir, file), 'utf8'));
+    const path = resolve(outDir, file);
+    const rules = existsSync(path) ? parseHeaders(readFileSync(path, 'utf8')) : [];
     server.middlewares.use((req, res, next) => {
       const path = (req.url ?? '/').split('?')[0];
       for (const rule of rules)

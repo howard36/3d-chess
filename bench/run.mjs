@@ -986,7 +986,8 @@ function abMain() {
       'speeds up or slows down during the comparison, both sides feel it. Each pair gives a ratio, ' +
       'head divided by base. A change is called **better** or **worse** only when every pair moves ' +
       'the same way, by more than 5% and by more than the pairs disagree with each other (the range ' +
-      'of their ratios). Otherwise the change is shown but not called. A value of 0 on one side has ' +
+      'of their ratios; from 10 pairs on, without the lowest and the highest). Otherwise the change ' +
+      'is shown but not called. A value of 0 on one side has ' +
       'no ratio: that row is judged by the pairs’ differences instead, and called when every pair ' +
       'moves the same way. *Base first* and *Head first* are the geometric means of the ratios of ' +
       'the pairs where that side ran first: a gap between them that the overall figure lacks is the ' +

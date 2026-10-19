@@ -96,7 +96,7 @@ export function useComputerGame(
 
   const answered = messages.some((m) => m.type === 'game_state');
 
-  // One computer for the page's life
+  // The page's computer: replaced when a thought is dropped (below), disposed with the page
   const computerRef = useRef<Computer | null>(null);
   useEffect(
     () => () => {
@@ -118,6 +118,7 @@ export function useComputerGame(
     const game = gameRef.current;
     if (!answered || hold || offered || !computerToMove(game)) return;
     let live = true;
+    let settled = false;
     let timer: number | undefined;
     const asked = performance.now();
     computerRef.current ??= (optionsRef.current.computer ?? createComputer)();
@@ -146,6 +147,7 @@ export function useComputerGame(
       }, wait);
     };
     const thought = (move: ComputerMove | null) => {
+      settled = true;
       if (!live || gameRef.current !== game) return;
       // Its search found no move where it is to move: its board and the
       // engine disagree (as below). Say so, and play on
@@ -154,6 +156,7 @@ export function useComputerGame(
       play(move);
     };
     computerRef.current.think(game.moves, game.difficulty).then(thought, (cause) => {
+      settled = true;
       // The game goes on, with a move of no thought at all: say why
       console.error('The computer could not think; it plays its first legal move.', cause);
       play(null);
@@ -161,6 +164,13 @@ export function useComputerGame(
     return () => {
       live = false;
       if (timer !== undefined) window.clearTimeout(timer);
+      // A thought dropped before its answer (an offer, a take-back): its
+      // worker would finish it before the next question (up to Hard's 1.8 s),
+      // so it goes with it, and a fresh computer takes the next
+      if (!settled) {
+        computerRef.current?.dispose();
+        computerRef.current = null;
+      }
     };
   }, [answered, moveCount, started, hold, offered, apply]);
 

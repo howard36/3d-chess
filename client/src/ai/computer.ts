@@ -118,7 +118,9 @@ export function createComputer(): Computer {
         fallBack();
       };
     }
-  } catch {
+  } catch (cause) {
+    // (a page whose policy or bundling refuses the worker)
+    console.warn('The computer’s worker could not start; it thinks on the page instead.', cause);
     worker = null;
   }
 
