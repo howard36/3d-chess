@@ -1,0 +1,191 @@
+{
+  "title": "Perf run 20261019-1841",
+  "eyebrow": "3D chess · perf-iteration · run 20261019-1841 · general run",
+  "heading": "No speed win this run: the partial-frame code from the last run now has tests that fail when it breaks",
+  "meta": "<p>This general run kept 18 commits of tests, fixes and docs, and no speed change. They are on branch <code>improve/20261019-1841</code>, from base <code>30c9407</code>, with <code>origin/main</code> (<code>ff08b93</code>) merged in before the final checks.</p><p>Most of the run went to the code the last run added, which redraws only the changed part of a frame while the camera rests. Its unit tests now fail on 16 one-line breaks that the base's tests let through, and its e2e test now bounds how much of the canvas each frame redraws. Three small fixes ship with it: a failed search now logs its stack on every browser, game addresses tell search engines not to index them, and the hidden-object list now lives with the rest of the partial-frame state.In the final A/B of the branch against main as merged, no primary row was called better or worse (×0.995 over 16 rows).</p>",
+  "needs": {
+    "intro": "<p>Nothing here blocks the merge. All three items are information the skill asks for.</p>",
+    "items": [
+      {
+        "title": "Information: the 1.2× target is not met",
+        "body": "<p>No change this run aimed at a primary row. The orchestrator put the last run's new partial-frame code and its tests first, and the one speed idea tried (skipping the damage walk on frames drawn whole, ledger 1841:PS1) changed no row: 0 of 3 primary rows called, and the rows it aimed at leaned slower. The next speed leads (DR12, CC2, FM1, QK1, KP1, DR2) are still at the top of the ledger for the next speed run.</p>",
+        "recommend": "No decision needed."
+      },
+      {
+        "title": "Information: primary rows that leaned slower in the final A/B, not called",
+        "body": "<p>More than 3% worse at the median pair, none called, in <code>ab-20261019-1841-final.md</code> (6 pairs):</p><ul><li><b>Start page answers its first click, desktop:</b> ×1.186 (0.66 1.00 1.75 1.53 1.09 1.28).</li><li><b>Reopening a long game:</b> ×1.182 (1.42 1.48 1.16 0.51 0.87 1.20).</li><li><b>First board picture, joining a game:</b> ×1.132 (0.97 0.82 1.30 1.13 1.36 1.13).</li><li><b>A shared game's page, first screen:</b> ×1.131 (0.52 1.60 1.35 0.77 1.70 0.91).</li><li><b>A picked-up piece appears:</b> ×1.105 (0.53 1.41 1.12 1.09 1.38 0.92).</li><li><b>Start page shows the board, phone, returning:</b> ×1.033 (1.13 1.02 1.01 1.04 1.07 0.97).</li></ul><p>The run changes no code on the start page, the game page's first screen, joining or reopening; their pairs swing both ways. The pick is the one row the run's code could reach (DR11 moved where hidden objects are shown again). Measured alone, 8 pairs (<code>ab-20261019-1841-final-select.md</code>), it read ×1.042: 4 of 8 pairs worse, 0 of 14 pick diagnostics called. In the same A/B the opponent's move read ×0.757.</p>",
+        "recommend": "No decision needed. The next speed run's A/B against this merge will show a real pick cost if there is one.",
+        "charts": [
+          {
+            "rows": {
+              "change": "final re-check: b39b352 vs ff08b93, the pick alone, 8 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "The pick alone, b39b352 against ff08b93, 8 pairs (ab-20261019-1841-final-select.md)."
+          }
+        ]
+      },
+      {
+        "title": "Information: primary rows that leaned slower in step 2, not called",
+        "body": "<p>The skill lists a primary row here when it is more than 3% worse at its median pair, called or not. In step 2 (<code>30c9407</code> against the last run's base <code>a854807</code>, 6 pairs, <code>ab-20261019-1841-regress.md</code>):</p><ul><li><b>Reopening a long game:</b> ×1.705 (pairs 1.61 1.98 1.80 4.28 1.26 0.92). Measured alone, the same two commits read ×0.716, 7 of 8 pairs better, and #190 alone read ×0.652, 8 of 8 better. The row is slower only inside the full primary profile, which points at the sections run before it (ledger 1016:RG4, VR3), not at the code.</li><li><b>Phone board:</b> ×1.159 and <b>desktop start page usable:</b> ×1.037. Neither commit changed start-page code; #189 added 0.1 KiB. Read as the machine's drift; not re-measured.</li></ul>",
+        "recommend": "No decision needed. VR3's A/A of the primary profile would settle the reopen row.",
+        "charts": [
+          {
+            "rows": {
+              "change": "regression check: 30c9407 vs a854807 (last run's base), --primary, 6 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "30c9407 against a854807, 6 pairs (ab-20261019-1841-regress.md).",
+            "target": 1.2
+          }
+        ]
+      }
+    ]
+  },
+  "scoreboard": {
+    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. The dashed line is the target, 1.2× faster than the base. Each bar is the geometric mean of the pairs, each dot one pair; left of 1 is faster.</p>",
+    "items": [
+      {
+        "title": "Final A/B: the branch against main as merged, all 16 primary rows",
+        "body": "<p><code>b39b352</code> against <code>ff08b93</code>, 6 pairs, 43 minutes (<code>ab-20261019-1841-final.md</code>): ×0.995 over 16 rows, none called. Of 111 diagnostics, 1 was called better (page freezes during a review, in code the run does not touch; about 1.1 calls are expected by chance) and none worse. Memory flat: the heap of a reopened 2,000-ply game −2.0%, geometries and textures unchanged.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final: b39b352 vs ff08b93 (main as merged), --primary, 6 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "b39b352 against ff08b93, 6 pairs (ab-20261019-1841-final.md).",
+            "target": 1.2
+          }
+        ]
+      },
+      {
+        "title": "Step 2: this run's base against the last run's",
+        "body": "<p><code>30c9407</code> against <code>a854807</code>, 6 pairs: ×1.138 over 16 rows. The opponent's move is called better, 341 → 133 ms (×0.420): the last run's partial frames hold on main. A pick (×0.459) and the player's move (×0.720) were better in every pair, not called. No primary row was called worse. One diagnostic was called worse, the longest time preparing a picture after a move, 9.40 → 13.8 ms: that is the damage walk's cost, already called in the last run (ledger DR3). Memory flat (heap +2.3%).</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "regression check: 30c9407 vs a854807 (last run's base), --primary, 6 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "30c9407 against a854807, 6 pairs (ab-20261019-1841-regress.md).",
+            "target": 1.2
+          }
+        ]
+      },
+      {
+        "title": "The long view",
+        "body": "<p>Not re-measured this run. Run 20261018-1719 measured its head 2.41 times as fast as the first recorded run's base over 13 rows (ab-20261018-1719-vs-first-run.md).</p>"
+      }
+    ]
+  },
+  "changed": {
+    "intro": "<p>Each change is its own commit. Every check below was shown to fail on broken code: <code>node bench/loop/tools/mutate.mjs bench/loop/tools/breaks-20261019-1841.json</code> applies each of 16 one-line breaks alone and runs its tests; on the branch all 16 fail, and with <code>--at 30c9407</code> 12 pass the base's tests and 4 are in code that is new on the branch.</p>",
+    "items": [
+      {
+        "title": "The partial-frame tests fail on broken code (6a4e713, 68dd4d3, 487b1a2, 887dee3, 67bcbab)",
+        "body": "<p><code>damage.test.ts</code> now fails when the frame signature leaves out the draw order, a vector's z or a colour; when two screen rects are united with the wrong height; when rects are kept after a frame drawn whole; when a sprite's reach ignores its centre; and when lines are not walked. It also pins the kinds of object three.js draws, read from the installed <code>WebGLRenderer.js</code>. <code>backdropCache.test.tsx</code> now tests a frame drawn in part for the first time: the scissor in CSS pixels at pixel ratios 1, 1.5 and 2.625, culling, and hidden objects shown again, by the copy and, should the copy not be drawn, at the next frame's start. <code>framePacer.test.tsx</code> fails if the pacer leaves the scissor on.</p>"
+      },
+      {
+        "title": "The e2e test bounds how much each partial frame redraws (ddd2eb6)",
+        "body": "<p><code>e2e/damage.spec.ts</code> now records the share of the canvas each of the board's own frames redraws. It expects more than 20 frames, more than 3 in 4 drawn in part, and a median share under 0.25. Locally the median read 0.04 on desktop and 0.06 on a phone, 0.21 at most. With every partial frame's scissor set to the whole canvas, both tests fail.</p>"
+      },
+      {
+        "title": "The hidden-object list moved onto the partial-frame state (54e6bd1, DR11)",
+        "body": "<p>Objects hidden for a frame drawn in part are now shown again by the backdrop copy as three.js draws it, so the frame pacer no longer needs to know about them and <code>framePacer.tsx</code> no longer imports from the scene. Production lines +13 −13. A render by anything other than the pacer can no longer leave the tower hidden. The test's \"nothing left hidden after a frame\" fails on the base's code. <code>e2e/damage.spec.ts</code> (pixel for pixel against whole frames, desktop and phone) passes.</p>"
+      },
+      {
+        "title": "A failed search logs where it failed, on every browser (534e140, 1597cdd, WS1)",
+        "body": "<p>The search's worker now sends the error's stack with its message, so the page's log says where the search failed. Outside Chrome, a stack holds only the frames, so the reply puts the message first there. <code>worker.test.ts</code> fails on the base's reply and on a stack-only reply. The worker now counts toward the computer player's 90% coverage gate.</p>"
+      },
+      {
+        "title": "Game addresses are kept out of search results (65aa639, d0faaf7, XR1)",
+        "body": "<p>A game's address is the only key to its seats. <code>public/_headers</code> now sends <code>X-Robots-Tag: noindex, nofollow</code> on <code>/game/*</code>. Production served no such header (checked with <code>curl -I</code>). <code>preview.config.test.ts</code> reads the file as Cloudflare Pages does and fails on the base. ARCHITECTURE.md names the rule.</p>"
+      },
+      {
+        "title": "Screen-reader rules now run as checks (e9a6a86, b360245, bb30cc8, E11)",
+        "body": "<p>CLAUDE.md says the move box is the first Tab stop and the announcer and hidden move list are never <code>display: none</code>. <code>playMove.spec.ts</code> now presses Tab once (it allowed five) and checks that the announcer, the move list's nav and the list itself are rendered. A button put before the move box fails it, and so does hiding any of the three in <code>index.css</code>.</p>"
+      },
+      {
+        "title": "The computer's bare-kings draw is checked against the rules engine (f873988, 477a38d)",
+        "body": "<p><code>position.test.ts</code> compares the computer's own bare-kings test with the engine's at every position of its random games; <code>search.test.ts</code> reaches the check in the quiet-move search. Deleting that check, or reading one side's material only, fails them. CLAUDE.md now lists this draw among those the search shares with the engine.</p>"
+      }
+    ]
+  },
+  "removed": {
+    "intro": "<p>Production code is the same size: DR11 is +13 −13 lines and the worker fix +3 −1. The worker's coverage exclusion in <code>vitest.config.ts</code> is gone. Tests grew by about 400 lines, all of them checks shown to fail on broken code.</p>",
+    "items": []
+  },
+  "rejected": {
+    "intro": "",
+    "items": [
+      {
+        "title": "Skip the damage walk on frames drawn whole (1841:PS1)",
+        "body": "<p><code>534e140</code> against it, moves and picks, 8 pairs (<code>ab-20261019-1841-plain.md</code>): nothing called, 0 of 3 primary rows and 0 of 33 diagnostics. The opponent's move leaned ×1.110 slower (5 of 8 pairs) and a pick ×1.090 (4 of 8). Reverted; the patch is in <code>patches/20261019-1841-DR6-plain-skip.patch</code>.</p>"
+      },
+      {
+        "title": "One path-pattern helper in the bench's Pages model (GP1)",
+        "body": "<p>The file grew from 122 to 130 lines once Prettier wrapped the shared helper. Reverted.</p>"
+      }
+    ]
+  },
+  "choices": {
+    "intro": "",
+    "items": [
+      {
+        "title": "Final A/B against merged main, not the run's base",
+        "body": "<p>main gained four PRs (#172, #177, #184, #185) during the run. The final A/B compares the branch's final commit with <code>ff08b93</code> (main as merged) so that it measures only this run's diff. Against <code>30c9407</code> it would also measure those four PRs.</p>"
+      },
+      {
+        "title": "Fixed four review findings in step 5 instead of logging them",
+        "body": "<p>The worker's lost message outside Chrome (it was this run's own regression), the untested backstop that shows hidden objects again, the move list's own visibility and the worker's stale coverage exclusion. Each is small and each comes with a check shown to fail on broken code.</p>"
+      },
+      {
+        "title": "Ledger tidy",
+        "body": "<p>Closed 1015:D10 (lens 6: six of the ten screen tests carry a one-line mock, the other four drive the canvas on purpose). Parked T1, T20, HF2 and PT3, passed over by three runs. Merged the review's reopen A/A into VR3 and its null-frame counts into DR13; added DS1, FT1, PO1, XR2 and VB1.</p>"
+      },
+      {
+        "title": "Step 2's slower leans not bisected",
+        "body": "<p>The reopen row was re-measured alone instead (8 pairs, better). The phone board's lean was not re-measured: a cold load costs about 40 minutes at 8 pairs, the last run read the same frame code ×1.007, and #189 adds no start-page code.</p>"
+      }
+    ]
+  },
+  "notConfirmed": {
+    "intro": "",
+    "items": [
+      {
+        "title": "XR1 on the deployed site",
+        "body": "<p>The header is tested against the bench's model of how Pages reads <code>_headers</code>, not against Pages. Before the merge, at 22:40 UTC, <code>curl -I https://3dchess.club/game/ABC123</code> returned <code>x-frame-options: DENY</code> (the <code>/*</code> rule) and no <code>x-robots-tag</code>, which is what the model predicts for the base. Ledger XR2 asks for the same check on production after the deploy.</p>"
+      },
+      {
+        "title": "damage.spec's bound on CI",
+        "body": "<p>The 0.25 median bound was set from local readings (at most 0.21). CI's software renderer may draw a move in fewer, larger frames, and the suite never retries. Ledger DS1: watch the PR's first CI runs.</p>"
+      },
+      {
+        "title": "The first Improve agent's list of breaks",
+        "body": "<p>Its commit said ten breaks; its list was lost in a container restart and the message names eight. The list was rebuilt in step 5 as 16 breaks covering every unit-level check of the run, and rerun on both sides.</p>"
+      }
+    ]
+  },
+  "next": {
+    "intro": "<p>The next run is a speed run. Its leads, at the top of the ledger:</p>",
+    "items": [
+      {
+        "title": "DR12: keep damage.ts out of the start page's preview chunk",
+        "body": "<p>Wins back the 1.9 KiB the desktop start page downloads for code it never runs. Needs a cold-load A/B.</p>"
+      },
+      {
+        "title": "DR2: damage in several rects",
+        "body": "<p>The player's move scatters marks over the tower, so one rect around all of them covers most of it. Measure the union's share per awaited frame first.</p>"
+      },
+      {
+        "title": "DR13: skip a frame with nothing to redraw",
+        "body": "<p>Count null frames per ply and per pick first, with damage.spec's shares.</p>"
+      },
+      {
+        "title": "CC2, FM1, QK1, KP1",
+        "body": "<p>Unchanged from the last speed run's list.</p>"
+      }
+    ]
+  }
+}
