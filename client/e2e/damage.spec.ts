@@ -12,7 +12,9 @@ import { startGame } from './helpers/game';
 // the first draw is the board's own frame drawn in part. Only frames whose
 // garden came from its copy throughout are compared: a frame that retakes
 // the copy draws the garden itself, which may differ from the copy by a step
-// where a garden edge meets a tower edge (backdropCache.tsx).
+// where a garden edge meets a tower edge (backdropCache.tsx). The frames
+// after such a frame are checked on purpose first: the garden changed and
+// changed back, drawn itself, its copy taken, then a frame from the copy.
 
 const check = async (
   browser: Browser,
@@ -20,6 +22,51 @@ const check = async (
 ) => {
   const game = await startGame(browser, { motion: 'full', device });
   const page = game.white;
+  const afterCapture = await page.evaluate(() => {
+    const { gl, scene, camera } = (
+      window as unknown as {
+        __r3fState: {
+          gl: import('three').WebGLRenderer;
+          scene: import('three').Scene;
+          camera: import('three').Camera;
+        };
+      }
+    ).__r3fState;
+    const ctx = gl.getContext() as WebGL2RenderingContext;
+    const size = ctx.drawingBufferWidth * ctx.drawingBufferHeight * 4;
+    const read = () => {
+      const out = new Uint8Array(size);
+      gl.setScissorTest(false);
+      ctx.readPixels(
+        0,
+        0,
+        ctx.drawingBufferWidth,
+        ctx.drawingBufferHeight,
+        ctx.RGBA,
+        ctx.UNSIGNED_BYTE,
+        out,
+      );
+      return out;
+    };
+    const part = scene.getObjectByName('backdrop')!.children[0];
+    part.visible = !part.visible;
+    gl.render(scene, camera);
+    part.visible = !part.visible;
+    gl.render(scene, camera);
+    gl.render(scene, camera);
+    // Two frames from the copy, then the same drawn whole
+    gl.render(scene, camera);
+    gl.render(scene, camera);
+    const inPart = read();
+    scene.userData.wholeFrames = true;
+    gl.render(scene, camera);
+    scene.userData.wholeFrames = false;
+    const whole = read();
+    let n = 0;
+    for (let i = 0; i < size; i++) if (inPart[i] !== whole[i]) n++;
+    return n;
+  });
+  expect(afterCapture).toBe(0);
   await page.evaluate(() => {
     type Check = { frames: number; partial: number; notWhole: number; differ: number[] };
     const w = window as unknown as {
