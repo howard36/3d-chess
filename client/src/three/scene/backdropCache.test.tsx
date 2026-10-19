@@ -15,6 +15,12 @@ import { LAYER } from './layers';
 const fakeRenderer = (size = [640, 480]) => ({
   target: null as object | null,
   copies: 0,
+  scissorTest: false,
+  getPixelRatio: () => 1,
+  setScissor() {},
+  setScissorTest(on: boolean) {
+    this.scissorTest = on;
+  },
   getDrawingBufferSize: (v: Vector2) => v.set(size[0], size[1]),
   getRenderTarget() {
     return this.target;
@@ -38,12 +44,21 @@ const skyMaterial = () =>
   });
 
 /** The cache round one garden mesh, and a frame drawer that runs its hooks as three.js would. */
-const mount = async () => {
+const mount = async ({ partial = false } = {}) => {
   const material = skyMaterial();
   const r = await ReactThreeTestRenderer.create(
-    <BackdropCache>
-      <mesh name="sky" material={material} renderOrder={-1000} />
-    </BackdropCache>,
+    <>
+      <BackdropCache partial={partial}>
+        <mesh name="sky" material={material} renderOrder={-1000} />
+      </BackdropCache>
+      {/* A piece of the tower, for a frame drawn in part to keep */}
+      {partial && (
+        <mesh name="piece">
+          <boxGeometry />
+          <meshBasicMaterial />
+        </mesh>
+      )}
+    </>,
   );
   const scene = r.scene.instance as unknown as Scene;
   const garden = scene.getObjectByName('backdrop')!;
@@ -85,6 +100,25 @@ describe('BackdropCache', () => {
     for (let i = 0; i < 5; i++) expect(frame()).toEqual({ mode: 'cached', garden: false });
     // Taken once, drawn from then on
     expect(gl.copies).toBe(1);
+  });
+
+  it('draws whole the first frame from the copy, in part only the frames after it', async () => {
+    // A frame drawing the garden itself may differ from the copy by a step
+    // where a garden edge meets a tower edge: a frame drawn in part over it
+    // would keep those pixels, where the same frame drawn whole has the copy's
+    const { frame, gl, cam } = await mount({ partial: true });
+    const scissored = () => (frame(), gl.scissorTest);
+    expect(scissored()).toBe(false); // plain
+    expect(scissored()).toBe(false); // capture
+    expect(scissored()).toBe(false); // the first from the copy
+    expect(scissored()).toBe(true);
+    expect(scissored()).toBe(true);
+    cam.position.x += 0.01;
+    cam.updateMatrixWorld();
+    expect(scissored()).toBe(false); // plain
+    expect(scissored()).toBe(false); // capture
+    expect(scissored()).toBe(false);
+    expect(scissored()).toBe(true);
   });
 
   it('draws the garden again whenever the camera, the buffer or the garden changes', async () => {

@@ -727,7 +727,7 @@ outlined in white neon, which sink into the tower's shade as they near it on scr
 nothing competes with the board; overhead are stars and chess constellations for a camera
 that looks up (see The garden). The garden changes only with the view, so while the camera rests it is drawn
 from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
-move or a selection redraws the tower over it, and only the screen rect of what changed (`scene/damage.ts`: each object's signature against the last frame's; the canvas keeps its picture). Files and ranks label the two edges of the bottom platform nearest the
+move or a selection redraws the tower over it, and only the screen rect of what changed (`scene/damage.ts`: each object's signature against the last frame's; the canvas keeps its picture, so the first frame from the copy is drawn whole: one that drew the garden itself can differ from the copy by a step where a garden edge meets a tower edge). Files and ranks label the two edges of the bottom platform nearest the
 camera (the top one's, seen from high above). The five level letters, each in its platform's edge colour, share one corner post
 (`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
 corner, out along the corner's diagonal, a little above its platform. From low and middling
