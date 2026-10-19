@@ -1281,14 +1281,18 @@ the way a person does; its own moves this turn are always all considered.
 | Medium | 3 plies                         | ±18 cp       | 90 cp (temperature 22)  | about 1 in 5         |
 | Hard   | up to 1.8 s, as deep as it gets | —            | 16 cp (temperature 6)   | none                 |
 
-Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
-Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
+Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, 5,610 games fitted
+to one Elo scale with Medium at 0): Easy −900, Hard +1,610 on a machine searching a million
+positions a second (as `hardFixed` plays it everywhere), less on a slower one; each fourfold in
+Hard's positions is worth about 350.
 
 Two players the game does not offer (`LEVELS.hardFixed`, `LEVELS.expert`): Hard on a budget
 of positions instead of the clock (`nodes`: the search keeps the clock's rules with its clock
 counting positions, 1.8 million standing for Hard's 1.8 s at a million positions a second), so
 it plays the same on any device and takes longer on a slower one; and the expert, the same
-search, choice and budget by the expert's numbers.
+search, choice and budget by the expert's numbers. On budgets of 40,000, 80,000 and 160,000
+positions the expert takes a median 37, 67 and 133 ms a move in a Chromium worker and rates
++860, +1,040 and +1,290 on that scale.
 
 **A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the
@@ -1414,6 +1418,7 @@ bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patch
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
 research/piece-values/  How the piece values were measured: test bots (a C port of src/ai) and scripts.
 research/evaluation/  How the expert's numbers were tuned: a C port of src/ai, SPSA and matches (not shipped).
+research/levels/  The players' strength on one Elo scale and their time a move: matches as the game plays them (not shipped).
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).

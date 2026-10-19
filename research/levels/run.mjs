@@ -39,6 +39,7 @@ const se = sd / Math.sqrt(n);
 const elo = (p) => -400 * Math.log10(1 / p - 1);
 const reasons = {};
 for (const r of rows) reasons[r.reason] = (reasons[r.reason] ?? 0) + 1;
+const count = (score) => rows.filter((r) => r.aScore === score).length;
 const per = (who) => {
   let ms = 0;
   let nodes = 0;
@@ -52,5 +53,5 @@ const per = (who) => {
   return `${(ms / moves).toFixed(0)} ms, ${(nodes / moves).toFixed(0)} positions a move`;
 };
 console.error(
-  `${a} vs ${b}: ${(100 * mean).toFixed(1)}% ± ${(100 * se).toFixed(1)}% (${elo(mean).toFixed(0)} Elo) over ${n} games ${JSON.stringify(reasons)}; ${a}: ${per('a')}; ${b}: ${per('b')}`,
+  `${a} vs ${b}: ${(100 * mean).toFixed(1)}% ± ${(100 * se).toFixed(1)}% (${elo(mean).toFixed(0)} Elo) over ${n} games, +${count(1)} =${count(0.5)} -${count(0)} ${JSON.stringify(reasons)}; ${a}: ${per('a')}; ${b}: ${per('b')}`,
 );

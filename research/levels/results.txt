@@ -1,0 +1,32 @@
+# Every match: the first player's score against the second's, as the game plays them (match.ts:
+# chooseMove, A White in even games, played to mate, resignation or a draw), ± one standard
+# error. A player's time is the mean a move in its games, where every worker of the match
+# shared the machine's 4 cores: slower than a search alone (speed.mjs has those). l2's last 28
+# games were played one at a time after the machine restarted (the same seeds: match.mjs's
+# worker g of 1000 plays game g alone).
+## This machine, 4 workers
+l1: easy vs hard:d1: 1.5% ± 0.6% (-727 Elo) over 400 games, +6 =0 -394 {"resigned":375,"mate":25}; easy: 7 ms, 6334 positions a move; hard:d1: 4 ms, 3328 positions a move
+l2: hard:d1 vs medium: 38.5% ± 2.4% (-81 Elo) over 400 games, +144 =20 -236 {"resigned":292,"mate":88,"length":2,"fifty":16,"repetition":2}; hard:d1: 4 ms, 2939 positions a move; medium: 128 ms, 118493 positions a move
+l3: easy vs medium: 0.0% ± 0.0% (-Infinity Elo) over 400 games, +0 =0 -400 {"resigned":352,"mate":48}; easy: 6 ms, 5579 positions a move; medium: 176 ms, 159907 positions a move
+l4b: medium vs hard:d2: 25.0% ± 2.0% (-191 Elo) over 400 games, +81 =38 -281 {"resigned":341,"mate":21,"fifty":34,"repetition":3,"length":1}; medium: 79 ms, 73311 positions a move; hard:d2: 9 ms, 8468 positions a move
+l4: medium vs hardFixed@10000: 14.9% ± 1.7% (-303 Elo) over 400 games, +51 =17 -332 {"fifty":16,"resigned":371,"mate":12,"repetition":1}; medium: 117 ms, 109066 positions a move; hardFixed@10000: 10 ms, 9609 positions a move
+l5: hardFixed@10000 vs hardFixed@40000: 11.9% ± 1.4% (-348 Elo) over 400 games, +29 =37 -334 {"resigned":344,"fifty":36,"mate":19,"repetition":1}; hardFixed@10000: 11 ms, 11293 positions a move; hardFixed@40000: 31 ms, 33047 positions a move
+x5: expert@40000 vs hardFixed@40000: 74.9% ± 2.0% (190 Elo) over 400 games, +272 =55 -73 {"resigned":339,"fifty":52,"mate":6,"repetition":3}; expert@40000: 32 ms, 31420 positions a move; hardFixed@40000: 31 ms, 31739 positions a move
+l6: hardFixed@40000 vs hardFixed@160000: 11.5% ± 1.4% (-354 Elo) over 400 games, +27 =38 -335 {"resigned":356,"fifty":35,"repetition":3,"mate":6}; hardFixed@40000: 31 ms, 32944 positions a move; hardFixed@160000: 113 ms, 122207 positions a move
+x1: expert@40000 vs hardFixed@160000: 37.8% ± 2.2% (-87 Elo) over 400 games, +112 =78 -210 {"resigned":321,"repetition":11,"fifty":65,"length":2,"mate":1}; expert@40000: 31 ms, 31284 positions a move; hardFixed@160000: 114 ms, 121118 positions a move
+## Cloud sessions (claude/eval-run-lv-<tag>), one match each, 4 workers (l9: 3)
+x12: expert@80000 vs hardFixed@160000: 60.4% ± 2.1% (73 Elo) over 400 games, +193 =97 -110 {"resigned":301,"fifty":89,"mate":2,"repetition":8}; expert@80000: 72 ms, 61497 positions a move; hardFixed@160000: 134 ms, 120248 positions a move
+l7a: hardFixed@160000 vs hardFixed@640000: 9.3% ± 1.8% (-397 Elo) over 200 games, +10 =17 -173 {"resigned":183,"fifty":14,"repetition":2,"length":1}; hardFixed@160000: 150 ms, 122397 positions a move; hardFixed@640000: 590 ms, 473869 positions a move
+l7b: hardFixed@160000 vs hardFixed@640000: 9.0% ± 1.7% (-402 Elo) over 200 games, +9 =18 -173 {"resigned":182,"fifty":16,"repetition":1,"length":1}; hardFixed@160000: 180 ms, 122471 positions a move; hardFixed@640000: 706 ms, 471540 positions a move
+x3a: expert@160000 vs hardFixed@640000: 36.8% ± 3.0% (-94 Elo) over 200 games, +54 =39 -107 {"length":4,"resigned":161,"fifty":31,"repetition":4}; expert@160000: 189 ms, 121375 positions a move; hardFixed@640000: 700 ms, 469594 positions a move
+l8a: hardFixed@640000 vs hardFixed: 21.0% ± 3.5% (-230 Elo) over 100 games, +12 =18 -70 {"resigned":82,"repetition":4,"fifty":14}; hardFixed@640000: 555 ms, 471296 positions a move; hardFixed: 1576 ms, 1321309 positions a move
+l8b: hardFixed@640000 vs hardFixed: 17.0% ± 3.2% (-275 Elo) over 100 games, +9 =16 -75 {"resigned":84,"fifty":15,"repetition":1}; hardFixed@640000: 665 ms, 469456 positions a move; hardFixed: 1881 ms, 1308668 positions a move
+l8c: hardFixed@640000 vs hardFixed: 21.0% ± 3.6% (-230 Elo) over 100 games, +14 =14 -72 {"resigned":86,"fifty":12,"repetition":2}; hardFixed@640000: 558 ms, 472435 positions a move; hardFixed: 1582 ms, 1318882 positions a move
+l8d: hardFixed@640000 vs hardFixed: 14.5% ± 3.0% (-308 Elo) over 100 games, +8 =13 -79 {"resigned":87,"fifty":11,"repetition":2}; hardFixed@640000: 686 ms, 472928 positions a move; hardFixed: 1945 ms, 1321134 positions a move
+x4a: expert@160000 vs hardFixed: 13.1% ± 2.7% (-329 Elo) over 134 games, +14 =7 -113 {"resigned":127,"fifty":7}; expert@160000: 193 ms, 123516 positions a move; hardFixed: 2082 ms, 1347703 positions a move
+x4b: expert@160000 vs hardFixed: 16.0% ± 3.0% (-287 Elo) over 134 games, +17 =9 -108 {"resigned":124,"fifty":8,"mate":1,"repetition":1}; expert@160000: 193 ms, 122558 positions a move; hardFixed: 2072 ms, 1342800 positions a move
+x4c: expert@160000 vs hardFixed: 14.6% ± 2.6% (-308 Elo) over 134 games, +11 =17 -106 {"resigned":117,"fifty":14,"repetition":3}; expert@160000: 158 ms, 123460 positions a move; hardFixed: 1714 ms, 1348401 positions a move
+l9a: hardFixed vs hard: 60.6% ± 5.9% (75 Elo) over 52 games, +25 =13 -14 {"resigned":39,"fifty":11,"length":1,"repetition":1}; hardFixed: 1790 ms, 1310990 positions a move; hard: 1296 ms, 996871 positions a move
+l9b: hardFixed vs hard: 69.2% ± 5.2% (141 Elo) over 52 games, +28 =16 -8 {"fifty":14,"resigned":36,"repetition":1,"length":1}; hardFixed: 1858 ms, 1292015 positions a move; hard: 1289 ms, 937393 positions a move
+l9c: hardFixed vs hard: 67.3% ± 5.6% (125 Elo) over 52 games, +29 =12 -11 {"resigned":40,"fifty":9,"repetition":3}; hardFixed: 1525 ms, 1299029 positions a move; hard: 1309 ms, 1150455 positions a move
+l9d: hardFixed vs hard: 68.3% ± 5.8% (133 Elo) over 52 games, +31 =9 -12 {"resigned":43,"fifty":9}; hardFixed: 1988 ms, 1315661 positions a move; hard: 1321 ms, 905567 positions a move
