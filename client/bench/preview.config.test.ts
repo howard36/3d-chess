@@ -17,6 +17,9 @@ test('the bench serves the host’s headers (public/_headers), read as Pages rea
         'X-Content-Type-Options',
       ]),
     );
+  // A game's address, its seats' credential, is kept out of search results; the start page is not
+  expect(names('/game/ABC123')).toContain('X-Robots-Tag');
+  expect(names('/')).not.toContain('X-Robots-Tag');
   // A path's dots are dots, its star anything
   const [rule] = parseHeaders('/a.b/*\n  X-Test: 1\n');
   expect([rule.path.test('/a.b/c/d'), rule.path.test('/axb/c')]).toEqual([true, false]);
