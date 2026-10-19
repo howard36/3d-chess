@@ -12,6 +12,7 @@ import {
 } from 'three';
 import type { Camera, Material, Object3D, Scene, WebGLRenderer } from 'three';
 import { noRaycast } from '../noRaycast';
+import { damage, damageState, forgetDamage } from './damage';
 
 // The garden (Stage: the sky, the ground, the stars, the sculptures and their
 // mist) is most of a frame's fill, and it changes only with the camera, the
@@ -151,12 +152,22 @@ type Mode = 'plain' | 'capture' | 'cached';
 
 /**
  * The garden (`children`: Stage) drawn from a copy while nothing it depends
- * on changes. See the top of this file.
+ * on changes. See the top of this file. `partial` (a canvas that keeps its
+ * picture: preserveDrawingBuffer): a frame drawing the garden from its copy
+ * redraws only what changed in the rest of the scene (damage.ts).
  */
-export const BackdropCache = ({ children }: { children: ReactNode }) => {
+export const BackdropCache = ({
+  children,
+  partial = false,
+}: {
+  children: ReactNode;
+  partial?: boolean;
+}) => {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const garden = useRef<Group>(null);
+  const partialRef = useRef(partial);
+  partialRef.current = partial;
   const parts = useMemo(() => {
     const material = backdropMaterial();
     const copy = new Mesh(screenTriangle(), material);
@@ -186,11 +197,35 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
       next: [] as number[],
       texture: null as FramebufferTexture | null,
       valid: false,
+      damage: damageState(),
     };
+    const skip = new Set<Object3D>();
     const show = (mode: Mode) => {
       if (garden.current) garden.current.visible = mode !== 'cached';
       copy.visible = mode === 'cached';
       take.visible = mode === 'capture';
+    };
+    // Only what changed is drawn when the garden comes from its copy (any
+    // other frame is drawn whole: the capture copies the whole canvas)
+    const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {
+      if (!partialRef.current || !garden.current) {
+        forgetDamage(state.damage);
+        return;
+      }
+      const size = renderer.getDrawingBufferSize(drawingBuffer);
+      skip.clear();
+      skip.add(garden.current).add(copy).add(take);
+      // (e2e's damage.spec.ts draws a frame whole to compare it with one drawn in part)
+      const whole = mode !== 'cached' || scene.userData.wholeFrames === true;
+      const d = damage(state.damage, scene, skip, camera, size.x, size.y, whole);
+      if (d === 'full') {
+        renderer.setScissorTest(false);
+        return;
+      }
+      const r = d ?? { x: 0, y: 0, w: 0, h: 0 };
+      const ratio = renderer.getPixelRatio();
+      renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);
+      renderer.setScissorTest(true);
     };
     take.onAfterRender = (renderer) => {
       const size = renderer.getDrawingBufferSize(drawingBuffer);
@@ -213,18 +248,22 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
         return;
       }
       const next = backdropSignature(renderer, camera, g, state.next);
+      let mode: Mode;
       if (!same(next, state.last)) {
         state.valid = false;
         state.next = state.last;
         state.last = next;
-        show('plain');
-      } else show(state.valid ? 'cached' : 'capture');
+        mode = 'plain';
+      } else mode = state.valid ? 'cached' : 'capture';
+      show(mode);
+      scissor(renderer, camera, mode);
     };
     // A lost context loses the copy
     const canvas = gl.domElement;
     const lost = () => {
       state.valid = false;
       state.last = [];
+      forgetDamage(state.damage);
     };
     canvas.addEventListener('webglcontextlost', lost);
     canvas.addEventListener('webglcontextrestored', lost);

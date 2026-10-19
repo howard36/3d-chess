@@ -57,6 +57,8 @@ export const PaceOnGpu = () => {
       fence.current = null;
     }
     gl.render(scene, camera);
+    // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
+    if (gl.getScissorTest()) gl.setScissorTest(false);
     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
     const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
     if (!sync) return;
