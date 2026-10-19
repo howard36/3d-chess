@@ -107,7 +107,7 @@ const GameCanvas = ({
           width: '100%',
           touchAction: 'none',
           WebkitTapHighlightColor: 'transparent',
-          // A finger held still aims (the magnifier): never the system's callout or a selection
+          // A finger held still is a slow tap: never the system's callout or a selection
           WebkitTouchCallout: 'none',
           userSelect: 'none',
           opacity: `var(${INTRO_SCENE_VAR}, 1)`,
@@ -159,8 +159,6 @@ const GameCanvas = ({
             gameOver={gameOver}
             // The position steps back and on through the move history
             review
-            // The magnifier keeps clear of the pill and the pieces taken under it
-            lensTop={hudTop}
           />
           {/* The only camera control is turning the view about the
             board's centre, which never moves (no pan by mouse, touch or

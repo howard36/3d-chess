@@ -134,8 +134,6 @@ const sceneOf = (page: Page): Promise<Scene> =>
     return { pieces, marks };
   });
 
-const magnifier = (page: Page) => page.getByTestId('magnifier');
-
 /** Picks up the piece on `cell` with a finger and waits for its marks. */
 async function pickUp(page: Page, cdp: CDPSession, cell: string): Promise<Scene> {
   await tap(cdp, (await sceneOf(page)).pieces[cell]);
@@ -203,7 +201,6 @@ test('a tap on a mark beside another plays it at once', async ({ browser }) => {
   expect(meant).toBe(pair[0]);
   await tap(cdp, at);
   await expect.poll(() => sent).toEqual([`Cc4-${pair[0]}`]);
-  await expect(magnifier(page)).toBeHidden();
   await context.close();
 });
 
@@ -216,59 +213,6 @@ test("a finger's near miss picks up the piece it was meant for, in Safari too, r
   const knight = pieces.Cb2;
   await tap(cdp, [knight[0] - 14, knight[1] + 6], 8);
   await expect.poll(async () => Object.keys((await sceneOf(page)).marks).length).toBe(14);
-  await context.close();
-});
-
-test('a finger held still then slid aims by hand, the view still, and lifting acts on what it aims at', async ({
-  browser,
-}, testInfo) => {
-  const { context, page, cdp } = await phoneGame(browser, 'TAPAIM', MIDGAME);
-  // The magnifier links no shader program: it draws with the view's own
-  await page.locator('canvas[data-warm="done"]').waitFor({ state: 'attached', timeout: 120_000 });
-  await page.evaluate(() => {
-    const w = window as unknown as {
-      __r3fState: { get: () => { gl: { getContext: () => WebGL2RenderingContext } } };
-      __links: number;
-    };
-    const ctx = w.__r3fState.get().gl.getContext();
-    const link = ctx.linkProgram.bind(ctx);
-    w.__links = 0;
-    ctx.linkProgram = (program: WebGLProgram) => {
-      w.__links++;
-      link(program);
-    };
-  });
-  const camera = () =>
-    page.evaluate(() => {
-      const { camera } = (
-        window as unknown as {
-          __r3fState: { get: () => { camera: { position: { x: number; y: number; z: number } } } };
-        }
-      ).__r3fState.get();
-      return [camera.position.x, camera.position.y, camera.position.z];
-    });
-  const { pieces } = await sceneOf(page);
-  const knight = pieces.Cb2;
-  const before = await camera();
-  // Down beside the knight and held still: nothing shows yet
-  await touch(cdp, 'touchStart', [knight[0] + 40, knight[1] + 30]);
-  await page.waitForTimeout(600);
-  await expect(magnifier(page)).toBeHidden();
-  // Slid onto the knight (the view does not turn): the magnifier follows the
-  // finger and marks the knight
-  for (let k = 1; k <= 8; k++) {
-    await touch(cdp, 'touchMove', [knight[0] + 40 - 5 * k, knight[1] + 30 - (30 / 8) * k]);
-  }
-  await expect(magnifier(page)).toBeVisible();
-  await expect(magnifier(page)).toHaveAttribute('data-aimed', 'Cb2');
-  await page.screenshot({ path: testInfo.outputPath('magnifier-aim.png') });
-  await touch(cdp, 'touchEnd');
-  await expect(magnifier(page)).toBeHidden();
-  // Lifted: the knight is picked up
-  await expect.poll(async () => Object.keys((await sceneOf(page)).marks).length).toBe(14);
-  expect(await camera()).toEqual(before);
-  await page.waitForTimeout(500);
-  expect(await page.evaluate(() => (window as unknown as { __links: number }).__links)).toBe(0);
   await context.close();
 });
 
@@ -291,9 +235,9 @@ interface Tally {
  * decision, tallied by what the player meant: a move (a piece held), or
  * picking a piece up.
  */
-const sweep = (page: Page, held: string | null, perTarget: number) =>
+const sweep = (page: Page, held: string | null, perTarget: number, meaning = 'move') =>
   page.evaluate(
-    async ({ held, perTarget, spread }) => {
+    async ({ held, perTarget, spread, meaning }) => {
       /* eslint-disable @typescript-eslint/no-explicit-any */
       // The app's own modules, from Vite (a path the type check leaves alone)
       const from = (path: string) => import(/* @vite-ignore */ path);
@@ -347,7 +291,13 @@ const sweep = (page: Page, held: string | null, perTarget: number) =>
         }
         return t.centre;
       };
-      const meant = targets.filter((t: any) => (held ? t.kind === 'destination' : true));
+      const meant = targets.filter((t: any) =>
+        !held
+          ? true
+          : meaning === 'move'
+            ? t.kind === 'destination'
+            : t.kind === 'piece' && t.id !== held,
+      );
       for (const t of meant) {
         const aim = aimOf(t);
         for (let i = 0; i < perTarget; i++) {
@@ -365,7 +315,7 @@ const sweep = (page: Page, held: string | null, perTarget: number) =>
       }
       return tally;
     },
-    { held, perTarget, spread: SPREAD },
+    { held, perTarget, spread: SPREAD, meaning },
   );
 
 const pct = (n: number, of: number) => `${((100 * n) / of).toFixed(1)}%`;
@@ -386,6 +336,10 @@ test("a finger's taps do what they were meant to: a sweep of the board", async (
   await tap(middle.cdp, (await sceneOf(middle.page)).pieces.Cc4);
   await pickUp(middle.page, middle.cdp, 'Cb2');
   rows.push(['middlegame, knight held (14 moves): move', await sweep(middle.page, 'Cb2', 120)]);
+  rows.push([
+    'middlegame, knight held: pick up another piece',
+    await sweep(middle.page, 'Cb2', 120, 'piece'),
+  ]);
 
   const header = '| Meant | Taps | Right | Wrong move | Wrong piece | Nothing |';
   const table = [header, '|---|---|---|---|---|---|']
@@ -402,13 +356,19 @@ test("a finger's taps do what they were meant to: a sweep of the board", async (
   // Floors a change must not fall below, a few points under today's: a
   // wrong move is the mistake no tap undoes, and the queen's 36 moves, packed
   // close on screen, are where a finger's spread costs most
+  const floors: Record<string, { right: number; wrongMove: number }> = {
+    'opening, nothing held: pick up': { right: 0.75, wrongMove: 0 },
+    'middlegame, nothing held: pick up': { right: 0.75, wrongMove: 0 },
+    'opening, knight held: move': { right: 0.76, wrongMove: 0.07 },
+    'middlegame, queen held (36 moves): move': { right: 0.58, wrongMove: 0.35 },
+    'middlegame, knight held (14 moves): move': { right: 0.8, wrongMove: 0.08 },
+    'middlegame, knight held: pick up another piece': { right: 0.68, wrongMove: 0.1 },
+  };
   for (const [name, t] of rows) {
-    const crowded = name.includes('queen');
-    const moves = name.endsWith('move');
-    if (moves) {
-      expect(t.wrongMove / t.taps, `${name}: wrong moves`).toBeLessThan(crowded ? 0.35 : 0.09);
-    }
-    expect(t.right / t.taps, `${name}: right`).toBeGreaterThan(crowded ? 0.58 : 0.75);
+    expect(t.right / t.taps, `${name}: right`).toBeGreaterThan(floors[name].right);
+    expect(t.wrongMove / t.taps, `${name}: wrong moves`).toBeLessThanOrEqual(
+      floors[name].wrongMove,
+    );
     expect(t.nothing / t.taps, `${name}: nothing`).toBeLessThan(0.02);
   }
   await opening.context.close();

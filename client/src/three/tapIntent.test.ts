@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aimingLens,
   convexHull,
   decideTap,
   distanceToHull,
-  LENS_PX,
-  LENS_REACH_PX,
-  LENS_ZOOM,
   MOVE_ODDS,
   NOTHING_PX,
-  pickInLens,
   tapTarget,
-  toLens,
 } from './tapIntent';
 import type { ScreenPoint, TapTarget } from './tapIntent';
 
@@ -26,9 +20,9 @@ const box = (x: number, y: number, w: number, h = w): ScreenPoint[] => [
 /** A piece about as a phone shows one: 17 x 28 px. */
 const piece = (id: string, x: number, y: number, w = 17, h = 28): TapTarget =>
   tapTarget(id, 'piece', box(x, y, w, h));
-/** A move's mark about as a phone shows one (20 x 7 px), with the held piece standing on it above. */
-const mark = (id: string, x: number, y: number, standing = true): TapTarget =>
-  tapTarget(id, 'destination', box(x, y, 20, 7), standing ? box(x, y - 12, 17, 28) : []);
+/** A move's mark about as a phone shows one: 20 x 7 px. */
+const mark = (id: string, x: number, y: number): TapTarget =>
+  tapTarget(id, 'destination', box(x, y, 20, 7));
 
 describe('convexHull', () => {
   it('keeps the outer points of a cloud, dropping the ones inside and on its edges', () => {
@@ -107,15 +101,10 @@ describe('distanceToHull', () => {
 });
 
 describe('tapTarget', () => {
-  it('takes its hull and middle from the hit shape, and its reach from the piece standing there too', () => {
+  it('takes its hull and middle from the hit shape', () => {
     const t = mark('Ba3', 100, 100);
     expect(t.hull).toHaveLength(4);
     expect(t.centre).toEqual([100, 100]);
-    expect(distanceToHull([100, 80], t.hull)).toBeGreaterThan(0);
-    expect(distanceToHull([100, 80], t.reach)).toBe(0);
-    // Without one, its reach is its hull
-    const bare = mark('Ba3', 0, 0, false);
-    expect(bare.reach).toBe(bare.hull);
   });
 });
 
@@ -178,7 +167,7 @@ describe('decideTap', () => {
   });
 
   it(`counts a move ${MOVE_ODDS} times a piece while one is held`, () => {
-    const targets = [mark('m', 100, 100, false), piece('p', 100, 70)];
+    const targets = [mark('m', 100, 100), piece('p', 100, 70)];
     // Nearer the pawn, but not by enough
     expect(decideTap([100, 88], targets, { holding: true, direct: null })).toEqual({
       act: 'take',
@@ -215,47 +204,5 @@ describe('decideTap', () => {
         id: 'm',
       });
     }
-  });
-
-  it('counts a tap above a mark, where the piece would stand, as near the mark', () => {
-    const targets = [mark('m', 100, 100), mark('n', 160, 100)];
-    expect(decideTap([100, 86], targets, { holding: true, direct: null })).toEqual({
-      act: 'take',
-      id: 'm',
-    });
-  });
-});
-
-describe('the magnifier', () => {
-  const view = { width: 390, height: 844, top: 100 };
-
-  it('stands above the finger, below it when there is no room, and inside the window', () => {
-    const above = aimingLens([210, 600], view);
-    expect(above.frame.y + above.frame.height).toBeLessThan(600);
-    expect(above.frame.width).toBe(LENS_PX);
-    const below = aimingLens([210, 200], view);
-    expect(below.frame.y).toBeGreaterThan(200);
-    const edge = aimingLens([5, 600], view);
-    expect(edge.frame.x).toBeGreaterThanOrEqual(0);
-    const narrow = aimingLens([100, 600], { width: 200, height: 400 });
-    expect(narrow.frame.x + narrow.frame.width).toBeLessThanOrEqual(200);
-  });
-
-  it('shows the view round the finger, enlarged, the finger at its middle', () => {
-    const lens = aimingLens([200, 500], view);
-    expect(lens.zoom).toBe(LENS_ZOOM);
-    const [x, y] = toLens([200, 500], lens);
-    expect(x).toBeCloseTo(lens.frame.x + lens.frame.width / 2);
-    expect(y).toBeCloseTo(lens.frame.y + lens.frame.height / 2);
-    const [x2] = toLens([210, 500], lens);
-    expect(x2 - x).toBeCloseTo(10 * LENS_ZOOM);
-  });
-
-  it('picks the target the sight is nearest, within its reach', () => {
-    const candidates = [mark('m', 200, 400), mark('n', 214, 400)];
-    expect(pickInLens([201, 400], candidates, 4)).toBe('m');
-    expect(pickInLens([213, 401], candidates, 4)).toBe('n');
-    expect(pickInLens([200, 400 + (LENS_REACH_PX + 4) / 4 + 3.5], candidates, 4)).toBe(null);
-    expect(pickInLens([200, 400], [], 4)).toBe(null);
   });
 });

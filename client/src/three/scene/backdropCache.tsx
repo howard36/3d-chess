@@ -121,7 +121,7 @@ const noTriangle = () => {
   return g;
 };
 
-type Mode = 'plain' | 'capture' | 'cached' | 'none';
+type Mode = 'plain' | 'capture' | 'cached';
 
 /**
  * The garden (`children`: Stage) drawn from a copy while nothing it depends
@@ -174,7 +174,7 @@ export const BackdropCache = ({
     };
     const skip = new Set<Object3D>();
     const show = (mode: Mode) => {
-      if (garden.current) garden.current.visible = mode === 'plain' || mode === 'capture';
+      if (garden.current) garden.current.visible = mode !== 'cached';
       copy.visible = mode === 'cached';
       take.visible = mode === 'capture';
     };
@@ -218,12 +218,6 @@ export const BackdropCache = ({
     scene.onBeforeRender = (renderer: WebGLRenderer, s: Scene, camera: Camera, ...rest) => {
       before.call(scene, renderer, s, camera, ...rest);
       const g = garden.current;
-      // The magnifier's pass (Magnifier.tsx) draws the tower alone, and
-      // leaves the copy as the view's frames have it
-      if (s.userData.lensPass) {
-        show('none');
-        return;
-      }
       // Rendering somewhere else than the canvas: the garden as always
       if (!g || renderer.getRenderTarget() !== null) {
         show('plain');

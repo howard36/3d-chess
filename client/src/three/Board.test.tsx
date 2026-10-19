@@ -2,9 +2,7 @@ import React from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
-import type { MagnifierProps } from './Magnifier';
 import { FINGER_SLOP_PX } from './tap';
-import { HOLD_MS } from './useTouchIntent';
 import { layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
 import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
@@ -48,7 +46,6 @@ const drawn = vi.hoisted(() => ({
   betters: [] as { from: MarkerProps; to: MarkerProps }[],
   captures: [] as CaptureFxProps[],
   selectionMounts: 0,
-  lens: null as MagnifierProps | null,
 }));
 vi.mock('./scene/pieces', () => ({
   PieceBody: (props: PieceBodyProps) => {
@@ -96,12 +93,6 @@ vi.mock('./scene/selection', () => ({
   },
 }));
 // The magnifier draws through the renderer and the page: here, only what Board hands it
-vi.mock('./Magnifier', () => ({
-  Magnifier: (props: MagnifierProps) => {
-    drawn.lens = props;
-    return null;
-  },
-}));
 vi.mock('./scene/grid', () => ({
   Grid: (props: GridProps) => {
     drawn.grids.push(props);
@@ -125,7 +116,6 @@ beforeEach(() => {
   drawn.betters.length = 0;
   drawn.captures.length = 0;
   drawn.selectionMounts = 0;
-  drawn.lens = null;
 });
 
 // Where the board's layout (the tower) puts a cell's centre and its floor
@@ -1720,28 +1710,12 @@ describe("Board: a finger's taps", () => {
        * the click the browser makes of it (here on nothing on the board), saying
        * it came from `clickType` (Safari says a mouse).
        */
-      finger: (x: number, y: number, { drift = 0, clickType = 'touch', restMs = 0 } = {}) =>
+      finger: (x: number, y: number, { drift = 0, clickType = 'touch' } = {}) =>
         act(async () => {
           pointer('pointerdown', x, y, 'touch');
-          if (restMs) vi.advanceTimersByTime(restMs);
           if (drift) pointer('pointermove', x + drift, y, 'touch');
           pointer('pointerup', x + drift, y, 'touch');
           grid.props.onPointerMissed(click(x + drift, y, clickType));
-        }),
-      /** A finger touching at (x, y), resting `restMs`, then sliding to (x, y) + `by`, still down. */
-      press: (x: number, y: number, restMs: number, by: [number, number] = [0, 0]) =>
-        act(async () => {
-          pointer('pointerdown', x, y, 'touch');
-          vi.advanceTimersByTime(restMs);
-          for (let k = 1; k <= 4; k++) {
-            pointer('pointermove', x + (by[0] * k) / 4, y + (by[1] * k) / 4, 'touch');
-          }
-        }),
-      /** The pressed finger lifting at (x, y). */
-      lift: (x: number, y: number) =>
-        act(async () => {
-          pointer('pointerup', x, y, 'touch');
-          grid.props.onPointerMissed(click(x, y));
         }),
       /** A mouse's click at (x, y) whose ray hits an empty square: the grid's own click. */
       mouseOnEmptySquare: (x: number, y: number) =>
@@ -1868,18 +1842,6 @@ describe("Board: a finger's taps", () => {
     expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
   });
 
-  it('takes a finger that rests still before it lifts as a tap, not an aim', async () => {
-    const board = await tapBoard();
-    const [x, y] = beside(board.pixel);
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      await board.finger(x, y, { restMs: HOLD_MS + 200 });
-    } finally {
-      vi.useRealTimers();
-    }
-    expect(destinationsOf(board.renderer)).toEqual(['Ba3', 'Ca2']);
-  });
-
   it('leaves a mouse click beside a piece alone', async () => {
     const board = await tapBoard();
     const [x, y] = beside(board.pixel);
@@ -1942,7 +1904,6 @@ describe("Board: a finger's taps", () => {
     ] as const;
     await board.finger(...at);
     expect(onMove).toHaveBeenCalledTimes(1);
-    expect(drawn.lens!.state).toBe(null);
   });
 
   it('plays a mouse click on a mark at once, however close its neighbour', async () => {
@@ -1959,41 +1920,6 @@ describe("Board: a finger's taps", () => {
       });
     });
     expect(onMove).toHaveBeenCalledTimes(1);
-    expect(drawn.lens!.state).toBe(null);
-  });
-
-  it('aims by hand: a finger held still, then slid, shows the magnifier and acts on lifting', async () => {
-    const { board, onMove, pair } = await between();
-    const [x, y] = pair[0].at;
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      // Held still beside the mark: nothing shows yet
-      await board.press(x - 30, y, HOLD_MS + 50);
-      expect(drawn.lens!.state).toBe(null);
-      // Slid onto it: the magnifier follows, the mark under its sight
-      await board.press(x - 30, y, 0, [30, 0]);
-    } finally {
-      vi.useRealTimers();
-    }
-    expect(drawn.lens!.state?.aimed).toBe(pair[0].zxy);
-    await board.lift(x, y);
-    expect(drawn.lens!.state).toBe(null);
-    expect(onMove).toHaveBeenCalledTimes(1);
-    expect(onMove.mock.calls[0][0].to).toEqual(fromZXY(pair[0].zxy));
-  });
-
-  it('closes the magnifier when the position changes under it', async () => {
-    const { board, pair } = await between();
-    const [x, y] = pair[0].at;
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      await board.press(x - 30, y, HOLD_MS + 50, [30, 0]);
-    } finally {
-      vi.useRealTimers();
-    }
-    expect(drawn.lens!.state).not.toBe(null);
-    await act(async () => board.rerender({ board: captureBoard(), currentTurn: 'black' }));
-    expect(drawn.lens!.state).toBe(null);
   });
 });
 

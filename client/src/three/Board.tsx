@@ -28,7 +28,6 @@ import { isTap } from './tap';
 import { useExactClicks } from './exactClicks';
 import { useTouchIntent } from './useTouchIntent';
 import type { Actionable, DirectHit } from './useTouchIntent';
-import { Magnifier } from './Magnifier';
 import type { LevelFocus, MarkerProps, PieceColor, Vec3 } from './types';
 import { resolveHover } from './hover';
 import type { HoverHit } from './hover';
@@ -121,8 +120,6 @@ export interface BoardProps {
    * Without it, a later position always glides its last move in.
    */
   review?: boolean;
-  /** The canvas's top band, for a canvas `height` high, that the magnifier keeps clear of (a HUD over it). */
-  lensTop?: (height: number) => number;
 }
 
 /** How the shown position arrived: a piece gliding into it. */
@@ -540,31 +537,23 @@ const Board = (props: BoardProps) => {
   // --- A finger's taps: each goes at once to what it was meant for
   // (tapIntent.ts, useTouchIntent.ts). A mouse click keeps exactly the hit it
   // makes.
-  const touch = useTouchIntent(
-    grid,
-    (o) => cellAt.get(o.position.toArray().join(',')),
-    {
-      actionable: (): Actionable => ({
-        pieces: new Set(
-          pieces.filter(({ coord }) => canPick(coord)).map(({ coord }) => toZXY(coord)),
-        ),
-        destinations: destinationKeys,
-        held: held.current && toZXY(held.current),
-      }),
-      act: (cell, kind) =>
-        kind === 'destination' ? handleCubeClick(fromZXY(cell)) : handlePieceClick(fromZXY(cell)),
-      // Meant for nothing: a piece hit shakes its head (if it is not the
-      // player's to pick up), and anything else puts the held piece down
-      miss: (direct: DirectHit | null) => {
-        if (direct?.kind === 'piece') handlePieceClick(fromZXY(direct.cell));
-        else if (held.current) choose(null);
-      },
+  const touch = useTouchIntent(grid, (o) => cellAt.get(o.position.toArray().join(',')), {
+    actionable: (): Actionable => ({
+      pieces: new Set(
+        pieces.filter(({ coord }) => canPick(coord)).map(({ coord }) => toZXY(coord)),
+      ),
+      destinations: destinationKeys,
+      held: held.current && toZXY(held.current),
+    }),
+    act: (cell, kind) =>
+      kind === 'destination' ? handleCubeClick(fromZXY(cell)) : handlePieceClick(fromZXY(cell)),
+    // Meant for nothing: a piece hit shakes its head (if it is not the
+    // player's to pick up), and anything else puts the held piece down
+    miss: (direct: DirectHit | null) => {
+      if (direct?.kind === 'piece') handlePieceClick(fromZXY(direct.cell));
+      else if (held.current) choose(null);
     },
-    props.lensTop,
-  );
-  // A new position, turn or selection closes the magnifier
-  const { closeLens } = touch;
-  useEffect(closeLens, [board, props.currentTurn, disabled, selected, closeLens]);
+  });
   // A click that reached nothing the player can act on
   const handleEmptyTap = (event: MouseEvent | undefined) => {
     if (!touch.tap(event) && selected) choose(null);
@@ -605,7 +594,6 @@ const Board = (props: BoardProps) => {
   return (
     <>
       <HoverProbe probe={latestProbe} onHover={onHover} />
-      <Magnifier state={touch.lens} />
       <group
         ref={grid}
         name="board-grid"

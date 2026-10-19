@@ -178,29 +178,21 @@ Key decisions:
   aim, a finger's tap is read from its own touch and lift (`useTouchIntent`), never from the
   click the browser makes of it: that click may not come (r3f reports a miss only within
   2 px of the touch), and may say a mouse made it (Safari since 18.2, WebKit bug 282988).
-  A finger that lifts within 10 px of where it touched (`FINGER_SLOP_PX`) tapped there, as
-  the view stood when it touched; one that travels further turns the view. Every tap acts
-  at once (`three/tapIntent.ts`). A tap whose ray hits something the player can act on
-  takes what it hits first, nearest the camera: a piece (picked up, or put down), a move's
-  mark, or the piece a capture takes. Otherwise every target is weighed: its odds fall off
-  with the tap's distance from its shape (a quiet move's shape takes in the held piece
-  standing on it), a move counts double while a piece is held, and the likeliest is taken;
-  only a tap 56 px (`NOTHING_PX`, a fingertip and a half) clear of everything puts the
-  selection down, so a near miss beside a lone mark still plays it. For a precise pick, a
-  finger held still on the board for a third of a second holds the view still, and sliding
-  it then opens the magnifier (`three/Magnifier.tsx`) over it, the target under its sight
-  ringed; lifting acts on that target. A finger that rested but lifts where it touched was
-  only slow, and its tap is weighed as any other: nothing shows. The magnifier is the same
-  scene drawn again through the same camera, cropped by a view offset (composed with the fit's
-  lens shift), into a scissored square right after each frame, the garden left out
-  (BackdropCache hides it for that pass and keeps its copy): it moves no camera and links
-  no shader program (a render target would, for its colour space). `e2e/tapIntent.spec.ts`
-  sweeps thousands of scattered taps through the board's real rays and this code, and fails
-  when they go right, or wrong, worse than floors a few points under today's. A mouse or
-  pen keeps exactly the hit it makes. A move can also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is
-  how a keyboard-only or screen-reader player plays: it is the first thing Tab reaches on
-  the board screen, and appears when it does, or stays in sight throughout when there is
-  no 3D board (see HUD).
+  A finger that lifts within 10 px of where it touched (`FINGER_SLOP_PX`), however long it
+  rested, tapped there, as the view stood when it touched; one that travels further turns
+  the view. Every tap acts at once (`three/tapIntent.ts`). A tap whose ray hits something
+  the player can act on takes what it hits first, nearest the camera: a piece (picked up,
+  or put down), a move's mark, or the piece a capture takes. Otherwise every target is
+  weighed: its odds fall off with the tap's distance from its shape (a move's is its mark,
+  the circle a player sees and aims at), a move counts double while a piece is held, and
+  the likeliest is taken; only a tap 56 px (`NOTHING_PX`, a fingertip and a half) clear of
+  everything puts the selection down, so a near miss beside a lone mark still plays it.
+  `e2e/tapIntent.spec.ts` sweeps thousands of scattered taps through the board's real rays
+  and this code, and fails when they go right, or wrong, worse than floors a few points
+  under today's. A mouse or pen keeps exactly the hit it makes. A move can also be typed
+  (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only or
+  screen-reader player plays: it is the first thing Tab reaches on the board screen, and
+  appears when it does, or stays in sight throughout when there is no 3D board (see HUD).
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
   is no pan (right-drag, a two-finger drag and the arrow keys do nothing), so the orbit
