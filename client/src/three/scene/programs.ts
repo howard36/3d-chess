@@ -20,22 +20,33 @@ import type {
 // material to have drawn with each program is kept for the renderer's life
 // (never disposed, never drawn again), which keeps its program alive: a
 // bounded set, one per shader the scene uses. The others are disposed as
-// before.
+// before. A material keeping a program is never disposed, even when retired
+// again: React's StrictMode (dev, so e2e) rehearses an unmount of each mark
+// as it mounts, and a frame can draw the mark before that rehearsal, which
+// then retires it with its program, keeping it; disposing it at its real
+// unmount would delete the program its keeping was for.
 
 /** Per program (per renderer, as a program belongs to one), the material keeping it. */
 const keepers = new WeakMap<object, Material>();
+/** The materials keeping a program (keepers' values). */
+const keeping = new WeakSet<Material>();
+
+/** Makes `material` the keeper of `program` if it has none; whether it did. */
+const keep = (program: object | undefined, material: Material) => {
+  if (!program || keepers.has(program)) return false;
+  keepers.set(program, material);
+  keeping.add(material);
+  return true;
+};
 
 /**
  * Disposes a material the scene is done with, unless it is the first to
  * have drawn with its shader program, which it then keeps alive.
  */
 export const retireMaterial = (gl: WebGLRenderer, material: Material) => {
+  if (keeping.has(material)) return;
   const state = gl.properties?.get(material) as { currentProgram?: object } | undefined;
-  const program = state?.currentProgram;
-  if (program && !keepers.has(program)) {
-    keepers.set(program, material);
-    return;
-  }
+  if (keep(state?.currentProgram, material)) return;
   material.dispose();
 };
 
@@ -53,11 +64,7 @@ export const keepPrograms = (gl: WebGLRenderer, materials: Material[]) => {
   const kept = new Set<Material>();
   for (const m of materials) {
     const state = gl.properties?.get(m) as { currentProgram?: object } | undefined;
-    const program = state?.currentProgram;
-    if (program && !keepers.has(program)) {
-      keepers.set(program, m);
-      kept.add(m);
-    }
+    if (keep(state?.currentProgram, m)) kept.add(m);
   }
   return kept;
 };
