@@ -77,17 +77,38 @@ describe('glidePose', () => {
     expect(glidePose(plan, plan.travelMs).offset).toEqual([0, 0, 0]);
   });
 
-  it('eases out of its square and into the next, fastest midway', () => {
+  it('sets off from rest at once, fastest early, and settles into its square', () => {
     const step = (ms: number) => glidePose(plan, ms).offset[2] - glidePose(plan, ms + 10).offset[2];
-    const middle = step(plan.travelMs / 2 - 5);
-    expect(step(0)).toBeLessThan(middle / 5);
-    expect(step(plan.travelMs - 10)).toBeLessThan(middle / 5);
+    const steps = Array.from({ length: Math.floor(plan.travelMs / 10) }, (_, i) => step(i * 10));
+    const fastest = Math.max(...steps);
+    const peak = steps.indexOf(fastest) * 10;
+    // Off its square from rest, but no lingering there: under way within a
+    // twentieth of the time, at its fastest within the first third
+    expect(steps[0]).toBeLessThan(fastest / 2);
+    expect(step(plan.travelMs / 20)).toBeGreaterThan(fastest / 2);
+    expect(peak).toBeLessThan(plan.travelMs / 3);
+    // Slower every step after that, never past the square, slow at the end
+    for (let i = peak / 10 + 1; i < steps.length; i++) {
+      expect(steps[i]).toBeLessThanOrEqual(steps[i - 1]);
+      expect(steps[i]).toBeGreaterThan(0);
+    }
+    expect(steps[steps.length - 1]).toBeLessThan(fastest / 10);
+  });
+
+  it('takes the shortest moves in well under the longest ones’ time', () => {
+    const square = planGlide([0, 0, 1], TO).travelMs;
+    const across = planGlide([4, 5.4, 4], TO).travelMs;
+    expect(square).toBeLessThanOrEqual(320);
+    expect(across / square).toBeGreaterThan(1.5);
   });
 
   it('sets off from where the player held it, and settles onto its square', () => {
     const held = planGlide(FROM, TO, { lift: 0.11 });
     expect(glidePose(held, 0).offset[1]).toBeCloseTo(0.11);
-    expect(glidePose(held, held.travelMs / 2).offset[1]).toBeCloseTo(0.055);
+    // Coming down with the glide: its height is what is left of the way
+    const midway = glidePose(held, held.travelMs / 2);
+    expect(midway.offset[1]).toBeCloseTo(0.11 * (1 - midway.progress));
+    expect(midway.offset[1]).toBeGreaterThan(0);
     expect(glidePose(held, held.travelMs).offset[1]).toBe(0);
   });
 });
