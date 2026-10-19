@@ -35,12 +35,13 @@ interface EndGameModalProps {
 
 /**
  * The result, over the final position: "You win" or "You lose" by checkmate
- * or a resignation ("White resigned"), or a draw (by stalemate, repetition,
- * the 50-move rule or agreement), with the winner's stone lit. Its call to
- * action, which has focus, is the rematch, with "Review" under it (Rematch).
- * It can be closed (its close button, Escape, a click outside it) to study
- * the final board, which keeps the rematch below the tower (RematchBar).
- * The way home is the board screen's own, at its top left.
+ * or a resignation ("White resigned"), or a draw (by stalemate, insufficient
+ * material, repetition, the 50-move rule or agreement), with the winner's
+ * stone lit. Its call to action, which has focus, is the rematch, with
+ * "Review" under it (Rematch). It can be closed (its close button, Escape, a
+ * click outside it) to study the final board, which keeps the rematch below
+ * the tower (RematchBar). The way home is the board screen's own, at its top
+ * left.
  */
 const EndGameModal: React.FC<EndGameModalProps> = ({
   result,
