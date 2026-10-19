@@ -21,7 +21,13 @@ const check = async (
   const game = await startGame(browser, { motion: 'full', device });
   const page = game.white;
   await page.evaluate(() => {
-    type Check = { frames: number; partial: number; notWhole: number; differ: number[] };
+    type Check = {
+      frames: number;
+      notWhole: number;
+      differ: number[];
+      /** The board's own frames (PaceOnGpu's): the share of the canvas each redrew. */
+      shares: number[];
+    };
     const w = window as unknown as {
       __r3fState: {
         gl: import('three').WebGLRenderer;
@@ -30,7 +36,29 @@ const check = async (
       };
       __damageCheck: Check;
     };
-    const check: Check = (w.__damageCheck = { frames: 0, partial: 0, notWhole: 0, differ: [] });
+    const check: Check = (w.__damageCheck = {
+      frames: 0,
+      notWhole: 0,
+      differ: [],
+      shares: [],
+    });
+    // The board's frames, told from this loop's own: what part of the canvas each drew
+    const { gl } = w.__r3fState;
+    const render = gl.render;
+    let ours = false;
+    // (getScissor copies into a Vector4, in CSS px; its width and height are z and w)
+    const box = { z: 0, w: 0 };
+    const target = { copy: (v: { z: number; w: number }): unknown => Object.assign(box, v) };
+    gl.render = function (...args) {
+      render.apply(this, args);
+      if (ours) return;
+      const canvas = gl.domElement;
+      if (!gl.getScissorTest()) check.shares.push(1);
+      else {
+        gl.getScissor(target as unknown as import('three').Vector4);
+        check.shares.push((box.z * box.w) / (canvas.clientWidth * canvas.clientHeight));
+      }
+    };
     const read = (ctx: WebGL2RenderingContext, out: Uint8Array) =>
       ctx.readPixels(
         0,
@@ -50,14 +78,15 @@ const check = async (
       // The garden drawn from its copy (left shown by the last frame drawn)
       const copy = scene.getObjectByName('backdrop-copy');
       let cached = copy?.visible === true;
+      ours = true;
       gl.render(scene, camera);
       cached &&= copy?.visible === true;
-      if (gl.getScissorTest()) check.partial++;
       gl.setScissorTest(false);
       read(ctx, inPart);
       scene.userData.wholeFrames = true;
       gl.render(scene, camera);
       scene.userData.wholeFrames = false;
+      ours = false;
       // (the hook is read only in a dev build: on a build this check would compare nothing)
       if (gl.getScissorTest()) check.notWhole++;
       cached &&= copy?.visible === true;
@@ -79,13 +108,22 @@ const check = async (
     () =>
       (
         window as unknown as {
-          __damageCheck: { frames: number; partial: number; notWhole: number; differ: number[] };
+          __damageCheck: {
+            frames: number;
+            notWhole: number;
+            differ: number[];
+            shares: number[];
+          };
         }
       ).__damageCheck,
   );
-  // Most frames at rest are drawn in part, and none differs from the whole
+  // Most of the board's frames are drawn in part, a small part of the canvas
+  // (a pick's or a move's: a few pieces and marks), and none differs from the whole
+  const { shares } = result;
+  expect(shares.length).toBeGreaterThan(20);
+  expect(shares.filter((s) => s < 1).length).toBeGreaterThan(shares.length * 0.75);
+  expect(shares.toSorted((a, b) => a - b)[shares.length >> 1]).toBeLessThan(0.25);
   expect(result.frames).toBeGreaterThan(20);
-  expect(result.partial).toBeGreaterThan(result.frames / 2);
   expect(result.notWhole).toBe(0);
   expect(result.differ).toEqual([]);
   await game.close();
