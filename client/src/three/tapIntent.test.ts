@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   aimingLens,
   askingLens,
-  CANDIDATE_SHARE,
   convexHull,
   decideTap,
   distanceToHull,
@@ -18,6 +17,8 @@ import {
   recordTap,
   spreadOf,
   TAP_SPREAD_PX,
+  TIE_ODDS,
+  CANDIDATE_ODDS,
   tapTarget,
   toLens,
 } from './tapIntent';
@@ -174,10 +175,26 @@ describe('decideTap', () => {
     expect(decision).toEqual({ act: 'ask', ids: ['m', 'n'] });
   });
 
-  it('asks between a move and a piece while a move is in doubt', () => {
+  it('asks between a move and a piece nearly as likely', () => {
     const targets = [mark('m', 100, 100), piece('p', 100, 70)];
     const decision = decideTap([100, 86], targets, { holding: true, direct: null });
-    expect(decision.act).toBe('ask');
+    expect(decision).toEqual({ act: 'ask', ids: ['m', 'p'] });
+  });
+
+  it(`plays the likelier move when the next is less than 1 / ${TIE_ODDS} as likely`, () => {
+    const targets = [mark('m', 100, 100), mark('n', 136, 100), piece('p', 100, 66)];
+    expect(decideTap([104, 103], targets, { holding: true, direct: null })).toEqual({
+      act: 'take',
+      id: 'm',
+    });
+  });
+
+  it('picks up a piece likelier than any move, a move close behind or not', () => {
+    const targets = [mark('m', 100, 100), piece('p', 100, 70)];
+    expect(decideTap([100, 62], targets, { holding: true, direct: null })).toEqual({
+      act: 'take',
+      id: 'p',
+    });
   });
 
   it('takes a piece near a tap when no move is in the running', () => {
@@ -211,7 +228,7 @@ describe('decideTap', () => {
     });
   });
 
-  it(`asks about ${MAX_CANDIDATES} at most, each with ${CANDIDATE_SHARE * 100}% of the odds or more`, () => {
+  it(`asks about ${MAX_CANDIDATES} at most, each at least 1 / ${CANDIDATE_ODDS} as likely as the likeliest`, () => {
     const targets = Array.from({ length: 8 }, (_, k) =>
       mark(String(k), 100 + 9 * Math.cos(k), 100 + 9 * Math.sin(k), false),
     );
@@ -249,13 +266,20 @@ describe('the magnifier', () => {
     );
   });
 
-  it('shows every candidate whole, zooming out when they spread', () => {
-    const candidates = [mark('m', 150, 400), mark('n', 160, 400), mark('o', 230, 400)];
-    const lens = askingLens([190, 400], candidates, view);
-    expect(lens.zoom).toBeLessThan(LENS_ZOOM.min);
-    for (const c of candidates) {
-      for (const p of c.hull) expect(inRect(toLens(p, lens), lens.frame)).toBe(true);
-    }
+  it('shows the two likeliest whole, zooming out only when they spread', () => {
+    const whole = (c: TapTarget, lens: ReturnType<typeof askingLens>) =>
+      c.hull.every((p) => inRect(toLens(p, lens), lens.frame));
+    // Close together, and a third far off: the two big, the third left out
+    const near = [mark('m', 150, 400), mark('n', 168, 400), mark('o', 280, 400)];
+    const lens = askingLens([160, 400], near, view);
+    expect(lens.zoom).toBeGreaterThanOrEqual(LENS_ZOOM.min);
+    expect(whole(near[0], lens) && whole(near[1], lens)).toBe(true);
+    expect(whole(near[2], lens)).toBe(false);
+    // The two likeliest far apart: zoomed out to show them
+    const spread = [mark('m', 150, 400), mark('o', 260, 400), mark('n', 160, 400)];
+    const out = askingLens([200, 400], spread, view);
+    expect(out.zoom).toBeLessThan(LENS_ZOOM.min);
+    expect(whole(spread[0], out) && whole(spread[1], out)).toBe(true);
   });
 
   it('stands above the finger, below it when there is no room, and inside the window', () => {

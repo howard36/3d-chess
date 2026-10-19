@@ -173,30 +173,38 @@ Key decisions:
   the capture (the piece fills its cell, so it would otherwise hide the cell's click
   target). On a touch screen, where the pieces (about 17 x 28 CSS px on a phone) and the
   marks (20 x 7) are narrower than a fingertip and a careful tap lands about 10 px from its
-  aim, every tap is weighed against everything the player can act on (`three/tapIntent.ts`,
-  measured by `useTouchIntent`): the odds of each target fall off with the tap's distance
-  from its shape (a quiet move's shape takes in the held piece standing on it), what the
-  tap's ray hit counts double, and a move counts double while a piece is held. A tap whose
-  ray hits a piece picks it up (or puts it down); otherwise the likeliest target acts when
-  it has 90% of the odds, or when it is a piece and no move is in the running; only a tap
-  56 px (`NOTHING_PX`, a fingertip and a half) clear of everything puts the selection down, so
-  a near miss beside a lone mark still plays it. When a move is in doubt, the
-  magnifier (`three/Magnifier.tsx`) shows the likely meanings (up to four) enlarged beside
-  the finger, ringed, the two closest a fingertip apart (3x to 5x), and a tap in it picks
-  one; a tap outside closes it, the piece still held. A finger held still on the board for
-  a third of a second opens the magnifier under it to aim by hand: the view stops turning,
-  the finger moves a sight, and lifting acts on what the sight is on. The spread a tap is
-  weighed with is learned from the player's choices in the magnifier (kept in
-  `localStorage`, between 6 and 14 px). The magnifier is the same scene drawn again
-  through the same camera, cropped by a view offset (composed with the fit's lens shift),
-  into a scissored square right after each frame, the garden left out (BackdropCache hides
-  it for that pass and keeps its copy): it moves no camera and links no shader program (a
-  render target would, for its colour space). `e2e/tapIntent.spec.ts` sweeps thousands of
-  scattered taps through the board's real rays and this code and fails when moves go wrong
-  more than 6% of the time. A mouse or pen keeps exactly the hit it makes. A move can
-  also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only
-  or screen-reader player plays: it is the first thing Tab reaches on the board screen, and
-  appears when it does, or stays in sight throughout when there is no 3D board (see HUD).
+  aim, a finger's tap is read from its own touch and lift (`useTouchIntent`), never from the
+  click the browser makes of it: that click may not come (r3f reports a miss only within
+  2 px of the touch), and may say a mouse made it (Safari since 18.2, WebKit bug 282988).
+  A finger that lifts within 10 px of where it touched (`FINGER_SLOP_PX`) tapped there, as
+  the view stood when it touched; one that travels further turns the view. Every tap is
+  weighed against everything the player can act on (`three/tapIntent.ts`): the odds of
+  each target fall off with the tap's distance from its shape (a quiet move's shape takes
+  in the held piece standing on it), what the tap's ray hit counts double, and a move
+  counts double while a piece is held. A tap whose ray hits a piece picks it up (or puts
+  it down); otherwise the likeliest target acts, unless it is a move and the next is at
+  least a third as likely (`TIE_ODDS`); only a tap 56 px (`NOTHING_PX`, a fingertip and a
+  half) clear of everything puts the selection down, so a near miss beside a lone mark
+  still plays it. When two moves (or a move and a piece) are that close a call, the
+  magnifier (`three/Magnifier.tsx`) shows the likely meanings (up to four, each at least a
+  tenth as likely as the likeliest) enlarged beside the finger, ringed, the two closest a
+  fingertip apart (3x to 5x, zooming out only as far as keeps the two likeliest whole),
+  and a tap in it picks one; a tap outside closes it, the piece still held. A finger held
+  still on the board for a third of a second opens the magnifier under it to aim by hand:
+  the view stops turning, the finger moves a sight, and lifting acts on what the sight is
+  on; a finger that lifts where it touched was only slow, and its tap is weighed as any
+  other. The spread a tap is weighed with is learned from the player's choices in the
+  magnifier (kept in `localStorage`, between 6 and 14 px). The magnifier is the same scene
+  drawn again through the same camera, cropped by a view offset (composed with the fit's
+  lens shift), into a scissored square right after each frame, the garden left out
+  (BackdropCache hides it for that pass and keeps its copy): it moves no camera and links
+  no shader program (a render target would, for its colour space). `e2e/tapIntent.spec.ts`
+  sweeps thousands of scattered taps through the board's real rays and this code and fails
+  when moves go wrong more than 6% of the time. A mouse or pen keeps exactly the hit it
+  makes. A move can also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is
+  how a keyboard-only or screen-reader player plays: it is the first thing Tab reaches on
+  the board screen, and appears when it does, or stays in sight throughout when there is
+  no 3D board (see HUD).
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
   is no pan (right-drag, a two-finger drag and the arrow keys do nothing), so the orbit

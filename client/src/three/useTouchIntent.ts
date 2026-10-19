@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { useThree } from '@react-three/fiber';
-import { Matrix4, Vector3 } from 'three';
+import { Matrix4, Raycaster, Vector2, Vector3 } from 'three';
 import type { Camera, Mesh, Object3D } from 'three';
-import { CLICK_SLOP_PX } from './tap';
+import { FINGER_SLOP_PX } from './tap';
 import {
   aimingLens,
   askingLens,
@@ -19,10 +19,16 @@ import {
 import type { Lens, ScreenPoint, SpreadRecord, TapTarget } from './tapIntent';
 import { loadTapSpread, saveTapSpread } from '../lib/tapSpread';
 
-// The scene side of a finger's taps (tapIntent.ts): which kind of pointer
-// pressed, where the board's targets stand on screen, the magnifier's state,
-// and aiming by hand (a finger held still on the board opens the magnifier
-// under it). A mouse click (or a pen's) keeps exactly the hit it makes.
+// The scene side of a finger's taps (tapIntent.ts): a finger's tap is read
+// from its own touch and lift, where the board's targets stood on screen as
+// it touched, then decided and acted on; the magnifier's state; and aiming by
+// hand (a finger held still on the board opens the magnifier under it). A
+// mouse click (or a pen's) keeps exactly the hit it makes.
+//
+// A finger's tap is never read from the click the browser makes of it: that
+// click may not come (r3f reports a miss only within 2 px of the touch, the
+// board's clicks only within CLICK_SLOP_PX), and may not say it came from a
+// finger (Safari since 18.2 calls a tap's click a mouse's: WebKit bug 282988).
 
 /** What the player can act on right now, by cell (ZXY). */
 export interface Actionable {
@@ -142,13 +148,47 @@ export function measureTapTargets(
   });
 }
 
+const ray = new Raycaster();
+const ndc = new Vector2();
+
 /**
- * A finger's taps on the board under `grid`: `tap` decides what a tap the
- * board heard was meant for and acts on it (tapIntent.ts), returning false for
- * a mouse's click, which the board handles as it always has. `lens` is the
- * magnifier to show (Magnifier.tsx), and `lensTap` takes a tap on it.
- * `pieceCell` names the cell a piece's group stands on; `lensTop` gives the
- * canvas's top band the magnifier keeps clear of (a HUD over it), for its height.
+ * What a tap at `at` (CSS px of a `width` x `height` canvas) hits first on
+ * the board under `grid`, as r3f would hear it: a piece's hit proxy, or a
+ * destination's mark (the empty squares' boxes take no tap of their own).
+ * A capture's victim stands for its destination.
+ */
+export function directHit(
+  grid: Object3D,
+  camera: Camera,
+  at: ScreenPoint,
+  width: number,
+  height: number,
+  destinations: ReadonlySet<string>,
+  cellOf: (piece: Object3D) => string | undefined,
+): DirectHit | null {
+  const meshes: Object3D[] = [];
+  grid.traverse((o) => {
+    if (o.userData.hitProxy || (o.userData.cube && o.userData.highlight)) meshes.push(o);
+  });
+  ndc.set((at[0] / width) * 2 - 1, -(at[1] / height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  for (const { object } of ray.intersectObjects(meshes, false)) {
+    if (object.userData.cube) return { cell: object.userData.zxy as string, kind: 'destination' };
+    const cell = object.parent && cellOf(object.parent);
+    if (cell) return { cell, kind: destinations.has(cell) ? 'destination' : 'piece' };
+  }
+  return null;
+}
+
+/**
+ * A finger's taps on the board under `grid`: a touch that lifts within
+ * FINGER_SLOP_PX of where it touched is decided (tapIntent.ts) and acted on,
+ * as the board stood when it touched. `tap` is for the click handlers: true
+ * for any click a finger made (decided already, or a drag), false for a
+ * mouse's, which the board handles as it always has. `lens` is the magnifier
+ * to show (Magnifier.tsx), and `lensTap` takes a tap on it. `pieceCell` names
+ * the cell a piece's group stands on; `lensTop` gives the canvas's top band
+ * the magnifier keeps clear of (a HUD over it), for its height.
  */
 export function useTouchIntent(
   grid: RefObject<Object3D | null>,
@@ -167,9 +207,9 @@ export function useTouchIntent(
     setLens(next);
   }, []);
 
-  const latest = useRef({ pieceCell, actions, lensTop });
+  const latest = useRef({ grid, pieceCell, actions, lensTop });
   useLayoutEffect(() => {
-    latest.current = { pieceCell, actions, lensTop };
+    latest.current = { grid, pieceCell, actions, lensTop };
   });
   // The player's spread, as their choices in the magnifier have shown it
   const spread = useRef<SpreadRecord | null | undefined>(undefined);
@@ -178,11 +218,9 @@ export function useTouchIntent(
     return spread.current;
   }, []);
 
-  // The last press: a click carries its pointer's type in most browsers, but
-  // not all, so the press that started it is the fallback
-  const press = useRef<{ type: string; x: number; y: number } | null>(null);
-  // A finger that aimed by hand lifts: the click its press and release make is not a tap
-  const swallow = useRef(false);
+  // The kind of pointer that last pressed: a click that follows a finger's
+  // press is the finger's, whatever the click says
+  const pressedBy = useRef<string | null>(null);
 
   /** A client point as a point of the canvas (CSS px), and the canvas's size. */
   const canvasPoint = useCallback(
@@ -198,21 +236,73 @@ export function useTouchIntent(
     [gl],
   );
   const measure = useCallback(
-    (width: number, height: number, actionable: Actionable) =>
-      grid.current
-        ? measureTapTargets(grid.current, camera, width, height, actionable, (o) =>
+    (view: Camera, width: number, height: number, actionable: Actionable) => {
+      const root = latest.current.grid.current;
+      return root
+        ? measureTapTargets(root, view, width, height, actionable, (o) =>
             latest.current.pieceCell(o),
           )
-        : [],
-    [grid, camera],
+        : [];
+    },
+    [],
   );
+
+  /** Decides a finger's tap at `at` with the board seen through `view`, and acts on it. */
+  const decide = useCallback(
+    (at: ScreenPoint, view: Camera, width: number, height: number) => {
+      const root = latest.current.grid.current;
+      if (!root) return;
+      const { actions } = latest.current;
+      const actionable = actions.actionable();
+      const targets = measure(view, width, height, actionable);
+      const direct = directHit(root, view, at, width, height, actionable.destinations, (o) =>
+        latest.current.pieceCell(o),
+      );
+      const hit = direct && targets.some((t) => t.id === direct.cell) ? direct.cell : null;
+      const decision = decideTap(at, targets, {
+        holding: actionable.held !== null,
+        direct: hit,
+        spread: spreadOf(record()),
+      });
+      if (decision.act === 'take') {
+        const target = targets.find((t) => t.id === decision.id)!;
+        actions.act(target.id, target.kind);
+      } else if (decision.act === 'ask') {
+        const candidates = decision.ids.map((id) => targets.find((t) => t.id === id)!);
+        show({
+          mode: 'ask',
+          lens: askingLens(at, candidates, { width, height, top: latest.current.lensTop(height) }),
+          candidates,
+          aimed: null,
+          finger: at,
+        });
+      } else {
+        actions.miss(direct);
+      }
+    },
+    [measure, show, record],
+  );
+
+  const latestDecide = useRef(decide);
+  useLayoutEffect(() => {
+    latestDecide.current = decide;
+  });
 
   // --- Aiming by hand: a finger resting still on the board for HOLD_MS opens
   // the magnifier under it, its view no longer turning; the finger then moves
-  // a point the magnifier marks, and lifting acts on what that point is on.
-  const aim = useRef<{ id: number; width: number; height: number; targets: TapTarget[] } | null>(
-    null,
-  );
+  // a point the magnifier marks, and lifting acts on what that point is on. A
+  // finger that lifts where it touched was only slow to lift: a tap.
+  const aim = useRef<{
+    id: number;
+    width: number;
+    height: number;
+    targets: TapTarget[];
+    /** Where it touched, and the view then. */
+    start: ScreenPoint;
+    view: Camera;
+    /** Whether it has moved off where it touched. */
+    slid: boolean;
+  } | null>(null);
   const endAim = useCallback(
     (commit: boolean) => {
       const was = aim.current;
@@ -222,9 +312,13 @@ export function useTouchIntent(
       if (controls) controls.enabled = true;
       const aimed = lensNow.current?.mode === 'aim' ? lensNow.current.aimed : null;
       show(null);
-      swallow.current = true;
+      if (!commit) return;
+      if (!was.slid) {
+        latestDecide.current(was.start, was.view, was.width, was.height);
+        return;
+      }
       const target = aimed && was.targets.find((t) => t.id === aimed);
-      if (commit && target) latest.current.actions.act(target.id, target.kind);
+      if (target) latest.current.actions.act(target.id, target.kind);
     },
     [get, show],
   );
@@ -249,65 +343,100 @@ export function useTouchIntent(
   );
 
   useEffect(() => {
-    const el = connected ?? gl.domElement;
-    // (A test renderer's stand-in canvas takes no listeners)
+    // (r3f's event wrapper round the canvas; a test renderer has none)
+    const el = connected || gl.domElement;
     if (typeof el?.addEventListener !== 'function') return;
-    let hold: { id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null =
-      null;
+    // The finger down now, while it may still be a tap: where it touched, and
+    // the view as it was then (the view turns under a finger that rolls)
+    let finger: {
+      id: number;
+      x: number;
+      y: number;
+      view: Camera;
+      hold: ReturnType<typeof setTimeout> | null;
+    } | null = null;
     const fingers = new Set<number>();
-    const cancelHold = () => {
-      if (hold) clearTimeout(hold.timer);
-      hold = null;
+    const release = () => {
+      if (finger?.hold) clearTimeout(finger.hold);
+      finger = null;
     };
-    const startAim = (id: number, clientX: number, clientY: number) => {
-      hold = null;
-      const point = canvasPoint(clientX, clientY);
-      const actionable = latest.current.actions.actionable();
-      if (!point || fingers.size !== 1 || lensNow.current) return;
-      const targets = measure(point.width, point.height, actionable);
+    const startAim = () => {
+      const was = finger;
+      release();
+      if (!was || fingers.size !== 1 || lensNow.current) return;
+      const point = canvasPoint(was.x, was.y);
+      if (!point) return;
+      const targets = measure(
+        camera,
+        point.width,
+        point.height,
+        latest.current.actions.actionable(),
+      );
       if (targets.length === 0) return;
       // The view holds still while the finger aims
       const controls = get().controls as { enabled?: boolean } | null;
       if (controls) controls.enabled = false;
-      aim.current = { id, width: point.width, height: point.height, targets };
+      aim.current = {
+        id: was.id,
+        width: point.width,
+        height: point.height,
+        targets,
+        start: point.at,
+        view: was.view,
+        slid: false,
+      };
       aimAt(point.at);
     };
     const down = (e: PointerEvent) => {
-      press.current = { type: e.pointerType, x: e.clientX, y: e.clientY };
-      swallow.current = false;
+      pressedBy.current = e.pointerType;
       if (e.pointerType !== 'touch') return;
       fingers.add(e.pointerId);
-      cancelHold();
+      release();
       // A second finger (a pinch) ends an aim without acting
       if (aim.current && e.pointerId !== aim.current.id) endAim(false);
       if (fingers.size !== 1 || lensNow.current) return;
-      const { pointerId, clientX, clientY } = e;
-      hold = {
-        id: pointerId,
-        x: clientX,
-        y: clientY,
+      finger = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        view: camera.clone(),
         // eslint-disable-next-line no-restricted-globals -- a gesture's timing, not an animation
-        timer: setTimeout(() => startAim(pointerId, clientX, clientY), HOLD_MS),
+        hold: setTimeout(startAim, HOLD_MS),
       };
     };
     const move = (e: PointerEvent) => {
-      if (aim.current && e.pointerId === aim.current.id) {
+      const aiming = aim.current;
+      if (aiming && e.pointerId === aiming.id) {
         const point = canvasPoint(e.clientX, e.clientY);
-        if (point) aimAt(point.at);
+        if (!point) return;
+        const [x, y] = aiming.start;
+        if (Math.hypot(point.at[0] - x, point.at[1] - y) > FINGER_SLOP_PX) aiming.slid = true;
+        aimAt(point.at);
         return;
       }
-      if (hold && e.pointerId === hold.id) {
-        if (Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > CLICK_SLOP_PX) cancelHold();
+      // A finger that travels turns the view: no tap
+      if (finger && e.pointerId === finger.id) {
+        if (Math.hypot(e.clientX - finger.x, e.clientY - finger.y) > FINGER_SLOP_PX) release();
       }
     };
     const up = (e: PointerEvent) => {
       fingers.delete(e.pointerId);
-      if (hold && e.pointerId === hold.id) cancelHold();
-      if (aim.current && e.pointerId === aim.current.id) endAim(e.type === 'pointerup');
+      if (aim.current && e.pointerId === aim.current.id) {
+        endAim(e.type === 'pointerup');
+        return;
+      }
+      const was = finger;
+      if (!was || e.pointerId !== was.id) return;
+      release();
+      if (e.type !== 'pointerup' || lensNow.current) return;
+      if (Math.hypot(e.clientX - was.x, e.clientY - was.y) > FINGER_SLOP_PX) return;
+      // A tap: what the finger touched, as the board stood then
+      const point = canvasPoint(was.x, was.y);
+      if (point) decide(point.at, was.view, point.width, point.height);
     };
     // A long press is the aim, never the page's menu
     const menu = (e: Event) => {
-      if (hold || aim.current) e.preventDefault();
+      if (finger || aim.current) e.preventDefault();
     };
     const options = { capture: true, passive: true } as const;
     el.addEventListener('pointerdown', down, options);
@@ -316,7 +445,7 @@ export function useTouchIntent(
     el.addEventListener('pointercancel', up, options);
     el.addEventListener('contextmenu', menu, { capture: true });
     return () => {
-      cancelHold();
+      release();
       el.removeEventListener('pointerdown', down, options);
       el.removeEventListener('pointermove', move, options);
       el.removeEventListener('pointerup', up, options);
@@ -324,7 +453,7 @@ export function useTouchIntent(
       el.removeEventListener('contextmenu', menu, { capture: true });
       if (aim.current) endAim(false);
     };
-  }, [gl, connected, get, canvasPoint, measure, aimAt, endAim]);
+  }, [gl, connected, camera, get, canvasPoint, measure, decide, aimAt, endAim]);
 
   /** Closes the magnifier (an aim ends without acting). */
   const closeLens = useCallback(() => {
@@ -336,59 +465,14 @@ export function useTouchIntent(
   useEffect(closeLens, [size.width, size.height, closeLens]);
 
   /**
-   * A tap the board heard (`direct`: what its ray hit, if anything the
-   * player can act on or a piece). A finger's is decided here and acted on;
-   * returns false for any other click, which the caller acts on as before.
+   * Whether a click the board heard is a finger's, which the board leaves
+   * alone: its tap was decided as it lifted (or it was no tap). A long
+   * press's context menu is no click at all.
    */
   const tap = useCallback(
-    (event: MouseEvent | undefined, direct: DirectHit | null): boolean => {
-      // Only a click (never a long press's context menu)
-      if (!event || event.type !== 'click' || !grid.current) return false;
-      const pressed = press.current;
-      const type = (event as Partial<PointerEvent>).pointerType || pressed?.type;
-      if (type !== 'touch') return false;
-      // The release of a finger that aimed: done already
-      if (swallow.current) return true;
-      if (
-        pressed &&
-        Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > CLICK_SLOP_PX
-      ) {
-        return false;
-      }
-      const point = canvasPoint(event.clientX, event.clientY);
-      if (!point) return false;
-      const { actions } = latest.current;
-      const actionable = actions.actionable();
-      const targets = measure(point.width, point.height, actionable);
-      const hit = direct && targets.some((t) => t.id === direct.cell) ? direct.cell : null;
-      const decision = decideTap(point.at, targets, {
-        holding: actionable.held !== null,
-        direct: hit,
-        spread: spreadOf(record()),
-      });
-      if (decision.act === 'take') {
-        const target = targets.find((t) => t.id === decision.id)!;
-        actions.act(target.id, target.kind);
-      } else if (decision.act === 'ask') {
-        const candidates = decision.ids.map((id) => targets.find((t) => t.id === id)!);
-        const view = {
-          width: point.width,
-          height: point.height,
-          top: latest.current.lensTop(point.height),
-        };
-        show({
-          mode: 'ask',
-          lens: askingLens(point.at, candidates, view),
-          candidates,
-          aimed: null,
-          finger: point.at,
-        });
-      } else {
-        actions.miss(direct);
-      }
-      return true;
-    },
-    [grid, canvasPoint, measure, show, record],
+    (event: MouseEvent | undefined): boolean =>
+      !!event && event.type === 'click' && pressedBy.current === 'touch',
+    [],
   );
 
   /** A tap on the open magnifier (canvas CSS px): a candidate in it is chosen; outside it, it closes. */

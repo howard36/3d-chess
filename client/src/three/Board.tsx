@@ -333,17 +333,13 @@ const Board = (props: BoardProps) => {
     choose(coord, board.generateLegalMoves(coord));
   };
 
-  // A click on a piece acts on it; a finger's tap on it goes to what it was
-  // meant for (useTouchIntent, below), its piece among the likeliest. A
-  // capture's victim stands for its destination.
+  // A click on a piece acts on it, and one on a destination's mark plays its
+  // move; a finger's taps were decided as it lifted (useTouchIntent, below)
   const handlePieceTap = (coord: Coord, event: MouseEvent) => {
-    const kind = isHighlighted(coord) && !canPick(coord) ? 'destination' : 'piece';
-    if (!touch.tap(event, { cell: toZXY(coord), kind })) handlePieceClick(coord);
+    if (!touch.tap(event)) handlePieceClick(coord);
   };
-  // A click on a destination's mark plays its move; a finger's tap on it goes
-  // to what it was meant for
   const handleMarkTap = (coord: Coord, event: MouseEvent) => {
-    if (!touch.tap(event, { cell: toZXY(coord), kind: 'destination' })) handleCubeClick(coord);
+    if (!touch.tap(event)) handleCubeClick(coord);
   };
 
   // Same reason as worldPositions: each piece gets a handler whose identity
@@ -541,8 +537,8 @@ const Board = (props: BoardProps) => {
   useLayoutEffect(() => {
     latestProbe.current = probe;
   });
-  // --- A finger's taps: each goes to what it was meant for, or, when it
-  // could mean more than one move, the magnifier asks which (tapIntent.ts,
+  // --- A finger's taps: each goes to what it was meant for, or, when two
+  // moves are nearly as likely, the magnifier asks which (tapIntent.ts,
   // useTouchIntent.ts). A mouse click keeps exactly the hit it makes.
   const touch = useTouchIntent(
     grid,
@@ -571,7 +567,7 @@ const Board = (props: BoardProps) => {
   useEffect(closeLens, [board, props.currentTurn, disabled, selected, closeLens]);
   // A click that reached nothing the player can act on
   const handleEmptyTap = (event: MouseEvent | undefined) => {
-    if (!touch.tap(event, null) && selected) choose(null);
+    if (!touch.tap(event) && selected) choose(null);
   };
   const latestEmptyTap = useRef(handleEmptyTap);
   useLayoutEffect(() => {

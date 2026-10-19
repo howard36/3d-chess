@@ -26,8 +26,12 @@ const MIDGAME = [
 
 type Finger = [x: number, y: number];
 
-/** A phone seated as White at `moves`, its moves played back as they are sent. */
-async function phoneGame(browser: Browser, gameId: string, moves: string[]) {
+/**
+ * A phone seated as White at `moves`, its moves played back as they are sent.
+ * `safari`: its clicks say a mouse made them, as Safari's say of a finger's
+ * tap since 18.2 (WebKit bug 282988).
+ */
+async function phoneGame(browser: Browser, gameId: string, moves: string[], safari = false) {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     hasTouch: true,
@@ -56,6 +60,16 @@ async function phoneGame(browser: Browser, gameId: string, moves: string[]) {
     });
   });
   await page.addInitScript((id) => localStorage.setItem(`3dchess:role:${id}`, 'white'), gameId);
+  if (safari) {
+    await page.addInitScript(() => {
+      const own = Object.getOwnPropertyDescriptor(PointerEvent.prototype, 'pointerType')!;
+      Object.defineProperty(PointerEvent.prototype, 'pointerType', {
+        get() {
+          return this.type === 'click' ? 'mouse' : own.get!.call(this);
+        },
+      });
+    });
+  }
   await page.goto(`/game/${gameId}`);
   await waitForBoard(page);
   const cdp = await context.newCDPSession(page);
@@ -67,8 +81,10 @@ const touch = (cdp: CDPSession, type: 'touchStart' | 'touchMove' | 'touchEnd', a
     type,
     touchPoints: at ? [{ x: at[0], y: at[1], id: 1 }] : [],
   });
-const tap = async (cdp: CDPSession, at: Finger) => {
+/** A finger's tap at `at`, rolling `drift` px to the right before it lifts. */
+const tap = async (cdp: CDPSession, at: Finger, drift = 0) => {
   await touch(cdp, 'touchStart', at);
+  if (drift) await touch(cdp, 'touchMove', [at[0] + drift, at[1]]);
   await touch(cdp, 'touchEnd');
 };
 
@@ -127,6 +143,50 @@ async function pickUp(page: Page, cdp: CDPSession, cell: string): Promise<Scene>
   return sceneOf(page);
 }
 
+/**
+ * A spot on screen (CSS px of the page) between two close marks of the piece
+ * held on `held` where the board's own decision asks which move was meant:
+ * the midpoint of the closest pair that asks there.
+ */
+const askingSpot = (page: Page, held: string): Promise<Finger> =>
+  page.evaluate(async (held) => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const from = (path: string) => import(/* @vite-ignore */ path);
+    const intent = await from('/src/three/tapIntent.ts');
+    const touchIntent = await from('/src/three/useTouchIntent.ts');
+    const { camera, scene, gl } = (window as any).__r3fState.get();
+    const rect = gl.domElement.getBoundingClientRect();
+    scene.updateMatrixWorld(true);
+    const V = camera.position.constructor;
+    const grid = scene.getObjectByName('board-grid');
+    const cubes: any[] = [];
+    grid.traverse((o: any) => o.userData.cube && cubes.push(o));
+    const cellOf = (o: any) =>
+      cubes.find((c) => c.getWorldPosition(new V()).distanceTo(o.getWorldPosition(new V())) < 1e-3)
+        ?.userData.zxy as string | undefined;
+    const groups: any[] = [];
+    grid.traverse((o: any) => o.userData.piece && groups.push(o));
+    const destinations = new Set<string>(
+      cubes.filter((c) => c.userData.highlight).map((c) => c.userData.zxy),
+    );
+    const own = groups.filter((g) => g.userData.piece.color === 'white').map(cellOf);
+    const actionable = { pieces: new Set(own), destinations, held };
+    const [w, h] = [rect.width, rect.height];
+    const targets = touchIntent.measureTapTargets(grid, camera, w, h, actionable, cellOf);
+    const moves = targets.filter((t: any) => t.kind === 'destination');
+    const pairs = moves.flatMap((a: any, i: number) => moves.slice(i + 1).map((b: any) => [a, b]));
+    const apart = ([a, b]: any) => Math.hypot(a.centre[0] - b.centre[0], a.centre[1] - b.centre[1]);
+    pairs.sort((p: any, q: any) => apart(p) - apart(q));
+    for (const [a, b] of pairs) {
+      const at = [(a.centre[0] + b.centre[0]) / 2, (a.centre[1] + b.centre[1]) / 2];
+      const direct = touchIntent.directHit(grid, camera, at, w, h, destinations, cellOf);
+      const hit = direct && targets.some((t: any) => t.id === direct.cell) ? direct.cell : null;
+      const decision = intent.decideTap(at, targets, { holding: true, direct: hit });
+      if (decision.act === 'ask') return [rect.left + at[0], rect.top + at[1]] as [number, number];
+    }
+    throw new Error('no spot asks');
+  }, held);
+
 test('a tap between two close moves asks which, and a tap in the magnifier plays it', async ({
   browser,
 }, testInfo) => {
@@ -148,15 +208,18 @@ test('a tap between two close moves asks which, and a tap in the magnifier plays
   });
 
   const { marks } = await pickUp(page, cdp, 'Cc4');
-  // The two marks closest on screen, and a tap halfway between them
   const cells = Object.keys(marks);
-  let pair: [string, string] = [cells[0], cells[1]];
-  const apart = (a: string, b: string) =>
-    Math.hypot(marks[a][0] - marks[b][0], marks[a][1] - marks[b][1]);
-  for (const a of cells)
-    for (const b of cells) if (a !== b && apart(a, b) < apart(...pair)) pair = [a, b];
-  const [a, b] = pair.map((c) => marks[c]);
-  await tap(cdp, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+  // A spot between two close moves, where the board's own decision asks
+  // (once the queen has finished rising)
+  let between = await askingSpot(page, 'Cc4');
+  await expect
+    .poll(async () => {
+      const was = between;
+      between = await askingSpot(page, 'Cc4');
+      return Math.hypot(between[0] - was[0], between[1] - was[1]);
+    })
+    .toBe(0);
+  await tap(cdp, between);
   await expect(magnifier(page)).toHaveAttribute('data-mode', 'ask');
   const candidates = (await magnifier(page).getAttribute('data-candidates'))!.split(' ');
   expect(candidates.length).toBeGreaterThanOrEqual(2);
@@ -169,7 +232,7 @@ test('a tap between two close moves asks which, and a tap in the magnifier plays
   expect(Object.keys((await sceneOf(page)).marks).length).toBe(cells.length);
 
   // Asked again, a tap on a candidate in it plays that move
-  await tap(cdp, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+  await tap(cdp, between);
   await expect(magnifier(page)).toHaveAttribute('data-mode', 'ask');
   const chosen = (await magnifier(page).getAttribute('data-candidates'))!.split(' ')[1];
   const ring = (await magnifier(page).locator(`polygon[data-cell="${chosen}"]`).boundingBox())!;
@@ -178,6 +241,18 @@ test('a tap between two close moves asks which, and a tap in the magnifier plays
   await expect.poll(() => sent).toEqual([`Cc4-${chosen}`]);
   await page.waitForTimeout(500);
   expect(await page.evaluate(() => (window as unknown as { __links: number }).__links)).toBe(0);
+  await context.close();
+});
+
+test("a finger's near miss picks up the piece it was meant for, in Safari too, rolling as it lifts", async ({
+  browser,
+}) => {
+  const { context, page, cdp } = await phoneGame(browser, 'TAPSAFARI', MIDGAME, true);
+  const { pieces } = await sceneOf(page);
+  // Beside the knight, clear of its body, and rolling 8 px as it lifts
+  const knight = pieces.Cb2;
+  await tap(cdp, [knight[0] - 14, knight[1] + 6], 8);
+  await expect.poll(async () => Object.keys((await sceneOf(page)).marks).length).toBe(14);
   await context.close();
 });
 
@@ -243,7 +318,7 @@ const sweep = (page: Page, held: string | null, perTarget: number) =>
       const from = (path: string) => import(/* @vite-ignore */ path);
       const intent = await from('/src/three/tapIntent.ts');
       const touchIntent = await from('/src/three/useTouchIntent.ts');
-      const { camera, scene, raycaster } = (window as any).__r3fState.get();
+      const { camera, scene } = (window as any).__r3fState.get();
       const canvas = (window as any).__r3fState.get().gl.domElement as HTMLCanvasElement;
       const { width, height } = canvas.getBoundingClientRect();
       scene.updateMatrixWorld(true);
@@ -270,28 +345,9 @@ const sweep = (page: Page, held: string | null, perTarget: number) =>
         actionable,
         cellOf,
       );
-      // What a tap's ray hits first, as the board's handlers hear it
-      const meshes: any[] = [];
-      const meaning = new Map<any, { cell: string; kind: string }>();
-      for (const g of groups) {
-        const proxy = g.children.find((c: any) => c.userData.hitProxy);
-        const cell = cellOf(g)!;
-        meshes.push(proxy);
-        const capture = destinations.has(cell) && g.userData.piece.color !== 'white';
-        meaning.set(proxy, { cell, kind: capture ? 'destination' : 'piece' });
-      }
-      for (const c of cubes) {
-        if (!c.userData.highlight) continue;
-        meshes.push(c);
-        meaning.set(c, { cell: c.userData.zxy, kind: 'destination' });
-      }
-      const ndc = new (raycaster.ray.origin.constructor as any)();
-      const directHit = ([x, y]: [number, number]) => {
-        ndc.set((x / width) * 2 - 1, -(y / height) * 2 + 1, 0);
-        raycaster.setFromCamera(ndc, camera);
-        const hit = raycaster.intersectObjects(meshes, false)[0];
-        return hit ? meaning.get(hit.object)! : null;
-      };
+      // What a tap's ray hits first, as the board hears it
+      const directHit = (at: [number, number]) =>
+        touchIntent.directHit(grid, camera, at, width, height, destinations, cellOf);
       let seed = 7;
       const rand = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
       const normal = () =>
@@ -327,7 +383,10 @@ const sweep = (page: Page, held: string | null, perTarget: number) =>
             const lens = intent.askingLens(at, candidates, { width, height, top: 100 });
             const [lx, ly] = intent.toLens(t.centre, lens);
             const second: [number, number] = [lx + normal() * spread, ly + normal() * spread];
-            got = intent.pickInLens(intent.fromLens(second, lens), candidates, lens.zoom);
+            // (A tap outside the lens closes it: the piece still held)
+            got = intent.inRect(second, lens.frame)
+              ? intent.pickInLens(intent.fromLens(second, lens), candidates, lens.zoom)
+              : null;
             if (got === t.id) tally.asked++;
           }
           tally.taps++;

@@ -1,11 +1,12 @@
 // What a finger's tap on the board was meant for. On a phone the board's
 // pieces are about 17 x 28 CSS px and a move's mark about 20 x 7, often 20 px
 // from the next, while a careful finger lands about 10 px (1.5 mm) from where
-// it aimed: no rule for guessing tells neighbours apart reliably at that
-// scale (e2e/tapIntent.spec.ts measures it). So a tap acts at once only when
-// it clearly means one thing; when it could mean more than one move, the
-// board shows the candidates enlarged (the magnifier, Magnifier.tsx) and the
-// next tap there picks one. A piece is cheap to pick up wrongly (one more tap
+// it aimed: no rule for guessing tells close neighbours apart reliably at that
+// scale (e2e/tapIntent.spec.ts measures it). So every tap goes to its likeliest
+// meaning, never to nothing when something is in reach, and only when two
+// moves are nearly as likely (a wrong move is the mistake no tap undoes) does
+// the board show the candidates enlarged (the magnifier, Magnifier.tsx) for
+// the next tap to pick one. A piece is cheap to pick up wrongly (one more tap
 // fixes it), so picking up always takes the best guess.
 //
 // Pure geometry over screen points in CSS pixels; useTouchIntent.ts measures
@@ -25,9 +26,6 @@ export interface ScreenRect {
 /** How far a finger's tap lands from where it was aimed (CSS px, one axis's standard deviation), until a player's own is known. */
 export const TAP_SPREAD_PX = 10;
 
-/** How likely one meaning must be for a tap that could play a move to act without asking. */
-export const SURE = 0.9;
-
 /** While a piece is held, how much likelier a tap near a move means the move than another piece. */
 export const MOVE_ODDS = 2;
 
@@ -41,14 +39,16 @@ export const DIRECT_ODDS = 2;
  */
 export const NOTHING_PX = 56;
 
-/** Below this share of the odds, a meaning is left out of the magnifier. */
-export const CANDIDATE_SHARE = 0.05;
+/**
+ * When the likeliest meaning is a move and the next is at least 1 / TIE_ODDS
+ * as likely, the magnifier asks between them, and with them anything else at
+ * least 1 / CANDIDATE_ODDS as likely.
+ */
+export const TIE_ODDS = 3;
+export const CANDIDATE_ODDS = 10;
 
 /** The magnifier shows this many candidates at most. */
 export const MAX_CANDIDATES = 4;
-
-/** Below this share for every move together, a tap near a piece just picks it up. */
-export const MOVE_DOUBT = 0.1;
 
 export interface TapTarget<Id = string> {
   id: Id;
@@ -177,9 +177,9 @@ export interface TapContext<Id> {
  * - otherwise each target's odds are weighed (oddsOf; what the ray hit
  *   counts DIRECT_ODDS times, a move MOVE_ODDS times while a piece is held),
  *   against a tap meant for nothing (one NOTHING_PX clear of everything);
- * - the likeliest acts when its share is at least SURE, or when it is a
- *   piece and the moves together have less than MOVE_DOUBT;
- * - otherwise the likely meanings (up to MAX_CANDIDATES) are asked about.
+ * - the likeliest acts, unless it is a move and the next is at least
+ *   1 / TIE_ODDS as likely: then everything at least 1 / CANDIDATE_ODDS as
+ *   likely (up to MAX_CANDIDATES) is asked about.
  */
 export function decideTap<Id>(
   tap: ScreenPoint,
@@ -196,25 +196,23 @@ export function decideTap<Id>(
   });
   // (A tap NOTHING_PX from everything was meant for none of it)
   const nothing = Math.exp(-(NOTHING_PX * NOTHING_PX) / (2 * spread * spread));
-  const total = weighed.reduce((sum, w) => sum + w.odds, nothing);
   weighed.sort((a, b) => b.odds - a.odds);
   const [best] = weighed;
   if (!best || best.odds < nothing) return { act: 'none' };
-  const moves = weighed.reduce((s, w) => s + (w.target.kind === 'destination' ? w.odds : 0), 0);
-  if (best.odds / total >= SURE || (best.target.kind === 'piece' && moves / total < MOVE_DOUBT)) {
-    return { act: 'take', id: best.target.id };
-  }
+  if (best.target.kind === 'piece') return { act: 'take', id: best.target.id };
+  const next = weighed[1];
+  if (!next || next.odds * TIE_ODDS < best.odds) return { act: 'take', id: best.target.id };
   const ids = weighed
-    .filter((w) => w.odds / total >= CANDIDATE_SHARE)
+    .filter((w) => w.odds * CANDIDATE_ODDS >= best.odds)
     .slice(0, MAX_CANDIDATES)
     .map((w) => w.target.id);
-  return ids.length > 1 ? { act: 'ask', ids } : { act: 'take', id: best.target.id };
+  return { act: 'ask', ids };
 }
 
 // --- The magnifier --------------------------------------------------------------
 
 /** The lens's side (CSS px), on a window wide enough for it. */
-export const LENS_PX = 216;
+export const LENS_PX = 264;
 /** How far apart the lens sets its two closest candidates (CSS px): a fingertip. */
 export const LENS_SPACING_PX = 56;
 /** The lens's enlargement, at least and at most. */
@@ -259,9 +257,12 @@ const sideFor = (view: LensView) =>
   Math.max(Math.min(LENS_PX, view.width - 2 * LENS_MARGIN_PX, view.height / 3), 96);
 
 /**
- * The lens for asking which of `candidates` a tap at `finger` meant: centred
- * on them, enlarged so the two closest stand LENS_SPACING_PX apart (within
- * LENS_ZOOM, and no more than fits them all), beside the finger.
+ * The lens for asking which of `candidates` (likeliest first) a tap at
+ * `finger` meant: enlarged so the two closest stand LENS_SPACING_PX apart
+ * (within LENS_ZOOM), centred on the two likeliest and zooming out only as
+ * far as shows those two whole, beside the finger. A less likely candidate
+ * may fall outside it: the lens keeps the likely ones big rather than shrink
+ * them all to show every one.
  */
 export function askingLens(
   finger: ScreenPoint,
@@ -269,7 +270,6 @@ export function askingLens(
   view: LensView,
 ): Lens {
   const side = sideFor(view);
-  const all = boundsOf(candidates.flatMap((c) => c.hull));
   let closest = Infinity;
   for (let i = 0; i < candidates.length; i++) {
     for (let j = i + 1; j < candidates.length; j++) {
@@ -277,11 +277,12 @@ export function askingLens(
     }
   }
   const wanted = Math.min(Math.max(LENS_SPACING_PX / closest, LENS_ZOOM.min), LENS_ZOOM.max);
-  // Every candidate whole in the lens, with a fingertip's half round it
-  const fits = (side - LENS_SPACING_PX) / Math.max(all.width, all.height, 1);
+  // The two likeliest whole in the lens, with a fingertip's half round them
+  const likeliest = boundsOf(candidates.slice(0, 2).flatMap((c) => c.hull));
+  const fits = (side - LENS_SPACING_PX) / Math.max(likeliest.width, likeliest.height, 1);
   const zoom = Math.max(Math.min(wanted, fits), 1.5);
   const span = side / zoom;
-  const [cx, cy] = [all.x + all.width / 2, all.y + all.height / 2];
+  const [cx, cy] = [likeliest.x + likeliest.width / 2, likeliest.y + likeliest.height / 2];
   return {
     crop: { x: cx - span / 2, y: cy - span / 2, width: span, height: span },
     frame: frameAt(finger, side, view),

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { WebGLRenderer } from 'three';
-import { CLICK_SLOP_PX } from './tap';
+import { FINGER_SLOP_PX } from './tap';
 import { drawLens, drawOverlay } from './lensDrawing';
 import type { ScreenPoint } from './tapIntent';
 import type { LensState } from './useTouchIntent';
@@ -78,9 +78,9 @@ export function Magnifier({ state, onTap }: MagnifierProps) {
       display: 'none',
     });
     let press: { id: number; x: number; y: number } | null = null;
-    const pointAt = (e: MouseEvent): ScreenPoint => {
+    const pointAt = (e: { x: number; y: number }): ScreenPoint => {
       const rect = gl.domElement.getBoundingClientRect();
-      return [e.clientX - rect.left, e.clientY - rect.top];
+      return [e.x - rect.left, e.y - rect.top];
     };
     const stop = (e: Event) => e.stopPropagation();
     const down = (e: PointerEvent) => {
@@ -90,9 +90,11 @@ export function Magnifier({ state, onTap }: MagnifierProps) {
     const up = (e: PointerEvent) => {
       e.stopPropagation();
       if (!press || press.id !== e.pointerId) return;
-      const still = Math.hypot(e.clientX - press.x, e.clientY - press.y) <= CLICK_SLOP_PX;
+      const was = press;
       press = null;
-      if (still && e.type === 'pointerup') latestTap.current(pointAt(e));
+      const still = Math.hypot(e.clientX - was.x, e.clientY - was.y) <= FINGER_SLOP_PX;
+      // Where the finger touched
+      if (still && e.type === 'pointerup') latestTap.current(pointAt(was));
     };
     const click = (e: Event) => {
       e.stopPropagation();
