@@ -231,23 +231,50 @@ describe('the draws', () => {
 });
 
 it("keeps each board's mobility as its own, whichever side is to move", () => {
+  // Each board's count worked out afresh (a new search before each look),
+  // with the side to move and with the other side to move
   const pos = Position.fromRecords([]);
   const fresh: number[] = [];
-  const seen: number[] = [];
+  const turned: number[] = [];
   for (const m of demo) {
     forgetMobility();
     fresh.push(mobilityScore(pos));
     pos.makeNull();
-    // The same board with the other side to move: the same count, turned round
-    expect(mobilityScore(pos)).toBe(-fresh[fresh.length - 1]);
+    forgetMobility();
+    turned.push(mobilityScore(pos));
     pos.unmakeNull();
     pos.make(pos.findMove(m));
   }
-  // Met again, each board's from the kept counts
-  const again = Position.fromRecords([]);
-  for (const m of demo) {
-    seen.push(mobilityScore(again));
-    again.make(again.findMove(m));
+  // In one search, each board met again, either side to move, from the kept
+  // counts: the second pass reads every board from the cache
+  forgetMobility();
+  for (let pass = 0; pass < 2; pass++) {
+    const again = Position.fromRecords([]);
+    demo.forEach((m, i) => {
+      expect(mobilityScore(again)).toBe(fresh[i]);
+      again.makeNull();
+      expect(mobilityScore(again)).toBe(turned[i]);
+      again.unmakeNull();
+      again.make(again.findMove(m));
+    });
   }
-  expect(seen).toEqual(fresh);
+});
+
+it('searches a position the same whatever the thread searched before', async () => {
+  const limits = { maxDepth: 4, timeMs: 1e9, margin: 50 };
+  // B alone, in fresh copies of the modules: tables and mobility never used
+  vi.resetModules();
+  const clean = await import('./search');
+  const cleanPosition = await import('./position');
+  const alone = new clean.Searcher(cleanPosition.Position.fromRecords(demo.slice(0, 9))).search(
+    limits,
+  );
+  // B after A, and then again, on this thread's tables (and after every
+  // search above)
+  new Searcher(Position.fromRecords(demo.slice(0, 6))).search(limits);
+  const after = new Searcher(Position.fromRecords(demo.slice(0, 9))).search(limits);
+  const twice = new Searcher(Position.fromRecords(demo.slice(0, 9))).search(limits);
+  expect(after).toEqual(alone);
+  expect(twice).toEqual(alone);
+  expect(alone.nodes).toBeGreaterThan(10_000);
 });
