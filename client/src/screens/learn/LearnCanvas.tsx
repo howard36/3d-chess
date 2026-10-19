@@ -88,6 +88,9 @@ const LearnCanvas = ({
         width: '100%',
         touchAction: 'none',
         WebkitTapHighlightColor: 'transparent',
+        // A finger held still is a slow tap: never the system's callout or a selection
+        WebkitTouchCallout: 'none',
+        userSelect: 'none',
       }}
       camera={{ position: layout.viewDirection, fov: 36 }}
       dpr={pixelRatio}
