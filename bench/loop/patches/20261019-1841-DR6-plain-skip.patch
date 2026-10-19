@@ -1,0 +1,19 @@
+diff --git a/client/src/three/scene/backdropCache.tsx b/client/src/three/scene/backdropCache.tsx
+index e450b8c..027cf40 100644
+--- a/client/src/three/scene/backdropCache.tsx
++++ b/client/src/three/scene/backdropCache.tsx
+@@ -179,10 +179,12 @@ export const BackdropCache = ({
+       take.visible = mode === 'capture';
+     };
+     // Only what changed is drawn when the garden comes from its copy (any
+-    // other frame is drawn whole: the capture copies the whole canvas)
++    // other frame is drawn whole: the capture copies the whole canvas). A
++    // plain frame is followed by another drawn whole (a plain one, or the
++    // capture), so nothing would read what its walk found: it is skipped
+     const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {
+       restoreCulled();
+-      if (!partialRef.current || !garden.current) {
++      if (!partialRef.current || !garden.current || mode === 'plain') {
+         forgetDamage(state.damage);
+         return;
+       }
