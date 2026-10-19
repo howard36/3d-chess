@@ -1,0 +1,1 @@
+medium{"temperature":29,"noise":5,"maxDepth":40,"nodes":20000} vs medium: 41.6% ± 2.4% (-59 Elo) over 400 games, +155 =23 -222 {"mate":64,"resigned":313,"fifty":19,"repetition":2,"length":2}; medium{"temperature":29,"noise":5,"maxDepth":40,"nodes":20000}: 24 ms, 16148 positions a move; medium: 76 ms, 52690 positions a move
