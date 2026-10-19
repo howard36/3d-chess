@@ -141,17 +141,10 @@
 // --stills draws only the stills. No backend needed (a computer game asks
 // no server), only Vite.
 
-import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-
-const argv = process.argv.slice(2);
-const flag = (name) => argv.includes(`--${name}`);
-const opt = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 ? argv[i + 1] : fallback;
-};
+import { flag, launchSoftwareGl, opt } from './lib/devScript.mjs';
 
 const OUT = path.resolve(opt('out', 'showcase'));
 // --stills-fast takes the same stills, but draws only the frames it saves
@@ -172,7 +165,6 @@ const WIDTH = Number(opt('width', 1280));
 const HEIGHT = Number(opt('height', 720));
 const BASE = process.env.SHOWCASE_URL ?? 'http://127.0.0.1:5173';
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
-const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 // A short game that shows every kind of moment: quiet moves, captures both
 // ways, checks, and a mate by White. Found by search over the rules engine.
@@ -1780,15 +1772,7 @@ async function lobbyReview(browser) {
 }
 
 async function main() {
-  const browser = await chromium.launch({
-    executablePath: EXECUTABLE,
-    args: [
-      '--use-gl=angle',
-      '--use-angle=swiftshader',
-      '--enable-unsafe-swiftshader',
-      '--no-sandbox',
-    ],
-  });
+  const browser = await launchSoftwareGl();
   if (LOBBY) {
     await lobbyReview(browser);
     await browser.close();

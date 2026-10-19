@@ -17,6 +17,7 @@ import { loadComputerGame, saveComputerGame } from '../lib/computerGames';
 import { createComputer } from '../ai/computer';
 import type { Computer, ComputerMove } from '../ai/computer';
 import { thinkTime } from '../ai/levels';
+import { ChunkLoadError } from '../lib/cachedImport';
 
 export interface ComputerGameOptions {
   /** The computer player (a worker by default). */
@@ -34,6 +35,12 @@ interface ComputerGameSocket extends GameSocket {
   /** Takes back the player's last move, and the computer's reply (game/computerGame.ts). */
   takeBack: () => void;
 }
+
+/**
+ * The computer's code did not load, so it cannot move: said as the error a
+ * server's refusal is, standing until the page is reloaded (the game is kept).
+ */
+export const COMPUTER_UNLOADED = 'The computer couldn’t load. Reload the page to play on.';
 
 /** The computer answers a draw offer after a beat, as a person would, never at once. */
 const DRAW_ANSWER_MS = 900;
@@ -157,6 +164,19 @@ export function useComputerGame(
     };
     computerRef.current.think(game.moves, game.difficulty, game.id).then(thought, (cause) => {
       settled = true;
+      // Its code is missing (an old page after a deploy, or offline): a move
+      // of no thought, every turn, would pass for its play. It waits, and says why
+      if (cause instanceof ChunkLoadError) {
+        if (!live || gameRef.current !== game) return;
+        console.error('The computer’s search did not load; it waits for a reload.', cause);
+        const error: WebSocketMessage = {
+          type: 'error',
+          code: 'invalid_message',
+          message: COMPUTER_UNLOADED,
+        };
+        apply({ game, replies: [error] });
+        return;
+      }
       // The game goes on, with a move of no thought at all: say why
       console.error('The computer could not think; it plays its first legal move.', cause);
       play(null);

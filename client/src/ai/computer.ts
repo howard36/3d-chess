@@ -9,6 +9,7 @@
 import type { ComputerMove, PositionAnalysis } from './choose';
 import type { Difficulty } from './levels';
 import type { WireMove } from './position';
+import { cachedImport } from '../lib/cachedImport';
 
 export type { ComputerMove, PositionAnalysis };
 
@@ -69,6 +70,13 @@ export const gameSeed = (id: string) => {
 
 type Answer = ComputerMove | null | number | PositionAnalysis;
 
+/**
+ * The search's code on the page. A load that fails (a page from before a
+ * deploy, whose chunk has gone; no network) is a ChunkLoadError, told apart
+ * from a search that failed.
+ */
+const loadSearch = cachedImport(() => import('./choose'));
+
 /** The searches run on the page, every computer's, one after another. */
 let onPage: Promise<unknown> = Promise.resolve();
 
@@ -83,7 +91,7 @@ const DROPPED = Symbol('dropped');
  */
 const inline = (request: ThinkRequest, wanted: () => boolean): Promise<Answer> => {
   const run = onPage.then(async () => {
-    const { analysePosition, assessPosition, chooseMove } = await import('./choose');
+    const { analysePosition, assessPosition, chooseMove } = await loadSearch();
     // Let the page draw the move just made before the thread is taken
     await new Promise((resolve) => setTimeout(resolve, 30));
     if (!wanted()) return DROPPED;

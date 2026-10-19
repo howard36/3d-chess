@@ -92,7 +92,7 @@ const closeResult = () => userEvent.click(screen.getByRole('button', { name: 'Cl
 
 beforeEach(() => {
   localStorage.clear();
-  setStoredRole('abc123', 'white');
+  setStoredRole('ABC123', 'white');
   drawn.board = null;
 });
 

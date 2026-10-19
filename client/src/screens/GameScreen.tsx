@@ -29,7 +29,7 @@ import { useResendOnReconnect } from '../hooks/useResendOnReconnect';
 import { useTabSignal } from '../hooks/useTabSignal';
 import { useEndCard } from './useEndCard';
 import GameView from './GameView';
-import { selectInvitation } from '../game/invitation';
+import { GAME_ID, selectInvitation } from '../game/invitation';
 import { otherSide, sideName } from '../game/sides';
 import type { Color, WebSocketMessage } from '../types/messages';
 import { InvitationCard, InviteCard } from './lobby/LobbyCards';
@@ -346,7 +346,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       (m.type === 'error' && m.code === 'invalid_game'),
   );
   React.useEffect(() => {
-    if (!gameId || storedRole || joinRequested || looked) return;
+    if (!gameId || !GAME_ID.test(gameId) || storedRole || joinRequested || looked) return;
     if (sessionId === 0 || status !== 'connected' || lookSessionRef.current === sessionId) return;
     lookSessionRef.current = sessionId;
     // (asked already as the page loaded: earlySocket.ts)
