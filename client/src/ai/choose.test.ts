@@ -3,7 +3,18 @@ import { moveFromMessage } from '../engine/protocol';
 import { SHORT_GAME } from '../game/shortGame';
 import { analysePosition, assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
 import { DIFFICULTIES, LEVELS, isDifficulty, thinkTime } from './levels';
-import { BISHOP, KING, KNIGHT, PAWN, Position, QUEEN, UNICORN, cellOf } from './position';
+import { evaluate } from './evaluate';
+import {
+  BISHOP,
+  EXPERT_WEIGHTS,
+  KING,
+  KNIGHT,
+  PAWN,
+  Position,
+  QUEEN,
+  UNICORN,
+  cellOf,
+} from './position';
 import type { WireMove } from './position';
 import { MATE, Searcher } from './search';
 
@@ -152,6 +163,24 @@ it('the levels grow stronger: deeper, steadier, seeing more', () => {
   expect(isDifficulty('hard')).toBe(true);
   expect(isDifficulty('impossible')).toBe(false);
 });
+
+it('plays Hard on a budget of positions the same on any machine, and the expert by its own numbers', () => {
+  const records = demo.slice(0, 6);
+  const slow = { now: () => performance.now() / 100 };
+  const fixed = { level: { nodes: 20_000 } };
+  const a = chooseMove(records, 'hardFixed', 5, fixed)!;
+  const b = chooseMove(records, 'hardFixed', 5, { ...fixed, ...slow })!;
+  expect(b).toEqual(a);
+  expect(LEVELS.hardFixed).toMatchObject({ ...LEVELS.hard, nodes: 1_800_000 });
+  // The expert plays Hard's search on the expert's numbers
+  expect(LEVELS.expert).toMatchObject({ ...LEVELS.hardFixed, expert: true });
+  const start = Position.start();
+  const expert = Position.start(EXPERT_WEIGHTS);
+  expect(evaluate(expert)).not.toBe(evaluate(start));
+  const choice = chooseMove(records, 'expert', 5, fixed)!;
+  expect(isLegal(records, choice.move)).toBe(true);
+  expect(choice.nodes).toBeLessThanOrEqual(20_000 + 1024);
+}, 30_000);
 
 it('calls a long move across levels, or a knight changing level, hard to see', () => {
   const move = (from: number, to: number, piece: number) => from | (to << 7) | (piece << 21);
