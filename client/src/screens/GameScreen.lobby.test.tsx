@@ -64,7 +64,7 @@ const lobby: LobbyApi = {
 // The 3D board is a lazy chunk: load it before any test looks for it
 beforeAll(loadBoardChunk);
 
-const at = (socket: GameSocket, gameId = 'abc123') => (
+const at = (socket: GameSocket, gameId = 'ABC123') => (
   <LobbyContext.Provider value={lobby}>
     <MemoryRouter initialEntries={[`/game/${gameId}`]}>
       <Routes>
@@ -76,7 +76,7 @@ const at = (socket: GameSocket, gameId = 'abc123') => (
   </LobbyContext.Provider>
 );
 
-const info = (seats: ('white' | 'black')[], gameId = 'abc123'): WebSocketMessage => ({
+const info = (seats: ('white' | 'black')[], gameId = 'ABC123'): WebSocketMessage => ({
   type: 'game_info',
   gameId,
   seats,
@@ -103,7 +103,7 @@ describe("a guest's invitation", () => {
     const send = vi.fn(() => true);
     const { rerender } = render(at(fakeSocket([], send)));
     expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledWith({ type: 'look_game', gameId: 'abc123' });
+    expect(send).toHaveBeenCalledWith({ type: 'look_game', gameId: 'ABC123' });
     // Any number of renders on the same socket: asked once
     rerender(at(fakeSocket([{ type: 'presence', color: 'white', online: true }], send)));
     expect(send).toHaveBeenCalledTimes(1);
@@ -113,7 +113,7 @@ describe("a guest's invitation", () => {
     expect(send).toHaveBeenCalledTimes(1);
     rerender(at(fakeSocket([], send, { sessionId: 2 })));
     await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
-    expect(send).toHaveBeenLastCalledWith({ type: 'look_game', gameId: 'abc123' });
+    expect(send).toHaveBeenLastCalledWith({ type: 'look_game', gameId: 'ABC123' });
 
     // Answered: a later socket does not ask again
     rerender(at(fakeSocket([info(['white'])], send, { sessionId: 2 })));
@@ -141,7 +141,7 @@ describe("a guest's invitation", () => {
   });
 
   it('is never sent by a page that holds a stored seat: it rejoins instead', async () => {
-    setStoredRole('abc123', 'black');
+    setStoredRole('ABC123', 'black');
     const send = vi.fn(() => true);
     render(at(fakeSocket([], send)));
     await waitFor(() =>
@@ -197,7 +197,7 @@ describe("a guest's invitation", () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({
       type: 'join_game',
-      gameId: 'abc123',
+      gameId: 'ABC123',
       clientId: expect.any(String),
     });
     const button = screen.getByRole('button', { name: 'Joining…' });
@@ -232,6 +232,16 @@ describe("a guest's invitation", () => {
     expect(screen.getByText('choose a side')).toBeInTheDocument();
   });
 
+  it('says at once that an id the server would never make is no game, and asks nothing', () => {
+    for (const id of ['abc123', 'A'.repeat(5000)]) {
+      const send = vi.fn(() => true);
+      render(at(fakeSocket([], send), id));
+      expect(screen.getByRole('heading', { name: 'No game here' })).toBeInTheDocument();
+      expect(send).not.toHaveBeenCalled();
+      cleanup();
+    }
+  });
+
   it('shows any other error under the card, until dismissed', async () => {
     const { rerender } = render(at(fakeSocket([info(['white'])])));
     rerender(
@@ -257,7 +267,7 @@ describe("a guest's invitation", () => {
   it('keeps the seat once the join is confirmed, still as the guest', () => {
     const joined: WebSocketMessage[] = [info(['white']), { type: 'game_joined', color: 'black' }];
     render(at(fakeSocket(joined)));
-    expect(getStoredRole('abc123')).toBe('black');
+    expect(getStoredRole('ABC123')).toBe('black');
     // A stored seat, but joined here: not the host's card
     expect(screen.queryByTestId('invite-card')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Joining…' })).toBeInTheDocument();
@@ -272,11 +282,11 @@ describe("a guest's invitation", () => {
 
 describe("the host's invitation to send", () => {
   const hosting = (color: 'white' | 'black'): WebSocketMessage[] => [
-    { type: 'game_created', gameId: 'abc123', color },
+    { type: 'game_created', gameId: 'ABC123', color },
   ];
 
   it('gives the link to the game and the seat the host plays', () => {
-    setStoredRole('abc123', 'black');
+    setStoredRole('ABC123', 'black');
     const send = vi.fn(() => true);
     render(at(fakeSocket(hosting('black'), send)));
     const card = screen.getByTestId('invite-card');
@@ -287,9 +297,9 @@ describe("the host's invitation to send", () => {
     // Nothing more: the heading, the link and its button say it all
     const link = screen.getByTestId('share-link');
     expect(card.querySelector('h2')?.nextElementSibling).toBe(link);
-    expect(link).toHaveAttribute('data-link', `${window.location.origin}/game/abc123`);
+    expect(link).toHaveAttribute('data-link', `${window.location.origin}/game/ABC123`);
     // Set without its scheme, plain
-    expect(link).toHaveTextContent(new RegExp(`^${window.location.host}/game/abc123$`));
+    expect(link).toHaveTextContent(new RegExp(`^${window.location.host}/game/ABC123$`));
     expect(screen.getByText('Waiting for your friend…')).toBeInTheDocument();
     expect(seatLabels()).toEqual([]);
     // Nothing to ask the server: the seat is held, the game is known
@@ -306,7 +316,7 @@ describe("the host's invitation to send", () => {
   });
 
   it('keeps the lobby through a dropped connection, not playing its entrance again', () => {
-    setStoredRole('abc123', 'black');
+    setStoredRole('ABC123', 'black');
     const send = vi.fn(() => true);
     const { rerender } = render(at(fakeSocket(hosting('black'), send)));
     expect(view).toMatchObject({ beat: 'wait' });
@@ -324,7 +334,7 @@ describe("the host's invitation to send", () => {
   });
 
   it('copies the link, and says whether it could', async () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     const writeText = vi.fn(() => Promise.resolve());
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     vi.useFakeTimers();
@@ -335,7 +345,7 @@ describe("the host's invitation to send", () => {
       expect(copy).toHaveFocus();
       expect(screen.queryByRole('button', { name: 'Share link' })).not.toBeInTheDocument();
       await act(async () => fireEvent.click(copy));
-      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/game/abc123`);
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/game/ABC123`);
       expect(copy).toHaveTextContent(/Copied/);
       expect(screen.getByText('Link copied')).toBeInTheDocument();
       // ...for a moment, then the button offers to copy again
@@ -353,7 +363,7 @@ describe("the host's invitation to send", () => {
   });
 
   it('offers only the copy, even where there is a system share sheet', () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     vi.stubGlobal('navigator', { ...navigator, share: vi.fn(), clipboard: { writeText: vi.fn() } });
     render(at(fakeSocket(hosting('white'))));
     expect(screen.getByRole('button', { name: 'Copy link' })).toHaveFocus();
@@ -361,15 +371,15 @@ describe("the host's invitation to send", () => {
   });
 
   it('shows the link alone where it cannot be copied', () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
     render(at(fakeSocket(hosting('white'))));
-    expect(screen.getByTestId('share-link')).toHaveTextContent('/game/abc123');
+    expect(screen.getByTestId('share-link')).toHaveTextContent('/game/ABC123');
     expect(screen.queryByRole('button', { name: /link/ })).not.toBeInTheDocument();
   });
 
   it('goes back home from its link', async () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     render(at(fakeSocket(hosting('white'))));
     await userEvent.click(screen.getByRole('button', { name: /Home/ }));
     expect(screen.getByText('home')).toBeInTheDocument();
@@ -378,10 +388,10 @@ describe("the host's invitation to send", () => {
 
 describe('the handover from the lobby to the game', () => {
   const start = (color: 'white' | 'black'): WebSocketMessage => ({ type: 'game_start', color });
-  const created: WebSocketMessage[] = [{ type: 'game_created', gameId: 'abc123', color: 'white' }];
+  const created: WebSocketMessage[] = [{ type: 'game_created', gameId: 'ABC123', color: 'white' }];
 
   it("fills the guest's seat, then leaves for the game once its first frame is drawn", () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     const { rerender } = render(at(fakeSocket(created)));
     rerender(at(fakeSocket([...created, start('white')])));
 
@@ -426,7 +436,7 @@ describe('the handover from the lobby to the game', () => {
   });
 
   it('has no lobby to leave on a page that opens on a game under way', () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     render(at(fakeSocket([{ type: 'game_state', color: 'white', started: true, moves: [] }])));
     expect(screen.getByTestId('r3f-canvas')).toBeInTheDocument();
     expect(view).toBeNull();
@@ -434,7 +444,7 @@ describe('the handover from the lobby to the game', () => {
   });
 
   it('tells a host in another tab that their guest is here, until they look', () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     let hidden = true;
     const spy = vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
     const title = document.title;

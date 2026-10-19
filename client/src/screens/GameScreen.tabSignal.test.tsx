@@ -72,7 +72,7 @@ describe("the tab's title and icon", () => {
   });
 
   it('say nothing to a guest who has not taken a seat', () => {
-    render(at([{ type: 'game_info', gameId: 'abc123', seats: ['white'] }]));
+    render(at([{ type: 'game_info', gameId: 'ABC123', seats: ['white'] }]));
     expect(document.title).toBe(TITLE);
     expect(icon()).toBe(ICON);
   });

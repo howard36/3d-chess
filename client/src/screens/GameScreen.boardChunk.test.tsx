@@ -46,7 +46,7 @@ afterAll(() => {
 
 beforeEach(() => {
   localStorage.clear();
-  setStoredRole('abc123', 'white');
+  setStoredRole('ABC123', 'white');
   vi.mocked(reloadPage).mockClear();
 });
 

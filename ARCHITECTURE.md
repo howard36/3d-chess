@@ -575,7 +575,8 @@ Message flow, happy path:
 2. Joiner opens `/game/:gameId`. The invitation first asks `look_game {gameId}` →
    `game_info {gameId, seats}` (the seats already taken; it binds nothing), so it can say
    which side the player will take, or that the game is full or gone (`invalid_game`),
-   before they accept. Accepting sends `join_game {gameId, clientId?}` → the joiner gets
+   before they accept. An id the server never makes (six capitals or digits: `GAME_ID` in
+   `game/invitation.ts`, tested against the server's) is gone at once and never asked about. Accepting sends `join_game {gameId, clientId?}` → the joiner gets
    `game_joined {color}` (its seat, confirmed before anything is broadcast, so a drop right
    after is still rejoinable), then both players get `game_start {color}`. A `join_game`
    from the client id that already claimed a seat in the game gets that seat again rather

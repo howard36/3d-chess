@@ -18,6 +18,12 @@ export type Invitation =
   | { state: 'gone' };
 
 /**
+ * A game id as the server makes them (modal_app.py GAME_ID; the tests compare
+ * the two). Any other names no game: the page says so at once and never asks.
+ */
+export const GAME_ID = /^[A-Z0-9]{6}$/;
+
+/**
  * The invitation to `gameId` as the log tells it. `joining` is whether the
  * guest has accepted (sent join_game) and not been refused.
  */
@@ -26,6 +32,7 @@ export function selectInvitation(
   gameId: string,
   joining: boolean,
 ): Invitation {
+  if (!GAME_ID.test(gameId)) return { state: 'gone' };
   let seats: Color[] | null = null;
   let gone = false;
   let full = false;
