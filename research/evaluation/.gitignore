@@ -1,0 +1,8 @@
+engine
+*.raw
+*.traj
+*.lab
+*.part[0-9]*
+*_tmp/
+__pycache__/
+attrib_*.txt

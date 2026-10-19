@@ -8,6 +8,13 @@ import type { ThreeEvent } from '@react-three/fiber';
 export const CLICK_SLOP_PX = 6;
 
 /**
+ * How far a finger may travel between touching and lifting and still be a
+ * tap (CSS px): a fingertip rolls further than a mouse slips, a little more
+ * than Android's own touch slop (8 dp).
+ */
+export const FINGER_SLOP_PX = 10;
+
+/**
  * Whether a board click is a deliberate tap: the primary button (the DOM only
  * fires `click` for it, but a synthetic one could say otherwise) released
  * where it was pressed. The board acts on click rather than pointer-down so

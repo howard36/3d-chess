@@ -173,13 +173,25 @@ Key decisions:
   the press), never on pointer-down, so a drag or pinch that starts over the cube only
   moves the camera. With a piece selected, clicking an opposing piece it can take plays
   the capture (the piece fills its cell, so it would otherwise hide the cell's click
-  target). On a touch screen, where the pieces are narrower than a fingertip, a tap that
-  hits nothing the player can act on goes to the nearest thing they can (an own piece, the
-  held piece, a destination or capture) within 22 px of its outline, a destination winning
-  a near tie with another piece (`three/tapAssist.ts`, measured by `useTapAssist`); a tap
-  with nothing in reach puts the selection down, and a mouse is never assisted. A move can
-  also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only
-  or screen-reader player plays: it is the first thing Tab reaches on the board screen, and
+  target). On a touch screen, where the pieces (about 17 x 28 CSS px on a phone) and the
+  marks (20 x 7) are narrower than a fingertip and a careful tap lands about 10 px from its
+  aim, a finger's tap is read from its own touch and lift (`useTouchIntent`), never from the
+  click the browser makes of it: that click may not come (r3f reports a miss only within
+  2 px of the touch), and may say a mouse made it (Safari since 18.2, WebKit bug 282988).
+  A finger that lifts within 10 px of where it touched (`FINGER_SLOP_PX`), however long it
+  rested, tapped there, as the view stood when it touched; one that travels further turns
+  the view. Every tap acts at once (`three/tapIntent.ts`). A tap whose ray hits something
+  the player can act on takes what it hits first, nearest the camera: a piece (picked up,
+  or put down), a move's mark, or the piece a capture takes. Otherwise every target is
+  weighed: its odds fall off with the tap's distance from its shape (a move's is its mark,
+  the circle a player sees and aims at), a move counts double while a piece is held, and
+  the likeliest is taken; only a tap 56 px (`NOTHING_PX`, a fingertip and a half) clear of
+  everything puts the selection down, so a near miss beside a lone mark still plays it.
+  `e2e/tapIntent.spec.ts` sweeps thousands of scattered taps through the board's real rays
+  and this code, and fails when they go right, or wrong, worse than floors a few points
+  under today's. A mouse or pen keeps exactly the hit it makes. A move can also be typed
+  (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only or
+  screen-reader player plays: it is the first thing Tab reaches on the board screen, and
   appears when it does, or stays in sight throughout when there is no 3D board (see HUD).
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
@@ -415,7 +427,7 @@ Key decisions:
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
   while the game is on, `data-analysis` (`running`, `done`, `stopped`) once the review is asked for
   (`analyse`, the button) and `data-best` the better move where the move shown is marked
-  (`Bc1-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
+  (`Bd2-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
   `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
   and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with
@@ -1258,15 +1270,23 @@ always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate; the kings left alone draw at once. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` scores material at its own
-values (queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4, which play with the
-terms that follow; the captured pieces' "+N" counts material alone, see Piece values), development and
-centralisation in the cube, pawns' progress towards their last square (worth more as the
-board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
-active king in the endgame, mobility (left out of the quiescence search where it cannot
-matter), the bishop pair, and, a side ahead, trading down and driving the bare king to a
-corner, which mates with king and queen. How fast it searches in the browser is the
-browser bench's row "Computer’s later moves: positions searched per second".
+side behind takes a repetition when it is offered. `evaluate.ts` judges by one of two sets of
+numbers (`numbers.ts`). The levels' scores material at its own values (queen 9.8, knight 3.2,
+bishop 2.95, rook 2.45, unicorn 1.4, which play with the terms that follow; the captured
+pieces' "+N" counts material alone, see Piece values), development and centralisation in the
+cube, pawns' progress towards their last square (worth more as the board empties), king safety
+(home behind its pawns, enemy pieces near it) giving way to an active king in the endgame,
+mobility (left out of the quiescence search where it cannot matter), the bishop pair, and, a
+side ahead, trading down and driving the bare king to a corner, which mates with king and
+queen. The expert's (the `expert` player, below) has every number tuned for playing strength by
+self-play (`research/evaluation/`, its README for the method) and four terms more: the king's
+tables and the pressure on it blend by its own danger (the enemy's pieces, its queen above all)
+rather than the game's phase, own pawns beside the king, enemy pieces a pawn attacks, and
+having the move. At the same number of positions searched it scored 75.2% against the levels'
+(2,000 games at 40,000 positions a move, about 190 Elo), and 72.0% at equal time: the board
+keeps its extra terms as moves are played (`position.ts`), but only for a position made with
+the expert's numbers, and that costs its search about 7% of its speed. How fast it searches in
+the browser is the browser bench's row "Computer’s later moves: positions searched per second".
 
 **The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
 engine, the search gives an exact score to every root move within a margin of the best, and
@@ -1287,8 +1307,18 @@ the way a person does; its own moves this turn are always all considered.
 | Medium | 3 plies                         | ±18 cp       | 90 cp (temperature 22)  | about 1 in 5         |
 | Hard   | up to 1.8 s, as deep as it gets | —            | 16 cp (temperature 6)   | none                 |
 
-Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
-Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
+Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, 5,610 games fitted
+to one Elo scale with Medium at 0): Easy −900, Hard +1,610 on a machine searching a million
+positions a second (as `hardFixed` plays it everywhere), less on a slower one; each fourfold in
+Hard's positions is worth about 350.
+
+Two players the game does not offer (`LEVELS.hardFixed`, `LEVELS.expert`): Hard on a budget
+of positions instead of the clock (`nodes`: the search keeps the clock's rules with its clock
+counting positions, 1.8 million standing for Hard's 1.8 s at a million positions a second), so
+it plays the same on any device and takes longer on a slower one; and the expert, the same
+search, choice and budget by the expert's numbers. On budgets of 40,000, 80,000 and 160,000
+positions the expert takes a median 37, 67 and 133 ms a move in a Chromium worker and rates
++860, +1,040 and +1,290 on that scale.
 
 **A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the
@@ -1300,7 +1330,16 @@ searched (`ANALYSIS_NODES`, about a third of a second in the browser) rather tha
 clock, so a game reviewed anywhere gets the same marks (1.5 s is a backstop for a slow
 machine), and looking past a forced move (`deepenForced`; a move needs no choosing, but its
 grade needs what it leads to). Each answer is the best move and its score for the side to
-move, a forced mate as the plies to it. `game/analysis.ts` grades each move as lichess
+move, a forced mate as the plies to it. A mate lies a ply nearer the position after a move
+than the one before it, so the search can see it on one side of the move only: a move then
+seems to walk into a mate that every move allowed (Black's king, a queen and king against
+it, mated in 4 whatever it does, seen only after its move), or, a slower mate played, to let
+the mate go. Where a move's positions disagree like that (`recheckOf` in `game/analysis.ts`),
+the side without the mate is searched again in the same worker, as soon as both are in and
+before the move is marked: as deep as the mate seen plus two plies, at most 1,000,000
+positions (`recheckPosition`, `RECHECK_NODES`; 10 s the backstop). A walk into a mate in 1
+needs only 3 plies; that king's move, a mate in 4, about 206,000 positions. Each recheck
+belongs to its move, not its position, so the marks stay the same however the work is split. `game/analysis.ts` grades each move as lichess
 does: what it cost the mover in winning chances (from -1 to 1, a logistic of the score:
 `2 / (1 + e^(-0.00368 cp)) - 1`) between the best score before it and the negated score
 after it, so a pawn thrown away a queen ahead counts for little; 0.1 an inaccuracy, 0.2 a
@@ -1413,6 +1452,8 @@ bench/           The benchmark runner (run.mjs) and the primary rows (primary.mj
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
 research/piece-values/  How the piece values were measured: test bots (a C port of src/ai) and scripts.
+research/evaluation/  How the expert's numbers were tuned: a C port of src/ai, SPSA and matches (not shipped).
+research/levels/  The players' strength on one Elo scale and their time a move: matches as the game plays them (not shipped).
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).

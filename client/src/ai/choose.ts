@@ -5,11 +5,12 @@
 // repeated exactly (the tests do).
 
 import { LEVELS, OPENING_PLIES } from './levels';
-import type { Difficulty, Level, MoveFeel } from './levels';
+import type { Level, MoveFeel, Player } from './levels';
 import {
   CX,
   CY,
   CZ,
+  EXPERT_WEIGHTS,
   KNIGHT,
   PAWN,
   KING,
@@ -82,19 +83,20 @@ const gaussian = (u: number, v: number) =>
   Math.sqrt(-2 * Math.log(1 - u)) * Math.cos(2 * Math.PI * v);
 
 /**
- * The computer's move after `records` (the game so far, as on the wire) at
- * `difficulty`; null if it has no legal move.
+ * The computer's move after `records` (the game so far, as on the wire) as
+ * `player` (a level, or a player the game does not offer); null if it has no
+ * legal move.
  */
 export function chooseMove(
   records: readonly WireMove[],
-  difficulty: Difficulty,
+  player: Player,
   seed: number,
   options: ChooseOptions = {},
 ): ComputerMove | null {
-  const pos = Position.fromRecords(records);
+  const level: Level = { ...LEVELS[player], ...options.level };
+  const pos = Position.fromRecords(records, level.expert ? EXPERT_WEIGHTS : undefined);
   const ply = records.length;
   const opening = ply < OPENING_PLIES;
-  const level: Level = { ...LEVELS[difficulty], ...options.level };
   // Freer in the opening, so no two games begin alike
   const margin = opening ? Math.max(level.margin, 40) : level.margin;
   const temperature = opening ? Math.max(level.temperature, 14) : level.temperature;
@@ -108,6 +110,7 @@ export function chooseMove(
     maxDepth: level.maxDepth,
     timeMs: level.timeMs,
     maxNodes: options.maxNodes,
+    nodes: level.nodes,
     margin,
     quiescence: level.quiescence,
     hidden,
@@ -209,15 +212,53 @@ export function analysePosition(
   records: readonly WireMove[],
   options: Pick<ChooseOptions, 'now' | 'maxNodes'> = {},
 ): PositionAnalysis {
-  const { maxDepth, quiescence } = LEVELS.hard;
-  const result = new Searcher(Position.fromRecords(records)).search({
-    maxDepth,
+  return analyseFrom(Position.fromRecords(records), {
+    maxDepth: LEVELS.hard.maxDepth,
     timeMs: ANALYSIS_MS,
     maxNodes: options.maxNodes ?? ANALYSIS_NODES,
-    margin: 0,
-    quiescence,
-    deepenForced: true,
     now: options.now,
+  });
+}
+
+/**
+ * How many positions a review looks at, at most, when it searches a
+ * position again deeper (recheckPosition): about three seconds in the
+ * browser, and only for the few moves that need it.
+ */
+export const RECHECK_NODES = 1_000_000;
+/** A recheck's limit should the machine be slow (milliseconds). */
+export const RECHECK_MS = 10_000;
+
+/**
+ * The position after `records` searched again, as analysePosition but
+ * `depth` plies deep (or RECHECK_NODES, whichever comes first): for a move
+ * whose positions disagree on a forced mate, one seen on one side of the
+ * move and not on the other only because it lies a ply nearer there
+ * (game/analysis.ts, recheckOf).
+ */
+export function recheckPosition(
+  records: readonly WireMove[],
+  depth: number,
+  options: Pick<ChooseOptions, 'now' | 'maxNodes'> = {},
+): PositionAnalysis {
+  return analyseFrom(Position.fromRecords(records), {
+    maxDepth: depth,
+    timeMs: RECHECK_MS,
+    maxNodes: options.maxNodes ?? RECHECK_NODES,
+    now: options.now,
+  });
+}
+
+/** A review's search of `pos` within `limits`: Hard's quiescence, no margin. */
+export function analyseFrom(
+  pos: Position,
+  limits: { maxDepth: number; timeMs: number; maxNodes: number; now?: () => number },
+): PositionAnalysis {
+  const result = new Searcher(pos).search({
+    ...limits,
+    margin: 0,
+    quiescence: LEVELS.hard.quiescence,
+    deepenForced: true,
   });
   const analysis: PositionAnalysis = {
     best: result.move ? Position.record(result.move) : null,

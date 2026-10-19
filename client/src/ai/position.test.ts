@@ -11,7 +11,9 @@ import {
   CX,
   CY,
   CZ,
+  EXPERT_WEIGHTS,
   KING,
+  LEVEL_WEIGHTS,
   PAWN,
   Position,
   QUEEN,
@@ -144,84 +146,97 @@ const termsKept = (pos: Position) => [
   ...pos.terms.subarray(pos.ply * TERMS, (pos.ply + 1) * TERMS),
 ];
 const termsCounted = (pos: Position) => {
-  const fresh = new Position();
+  const fresh = new Position(pos.w);
   fresh.board.set(pos.board);
   fresh.reset(pos.side);
   return [...fresh.terms.subarray(0, TERMS)];
 };
 
-it('keeps the sums evaluate() reads, and finds a move illegal or a check, as a fresh look would', () => {
-  // Every move the rules allow but for the king's safety, from each position
-  // of random games: the sums kept against a count over the pieces, and
-  // make()'s verdict against looking for an attack on the king
-  const random = rng(11);
-  const out = new Int32Array(512);
-  let made = 0;
-  let illegal = 0;
-  let gaveCheck = 0;
-  for (let game = 0; game < 12; game++) {
-    const pos = Position.start();
-    for (let ply = 0; ply < 160; ply++) {
-      const n = pos.generate(out, 0);
-      const legal: number[] = [];
-      for (let i = 0; i < n; i++) {
-        const side = pos.side;
-        const quiet = !moveCaptured(out[i]) && !movePromotion(out[i]);
-        const checks = quiet && pos.givesCheck(out[i]);
-        const ok = pos.make(out[i]);
-        const k = pos.king[side];
-        expect(ok).toBe(k < 0 || !pos.attacked(k, side ^ 1));
-        // givesCheck() sees, before the move, what inCheck() finds after it
-        if (quiet) {
-          expect(checks).toBe(pos.inCheck());
-          if (checks) gaveCheck++;
+it.each([
+  ['the levels’', LEVEL_WEIGHTS],
+  ['the expert’s', EXPERT_WEIGHTS],
+])(
+  'keeps the sums %s numbers read, and finds a move illegal or a check, as a fresh look would',
+  (_, weights) => {
+    // Every move the rules allow but for the king's safety, from each position
+    // of random games: the sums kept against a count over the pieces, and
+    // make()'s verdict against looking for an attack on the king
+    const random = rng(11);
+    const out = new Int32Array(512);
+    let made = 0;
+    let illegal = 0;
+    let gaveCheck = 0;
+    for (let game = 0; game < 12; game++) {
+      const pos = Position.start(weights);
+      for (let ply = 0; ply < 160; ply++) {
+        const n = pos.generate(out, 0);
+        const legal: number[] = [];
+        for (let i = 0; i < n; i++) {
+          const side = pos.side;
+          const quiet = !moveCaptured(out[i]) && !movePromotion(out[i]);
+          const checks = quiet && pos.givesCheck(out[i]);
+          const ok = pos.make(out[i]);
+          const k = pos.king[side];
+          expect(ok).toBe(k < 0 || !pos.attacked(k, side ^ 1));
+          // givesCheck() sees, before the move, what inCheck() finds after it
+          if (quiet) {
+            expect(checks).toBe(pos.inCheck());
+            if (checks) gaveCheck++;
+          }
+          expect(termsKept(pos)).toEqual(termsCounted(pos));
+          if (ok) legal.push(out[i]);
+          else illegal++;
+          made++;
+          pos.unmake(out[i]);
         }
+        if (legal.length === 0) break;
+        const captures = legal.filter((m) => moveCaptured(m));
+        const pool = captures.length && random() < 0.5 ? captures : legal;
+        pos.make(pool[Math.floor(random() * pool.length)]);
         expect(termsKept(pos)).toEqual(termsCounted(pos));
-        if (ok) legal.push(out[i]);
-        else illegal++;
-        made++;
-        pos.unmake(out[i]);
       }
-      if (legal.length === 0) break;
-      const captures = legal.filter((m) => moveCaptured(m));
-      const pool = captures.length && random() < 0.5 ? captures : legal;
-      pos.make(pool[Math.floor(random() * pool.length)]);
-      expect(termsKept(pos)).toEqual(termsCounted(pos));
     }
-  }
-  expect(made).toBeGreaterThan(50_000);
-  expect(gaveCheck).toBeGreaterThan(500);
-  expect(illegal).toBeGreaterThan(500);
-}, 30_000);
+    expect(made).toBeGreaterThan(50_000);
+    expect(gaveCheck).toBeGreaterThan(500);
+    expect(illegal).toBeGreaterThan(500);
+  },
+  30_000,
+);
 
-it('keeps the sums through a promotion, a capture of the king and a pass', () => {
-  const pos = new Position();
-  pos.board[cellOf(0, 0, 0)] = KING;
-  pos.board[cellOf(4, 0, 4)] = KING | BLACK;
-  pos.board[cellOf(2, 4, 3)] = PAWN;
-  pos.board[cellOf(1, 4, 4)] = ROOK | BLACK;
-  // Near the black king, so its capture has pressure to clear
-  pos.board[cellOf(4, 0, 2)] = ROOK;
-  pos.reset(WHITE_SIDE);
-  const out = new Int32Array(256);
-  const n = pos.generate(out, 0);
-  let promotions = 0;
-  for (let i = 0; i < n; i++) {
-    pos.make(out[i]);
+it.each([
+  ['the levels’', LEVEL_WEIGHTS],
+  ['the expert’s', EXPERT_WEIGHTS],
+])(
+  'keeps the sums %s numbers read through a promotion, a capture of the king and a pass',
+  (_, weights) => {
+    const pos = new Position(weights);
+    pos.board[cellOf(0, 0, 0)] = KING;
+    pos.board[cellOf(4, 0, 4)] = KING | BLACK;
+    pos.board[cellOf(2, 4, 3)] = PAWN;
+    pos.board[cellOf(1, 4, 4)] = ROOK | BLACK;
+    // Near the black king, so its capture has pressure to clear
+    pos.board[cellOf(4, 0, 2)] = ROOK;
+    pos.reset(WHITE_SIDE);
+    const out = new Int32Array(256);
+    const n = pos.generate(out, 0);
+    let promotions = 0;
+    for (let i = 0; i < n; i++) {
+      pos.make(out[i]);
+      expect(termsKept(pos)).toEqual(termsCounted(pos));
+      if (movePromotion(out[i])) promotions++;
+      pos.unmake(out[i]);
+    }
+    expect(promotions).toBe(10);
+    // White's rook takes the king (a line no legal game reaches)
+    const take = pos.generate(out, 0);
+    const king = [...out.subarray(0, take)].find((m) => moveCaptured(m) === (KING | BLACK))!;
+    pos.make(king);
+    expect(pos.king[BLACK_SIDE]).toBe(-1);
     expect(termsKept(pos)).toEqual(termsCounted(pos));
-    if (movePromotion(out[i])) promotions++;
-    pos.unmake(out[i]);
-  }
-  expect(promotions).toBe(10);
-  // White's rook takes the king (a line no legal game reaches)
-  const take = pos.generate(out, 0);
-  const king = [...out.subarray(0, take)].find((m) => moveCaptured(m) === (KING | BLACK))!;
-  pos.make(king);
-  expect(pos.king[BLACK_SIDE]).toBe(-1);
-  expect(termsKept(pos)).toEqual(termsCounted(pos));
-  pos.makeNull();
-  expect(termsKept(pos)).toEqual(termsCounted(pos));
-});
+    pos.makeNull();
+    expect(termsKept(pos)).toEqual(termsCounted(pos));
+  },
+);
 
 it('takes back every move exactly, hash included', () => {
   const pos = Position.fromRecords([
@@ -255,6 +270,32 @@ it('hashes a position the same however it was reached', () => {
   const a = Position.fromRecords(shuffle);
   const start = Position.start();
   expect([a.hashLo, a.hashHi]).toEqual([start.hashLo, start.hashHi]);
+});
+
+it('hashes by all 64 bits, the two halves independent', () => {
+  // A position's hash is its pieces' keys XORed together, so it can take as
+  // many values as the keys span bits. Were each key's high half a fixed
+  // linear function of its low half (as a generator linear in its bits, such
+  // as xorshift, makes them), the keys would span 32 bits, and boards would
+  // share a hash once in 2^32 where it should be 2^64: the search's tables,
+  // which check the high half against a slot the low half picks, would then
+  // check only the low half's remaining bits.
+  const basis: bigint[] = [];
+  for (const piece of [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]) {
+    for (let c = 0; c < CELLS; c++) {
+      const pos = new Position();
+      pos.board[c] = piece;
+      pos.reset(WHITE_SIDE);
+      let v = (BigInt(pos.hashHi >>> 0) << 32n) | BigInt(pos.hashLo >>> 0);
+      // Reduced by the basis so far, highest bit first: what is left is new
+      for (const b of basis) if ((v ^ b) < v) v ^= b;
+      if (v) {
+        basis.push(v);
+        basis.sort((x, y) => (x < y ? 1 : -1));
+      }
+    }
+  }
+  expect(basis.length).toBe(64);
 });
 
 it('calls a position drawn the third time it stands, or the second inside a search', () => {

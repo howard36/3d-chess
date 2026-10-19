@@ -15,6 +15,9 @@ export const DIFFICULTY_NAME: Record<Difficulty, string> = {
 export const isDifficulty = (value: unknown): value is Difficulty =>
   DIFFICULTIES.includes(value as Difficulty);
 
+/** The levels, and the players the game does not offer (LEVELS). */
+export type Player = Difficulty | 'hardFixed' | 'expert';
+
 export interface Level {
   /** The deepest it looks, in plies, and for how long (milliseconds). */
   maxDepth: number;
@@ -34,16 +37,42 @@ export interface Level {
    * would play it.
    */
   blindness: number;
+  /**
+   * A budget of positions instead of time: the search stops where it would at
+   * `timeMs` on a machine searching this many in that time, so the level plays
+   * the same on any device (and takes longer on a slower one).
+   */
+  nodes?: number;
+  /** Judges by the expert's numbers (numbers.ts) instead of the levels'. */
+  expert?: boolean;
 }
+
+const HARD: Level = {
+  maxDepth: 40,
+  timeMs: 1800,
+  quiescence: 64,
+  margin: 16,
+  temperature: 6,
+  noise: 0,
+  blindness: 0,
+};
+
+/**
+ * Hard's positions a second, as measured in a Chromium worker: the budget of
+ * positions that plays Hard's moves in Hard's time there.
+ */
+const HARD_RATE = 1_000_000;
 
 /**
  * Easy sees its own move and the reply, misjudges freely and misses half of
  * what comes at it from another level: it hangs pieces, and takes them. Medium
  * looks a move further, judges better and misses a little. Hard thinks for
  * up to two seconds as deep as that goes, sees everything, and varies only
- * among moves as good as each other.
+ * among moves as good as each other. Besides them, two players the game does
+ * not offer: Hard on a budget of positions (the same strength on any device),
+ * and the expert, the strongest it plays.
  */
-export const LEVELS: Record<Difficulty, Level> = {
+export const LEVELS: Record<Player, Level> = {
   easy: {
     maxDepth: 2,
     timeMs: 400,
@@ -62,15 +91,13 @@ export const LEVELS: Record<Difficulty, Level> = {
     noise: 18,
     blindness: 0.18,
   },
-  hard: {
-    maxDepth: 40,
-    timeMs: 1800,
-    quiescence: 64,
-    margin: 16,
-    temperature: 6,
-    noise: 0,
-    blindness: 0,
-  },
+  hard: HARD,
+  // Hard on a budget of positions: its moves at a million positions a second,
+  // the same strength on any device
+  hardFixed: { ...HARD, nodes: (HARD.timeMs / 1000) * HARD_RATE },
+  // The strongest it plays: Hard's search and choice, on the same budget, by
+  // the expert's numbers
+  expert: { ...HARD, nodes: (HARD.timeMs / 1000) * HARD_RATE, expert: true },
 };
 
 /** The first plies of a game, played a little more freely (and faster) by every level, for variety. */

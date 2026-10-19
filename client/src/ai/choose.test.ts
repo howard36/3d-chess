@@ -1,9 +1,33 @@
 import { Board } from '../engine/board';
 import { moveFromMessage } from '../engine/protocol';
 import { SHORT_GAME } from '../game/shortGame';
-import { analysePosition, assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
+import {
+  ANALYSIS_NODES,
+  RECHECK_NODES,
+  analyseFrom,
+  analysePosition,
+  assessPosition,
+  chooseMove,
+  hardToSee,
+  pickMove,
+  recheckPosition,
+  seeded,
+} from './choose';
 import { DIFFICULTIES, LEVELS, isDifficulty, thinkTime } from './levels';
-import { BISHOP, KING, KNIGHT, PAWN, Position, QUEEN, UNICORN, cellOf } from './position';
+import { evaluate } from './evaluate';
+import {
+  BISHOP,
+  BLACK,
+  BLACK_SIDE,
+  EXPERT_WEIGHTS,
+  KING,
+  KNIGHT,
+  PAWN,
+  Position,
+  QUEEN,
+  UNICORN,
+  cellOf,
+} from './position';
 import type { WireMove } from './position';
 import { MATE, Searcher } from './search';
 
@@ -65,6 +89,32 @@ describe('a review’s look at a position', () => {
     expect(lost.mate).toBe(-2);
     expect(lost.score).toBe(-MATE + 2);
   });
+
+  it('searches a position again as deep as it is asked', () => {
+    const lost = [...demo.slice(0, -1), { from: 'Cd2', to: 'Cc4' }];
+    expect(recheckPosition(lost, 3, { maxNodes: 20000 })).toEqual(
+      analysePosition(lost, { maxNodes: 20000 }),
+    );
+    expect(recheckPosition(demo, 3).best).toBeNull();
+  });
+
+  it('finds deeper a mate the review’s usual search runs out of positions before', () => {
+    // A game's 65th move: White's queen on Ee5 and king on Cc4 mate in 4
+    // whatever Black's king on Ad2 does, but the mate lies past what
+    // ANALYSIS_NODES reaches (a move on, Ad2-Bd2, it is seen)
+    const position = () => {
+      const pos = new Position();
+      pos.board[cellOf(4, 4, 4)] = QUEEN;
+      pos.board[cellOf(2, 3, 2)] = KING;
+      pos.board[cellOf(3, 1, 0)] = KING | BLACK;
+      pos.reset(BLACK_SIDE);
+      return pos;
+    };
+    const usual = analyseFrom(position(), { maxDepth: 40, timeMs: 1e6, maxNodes: ANALYSIS_NODES });
+    expect(usual.mate).toBeUndefined();
+    const again = analyseFrom(position(), { maxDepth: 9, timeMs: 1e6, maxNodes: RECHECK_NODES });
+    expect(again.mate).toBe(-8);
+  }, 20_000);
 
   it('has no move once mated', () => {
     expect(analysePosition(demo, { maxNodes: 4000 }).best).toBeNull();
@@ -152,6 +202,24 @@ it('the levels grow stronger: deeper, steadier, seeing more', () => {
   expect(isDifficulty('hard')).toBe(true);
   expect(isDifficulty('impossible')).toBe(false);
 });
+
+it('plays Hard on a budget of positions the same on any machine, and the expert by its own numbers', () => {
+  const records = demo.slice(0, 6);
+  const slow = { now: () => performance.now() / 100 };
+  const fixed = { level: { nodes: 20_000 } };
+  const a = chooseMove(records, 'hardFixed', 5, fixed)!;
+  const b = chooseMove(records, 'hardFixed', 5, { ...fixed, ...slow })!;
+  expect(b).toEqual(a);
+  expect(LEVELS.hardFixed).toMatchObject({ ...LEVELS.hard, nodes: 1_800_000 });
+  // The expert plays Hard's search on the expert's numbers
+  expect(LEVELS.expert).toMatchObject({ ...LEVELS.hardFixed, expert: true });
+  const start = Position.start();
+  const expert = Position.start(EXPERT_WEIGHTS);
+  expect(evaluate(expert)).not.toBe(evaluate(start));
+  const choice = chooseMove(records, 'expert', 5, fixed)!;
+  expect(isLegal(records, choice.move)).toBe(true);
+  expect(choice.nodes).toBeLessThanOrEqual(20_000 + 1024);
+}, 30_000);
 
 it('calls a long move across levels, or a knight changing level, hard to see', () => {
   const move = (from: number, to: number, piece: number) => from | (to << 7) | (piece << 21);
