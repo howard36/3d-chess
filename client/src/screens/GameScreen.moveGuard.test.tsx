@@ -27,7 +27,7 @@ const boardMounted = () =>
 beforeEach(() => {
   localStorage.clear();
   // White's player: the seat was stored when the game was created
-  setStoredRole('abc123', 'white');
+  setStoredRole('ABC123', 'white');
   board.onMove = null;
 });
 

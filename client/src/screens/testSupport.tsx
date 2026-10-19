@@ -20,7 +20,7 @@ export const fakeSocket = (
 });
 
 /** The game page as the router mounts it; rerender with a new socket to play on. */
-export const gameScreenAt = (socket: GameSocket, gameId = 'abc123') => (
+export const gameScreenAt = (socket: GameSocket, gameId = 'ABC123') => (
   <MemoryRouter initialEntries={[`/game/${gameId}`]}>
     <Routes>
       <Route path="/game/:gameId" element={<GameScreen gameSocket={socket} />} />

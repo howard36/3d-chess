@@ -54,6 +54,10 @@ export const linkBeforeFirstFrame = ({
   camera,
   get,
 }: Pick<RootState, 'gl' | 'scene' | 'camera' | 'get'>) => {
+  // For the bench, as the warm-up's (data-warm-link): how linkAhead ended,
+  // and whether the GPU answered the first frame's fence ('gpu') or not
+  // (GPU_WAIT_MAX passed, the context lost, no fences)
+  const stamp = gl.domElement.dataset;
   // r3f draws an inactive root's frames once it is active again
   const resume = () => {
     // Taken down meanwhile: r3f is letting it go
@@ -61,12 +65,17 @@ export const linkBeforeFirstFrame = ({
     get().internal.active = true;
     get().invalidate();
   };
-  const held = linkAhead(gl, scene, camera, () => {
+  const held = linkAhead(gl, scene, camera, (outcome) => {
+    stamp.firstLink = outcome;
     const after = scene.onAfterRender;
     scene.onAfterRender = function (...args) {
       scene.onAfterRender = after;
       after.apply(this, args);
-      if (afterGpu(gl, resume)) get().internal.active = false;
+      const drawn = (done: boolean) => {
+        stamp.firstDrawn = done ? 'gpu' : 'none';
+        resume();
+      };
+      if (afterGpu(gl, drawn)) get().internal.active = false;
     };
     resume();
   });

@@ -33,3 +33,29 @@ export const GLYPHS: Record<PieceType, string> = {
   // A small ball on a slim body: the lightest piece in the set
   [PieceType.Pawn]: 'M12 6.6a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM10.4 11.5h3.2L15 18.8H9zM8 19.2h8V21H8z',
 };
+
+// Each silhouette's ink on its 24-unit grid (left, top, right; every one
+// stands on y = 21), as the browser measures GLYPHS (e2e/glyphs.spec.ts):
+// the move record's icon is cut to it (MoveText), so it stands on the
+// baseline, its gap to the letters the same for every piece. Its height is
+// the capitals' times its lift: a top thinner than the
+// letters' stem (193 of the capitals' 1440 units) looks lower than its last
+// pixel, as a point or a pearl does, so a piece whose top is thin stands
+// that much taller, its weight level with the capitals. The lift is that
+// thin part's shortfall, each row thinner than a stem counting for what it
+// lacks, measured from the glyph's rows of ink, and is at most a tenth (the
+// unicorn's horn would ask a quarter, the queen's pearl a tenth, the
+// knight's ear 6%, the king's cross 2%; the rook's flat top and the pawn's
+// round head next to nothing).
+export const INK: Record<
+  PieceType,
+  readonly [left: number, top: number, right: number, lift: number]
+> = {
+  [PieceType.King]: [6, 1.8, 18, 1.02],
+  [PieceType.Queen]: [6, 2.4, 18, 1.1],
+  [PieceType.Rook]: [6.4, 5.4, 17.6, 1],
+  [PieceType.Bishop]: [6.4, 3.5, 17.6, 1.01],
+  [PieceType.Knight]: [6.09, 3.8, 19, 1.06],
+  [PieceType.Unicorn]: [6.4, 2.5, 17.6, 1.1],
+  [PieceType.Pawn]: [8, 6.6, 16, 1.01],
+};

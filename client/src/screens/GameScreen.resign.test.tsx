@@ -88,11 +88,12 @@ describe('resigning', () => {
   });
 
   it('takes "Your move" off the tab once the opponent resigns', () => {
-    // Black's move: the tab says so, until White resigns
+    // Black's move: the tab says so, until White resigns, and then the page's own again
+    const title = document.title;
     const { rerender } = play(started('black'));
     expect(document.title).toBe(YOUR_MOVE_TITLE);
     rerender([...started('black'), { type: 'game_ended', result: 'resignation', winner: 'black' }]);
-    expect(document.title).not.toBe(YOUR_MOVE_TITLE);
+    expect(document.title).toBe(title);
   });
 
   it('tells the side that resigned, and comes back that way on a rejoin', () => {

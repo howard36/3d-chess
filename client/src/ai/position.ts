@@ -157,7 +157,7 @@ export const promotes = (cell: number, side: number) =>
 // and the expert's; a position is judged by the set it was made with.
 
 /** Each piece's weight in the game's phase: the opening's 24 down to the endgame's 0. */
-export const PHASE = [0, 0, 1, 1, 1, 1, 4, 0];
+const PHASE = [0, 0, 1, 1, 1, 1, 4, 0];
 export const PHASE_MAX = 24;
 
 /** From the middle of the cube (0) to a corner (6), in steps along the axes. */
@@ -165,7 +165,7 @@ export const CENTRE = new Int8Array(CELLS);
 /** Chebyshev distance between two cells. */
 export const DIST = new Uint8Array(CELLS * CELLS);
 /** How near a piece on one cell is to a king on another: 4 less the distance, or 0. */
-export const NEAR = new Uint8Array(CELLS * CELLS);
+const NEAR = new Uint8Array(CELLS * CELLS);
 for (let c = 0; c < CELLS; c++) {
   CENTRE[c] = Math.abs(CX[c] - 2) + Math.abs(CY[c] - 2) + Math.abs(CZ[c] - 2);
   for (let d = 0; d < CELLS; d++) {
@@ -662,9 +662,10 @@ export class Position {
         const step = STEP[d];
         let t = pk + step;
         if (t === pt) return true;
-        // A king reaches one step only; others along an open line (the cell left counts as open)
+        // A king reaches one step only; others along an open line (never
+        // through the cell left: on this line, the piece checked from it already)
         if (type !== KING) {
-          while (t !== pt && (pad[t] === 0 || t === pf)) t += step;
+          while (t !== pt && pad[t] === 0) t += step;
           if (t === pt) return true;
         }
       }
@@ -673,13 +674,13 @@ export class Position {
     const d = LINE[k * CELLS + from];
     if (d < 0) return false;
     const step = STEP[d];
-    const first = pk + step;
-    let t = first;
+    let t = pk + step;
     let q: number;
     while ((q = t === pt ? 1 : t === pf ? 0 : pad[t]) === 0) t += step;
     if (t === pt || !(q & (side === BLACK_SIDE ? BLACK : WHITE_BIT))) return false;
+    // (not a king: one next to the other checks already)
     const p = q & 7;
-    return p === QUEEN || p === SLIDER_OF[d] || (t === first && p === KING);
+    return p === QUEEN || p === SLIDER_OF[d];
   }
 
   /** Whether `side`'s king is attacked. */

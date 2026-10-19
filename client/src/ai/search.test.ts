@@ -310,6 +310,21 @@ it("keeps each board's mobility as its own, whichever side is to move", () => {
   }
 });
 
+it('prunes a futile quiet move that gives no check without playing it', () => {
+  // (the prune after make() finds the same moves, so only this count shows the
+  // early one lost: here 17,618 moves made with it against 20,695 without, in
+  // 15,345 nodes either way; a change to the search moves both, the gap stays)
+  const make = vi.spyOn(Position.prototype, 'make');
+  try {
+    const pos = Position.fromRecords(demo.slice(0, 9));
+    const { nodes } = new Searcher(pos).search({ maxDepth: 4, timeMs: 1e9, margin: 50 });
+    expect(nodes).toBeGreaterThan(10_000);
+    expect(make.mock.calls.length / nodes).toBeLessThan(1.25);
+  } finally {
+    make.mockRestore();
+  }
+});
+
 it('searches a position the same whatever the thread searched before', async () => {
   const limits = { maxDepth: 4, timeMs: 1e9, margin: 50 };
   // B alone, in fresh copies of the modules: tables and mobility never used
