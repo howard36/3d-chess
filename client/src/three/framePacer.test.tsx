@@ -30,8 +30,14 @@ const gpu = vi.hoisted(() => {
     context,
     gl: {
       getContext: () => context,
-      render: () => {},
-      getScissorTest: () => false,
+      scissorTest: false,
+      render() {},
+      getScissorTest() {
+        return this.scissorTest;
+      },
+      setScissorTest(on: boolean) {
+        this.scissorTest = on;
+      },
       domElement: canvas,
     },
   };
@@ -67,6 +73,17 @@ it('takes r3f’s render over, drawing a frame only once the GPU has drawn the l
   frame.run!(state);
   expect(draw).toHaveBeenCalledTimes(2);
   expect(draw).toHaveBeenLastCalledWith(state.scene, state.camera);
+});
+
+it('leaves no scissor behind a frame drawn in part', () => {
+  // (backdropCache.tsx draws a frame at rest inside a scissor)
+  const draw = vi.spyOn(gpu.gl, 'render').mockImplementation(() => {
+    gpu.gl.scissorTest = true;
+  });
+  render(<PaceOnGpu />);
+  frame.run!(state);
+  expect(gpu.gl.scissorTest).toBe(false);
+  draw.mockRestore();
 });
 
 it('draws on where the context is lost, never waiting on it', () => {
