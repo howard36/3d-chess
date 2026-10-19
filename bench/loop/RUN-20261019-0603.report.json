@@ -1,0 +1,122 @@
+{
+ "title": "Perf run 20261019-0603",
+ "eyebrow": "3D chess · perf-iteration · run 20261019-0603 · general run",
+ "changed": {
+  "intro": "<p>Each change is its own commit, with its evidence in the commit message and the run record. None was meant to change speed.</p>",
+  "items": [
+   {
+    "title": "Fixes a player can meet",
+    "body": "<ul><li><b>A game link with an id the server never makes</b> (8a1bbea). An id that is not six capitals or digits now shows “No game here” at once and is never sent. Before, a lowercase or 5,000-character id left the invitation on “opening”. Four tests fail on the base and pass here; a test reads the rule from the server's code and from the early socket's copy.</li><li><b>The computer whose search code did not load</b> (1ef18ad), as in an old tab after a deploy. It now waits and the error banner says to reload. Before, it played its first legal move every turn, which looked like its play. Two tests fail on the base and pass here.</li><li><b>No browser focus ring round the result card</b> after a click and a key (6e36e40). gameOver.spec.ts reads the card's outline: “auto” on the base stylesheet, “none” here. The before-and-after pictures (1280×720 and 390×844) show a white ring round the card before.</li></ul>"
+   },
+   {
+    "title": "New checks, each shown to fail on a broken copy",
+    "body": "<ul><li>A game against the computer makes one computer (7056c5d).</li><li>Each lint case is refused by its own rule; new cases for the generated-schema import, the scene's clicks and an on-demand canvas (1548c2f).</li><li>index.html's theme-color and the 16 night fades in the CSS are checked against the sky colour (35cba10).</li><li>The build's keep-the-scene-out-of-the-entry gate also runs in vitest, on hand-made bundles (7d571ea).</li><li>A count of the moves the search plays guards its early futility prune (b3054db).</li><li>The scene preload's path test is checked against App.tsx's routes (696089a).</li><li>Each piece icon's ink box in the move record is measured in the browser against its numbers (67d45cf).</li><li>Two asserts that passed on broken code now name what they expect: the title after resigning, and the first Tab stop (9a1a16f).</li><li>The start page's pictures carry the numbers they were rendered at, and a lens that changed without new pictures fails (e64311a).</li></ul>"
+   },
+   {
+    "title": "A truer account from the bench",
+    "body": "<ul><li>The A/B report's sentence on chance calls now comes from each row's own pairs (816fb26). On step 2's reports the old sentence said 1–6 and 1–3 calls may be chance; the sign-flip count gives 0.28 and 0.008. The report also prints each primary row's median pair and marks an “order gap” where the pairs disagree by which side ran first. Step 5 corrected its A/A sentence: identical code called 1 of 366 diagnostics and 1 of 38 primary rows (09bab3f).</li><li>The first board picture says how its waits on the GPU ended, and the browser bench counts a wait that ran out (2de2982).</li><li>ARCHITECTURE.md's engine paragraph matches the search after last run's change; the hand-kept “400,000 positions a second” now points to the bench row (77fe199).</li></ul>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>Three removals, behaviour unchanged (the tests pass, the pinned outputs and the rendered pictures are byte-identical):</p><ul><li>Five dev scripts share one helper for their arguments and their software-GL browser (bec1ca8): −77 +11 lines in the scripts and a 29-line helper, net −37. (The commit message says −32; that count is wrong.)</li><li>The bench's undocumented BENCH_TRACE_JOIN hook (d0218d4): −14 lines.</li><li>Two clauses in the search's givesCheck that its precondition rules out (acc038a), and four engine tables no longer exported (77fe199).</li></ul><p>Across the branch, product code grows by about 80 lines (the unloaded computer, GAME_ID, the first-frame stamps, the icon ink table moved beside the icons) and tests by +328. Engine and server code are unchanged.</p>",
+  "items": []
+ },
+ "rejected": {
+  "intro": "",
+  "items": [
+   {
+    "title": "Shared helpers for the server's draw and take-back operations (1015:D9)",
+    "body": "<p>Tried: +48 −43 lines in modal_app.py. The operations are already short. Reverted, no patch.</p>"
+   },
+   {
+    "title": "A separate camera fit for the start page's lens (1015:D11)",
+    "body": "<p>Sketched: a split adds about 35 lines to remove about 30, and making the fit's props optional weakens the board's typing for −8 lines. Not tried.</p>"
+   },
+   {
+    "title": "Focus to the bar's Rematch after the result card closes (I15's focus half)",
+    "body": "<p>Tried and reverted. Your test from #142 pins that button as not focused, and the next Tab lands on the move box, the first stop by design. Closed as not a bug.</p>"
+   },
+   {
+    "title": "Tests of givesCheck branch by branch (GC1)",
+    "body": "<p>Written and dropped: removing any one branch already fails position.test.ts's random games, so the 40 lines added nothing.</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>PG1 (a flaky e2e test of shader programs) closed on 24 of 24 runs under load, as fixed by #180. The runs were read from the console; no log was saved.</li><li>The unloaded computer's notice reuses the error code <code>invalid_message</code> instead of adding a code to server/schema.json, which another PR may be editing. The code is never sent.</li><li>The crash screen's copy (ER1) left for you: it is reassurance, and untrue for a game against the computer, but restyling it is a call of taste.</li><li>Step 2's two rows over the 3% rule were re-run alone at 10 pairs instead of bisected; at 10 pairs neither leaned in every pair.</li><li>Lenses 1–5 and 10 skipped: they ran hours earlier on the last run's base, and their speed leads wait for the next speed run.</li><li>Two numbers in commit messages are wrong and stay in history, since the branch is never rewritten: bec1ca8's line counts and 816fb26's “100 rows” (110). The run record and this page give the right ones.</li></ul>",
+  "items": []
+ },
+ "next": {
+  "intro": "<ol><li>Speed run: damage-rect frames (0930:5), then RT1 with r3f's first-size wait, CC2, CH1, FM1, QK1, KP1.</li><li>FC1: bisect or A/A the start page's rows that leaned worse in two regression checks.</li><li>VR3: one 12–16 pair A/A of the primary rows, so they have their own false-call rate.</li><li>UC1: the unloaded computer's way back (retry when online, the offer and review paths).</li><li>Your calls in the ledger: I8 touch targets, ER1 crash screen, I13 double taps, PS1.</li></ol>",
+  "items": []
+ },
+ "heading": "A general run: 3 fixes a player can meet, 9 new checks, a truer bench report; speed unchanged",
+ "meta": "<p>This general run kept 18 changes and 1 set of review fixes on branch <code>improve/20261019-0603</code>, from base <code>3b587b4</code>. Three fix things a player can meet: a game link with an id the server never makes now says “No game here” at once; a computer whose search code did not load (an old tab after a deploy) waits and asks for a reload instead of playing its first legal move every turn; and the result card no longer gets the browser's focus ring. Nine changes are new checks, each shown to fail on a broken copy of the code. The rest make the bench's report and the docs say what is true, and remove about 50 lines of duplicated or dead code.</p><p>No change was meant to make the game faster, and none did. On the final app code (<code>09bab3f</code>, measured as <code>966556b</code>), a 6-pair A/B of all 16 primary rows against the base called none better or worse (×1.005 overall). A second 6-pair A/B of 13 of them also called none (×1.010). All tests pass on the final commit: client lint, build and 1,495 unit tests with coverage, the server's 80, both codegen gates, and the full e2e suite (49 passed).</p>",
+ "needs": {
+  "intro": "<p>Nothing here blocks the merge. Both items are information the skill asks for; neither needs a decision.</p>",
+  "items": [
+   {
+    "title": "Information: the 1.2× target is not met on any row",
+    "body": "<p>This was a general run: no change aimed at speed, and the A/Bs show none. The speed leads (damage-rect frames first) stay at the top of the ledger for the next speed run.</p>",
+    "recommend": "No decision needed."
+   },
+   {
+    "title": "Information: rows that leaned worse without being called",
+    "body": "<p>The skill lists a primary row here when it is worse in every pair or more than 3% worse at its median pair, called or not. Two A/Bs of the final code against <code>3b587b4</code>, 6 pairs each (the second skips the computer, the review and the search):</p><ul><li><b>Start page shows the board, phone:</b> median pair ×1.058, then ×1.052; 5 of 6 pairs worse each time (1.07 1.07 1.03 1.06 0.99 1.05; 1.22 1.09 1.02 0.99 1.06 1.05).</li><li><b>The same, phone returning:</b> ×1.025 (3 of 6), then ×1.050 (6 of 6: 1.05 1.03 1.06 1.02 1.05 1.08).</li><li><b>Start page shows the board, desktop:</b> ×0.968 (3 of 6), then ×1.305 (5 of 6). This row has shown order gaps in earlier runs (ledger OG1).</li><li><b>Reopening a long game:</b> ×1.051 (5 of 6, two pairs above 2), then ×1.206 (4 of 6). In step 2 the same row went ×1.427 and then ×0.74 on code with no change to it.</li><li><b>The player's move appears:</b> ×1.045 (4 of 6), then ×1.078 (5 of 6). <b>A picked-up piece appears:</b> ×1.047 (4 of 6), then ×1.065 (4 of 6).</li></ul><p>No change in the branch runs on these paths in a way that could cost this much. The start page downloads 0.1 KiB more, and nothing new runs before its picture shows. Nothing in the branch runs when a move lands or a piece is picked up. An A/A of the start page on the branch (identical code on both sides, 5 complete pairs; the sixth was cut off) gave the phone board ×0.972 and the returning phone ×1.067 (3 of 5 worse), so swings of this size happen without a change. One diagnostic was called worse in the first A/B, “Creating: server confirms the game” (23.9 → 55.0 ms, all 6 pairs). It did not repeat: setup alone, 4 pairs, 39.4 → 29.1 ms; the second A/B, 25.4 → 26.0 ms, not called.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 966556b vs 3b587b4, --primary, 6 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "All 16 primary rows, 966556b against 3b587b4, 6 pairs (ab-20261019-0603-final.md).",
+      "target": 1.2
+     }
+    ],
+    "recommend": "No decision needed. The next run's step 2 compares this merge with <code>3b587b4</code> again, which gives a third sample. Bisect only if a row leans the same way there (ledger FC1)."
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Target: each 1.2× faster than the base <code>3b587b4</code> (the dashed line). Each bar is the geometric mean of the pairs; each dot is one pair.</p>",
+  "items": [
+   {
+    "title": "Re-check of 13 primary rows",
+    "body": "<p><code>966556b</code> against <code>3b587b4</code>, the start page, setup, reopen, moves and picks, 6 pairs: none called, ×1.010 over the 13 rows.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final re-check: 966556b vs 3b587b4, cold-load, setup, reopen, move-latency, select, 6 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "966556b against 3b587b4, 6 pairs (ab-20261019-0603-final-recheck.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "Step 2: this run's base against the last run's",
+    "body": "<p><code>3b587b4</code> against <code>29ec2e2</code>, 6 pairs: no primary row called; ×1.014 over 16 rows. The search's speed in the game was called better (+18%), from last run's change.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: 3b587b4 vs 29ec2e2 (last run's base)",
+       "only": "PRIMARY"
+      },
+      "caption": "3b587b4 against 29ec2e2, 6 pairs (ab-20261019-0603-regress.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "The long view",
+    "body": "<p>Not re-measured this run. Run 20261018-1719 measured its head 2.41 times as fast as the first recorded run's base over 13 rows (ab-20261018-1719-vs-first-run.md).</p>"
+   }
+  ]
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>PG1's 24 runs under load were read from the console; no log was saved.</li><li>XR1 (an <code>X-Robots-Tag</code> header on game pages) could not be checked: Cloudflare's docs were out of reach from this machine.</li><li>The start page's A/A lost its sixth pair to a time limit; the figures above use the 5 complete pairs.</li><li>The long view against the first recorded run was not re-measured.</li></ul>",
+  "items": []
+ }
+}
