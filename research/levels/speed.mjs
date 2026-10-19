@@ -24,10 +24,11 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM });
 const page = await browser.newPage();
 const rows = await page.evaluate(
   ([code, players]) =>
-    new Promise((done) => {
+    new Promise((done, fail) => {
       const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
       const worker = new Worker(url);
       worker.onmessage = (e) => done(e.data);
+      worker.onerror = (e) => fail(new Error(e.message));
       worker.postMessage(players);
     }),
   [output[0].code, players],

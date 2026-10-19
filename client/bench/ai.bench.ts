@@ -1,9 +1,10 @@
 // The computer player's search (client/src/ai), timed on fixed work: each
 // case searches a position to a fixed number of positions (nodes) rather
 // than for a fixed time, so a faster search shows as less time for the same
-// nodes. The app searches by the clock (400, 800 and 1,800 ms by level,
-// ai/levels.ts), so here speed is strength: every node the search saves is
-// one more it looks at in the same wait.
+// nodes: the engine at full stretch (ENGINE in ai/levels.ts), as the players
+// the game does not offer play it and as it weighs up a draw offered to it.
+// The levels search to a depth or a budget of positions, so for them speed
+// is a shorter wait.
 
 import { bench, describe } from 'vitest';
 import { chooseMove } from '../src/ai/choose';
@@ -53,9 +54,12 @@ const cases: { name: string; about: string; records: MoveRecord[] }[] = [
   },
 ];
 
-/** The hard level's search, stopped after NODES positions instead of by the clock. */
+/** The engine's search, stopped after NODES positions. */
 const think = (records: MoveRecord[]): ComputerMove | null =>
-  chooseMove(records, 'hard', SEED, { maxNodes: NODES, level: { timeMs: 1e9 } });
+  chooseMove(records, 'hardFixed', SEED, {
+    maxNodes: NODES,
+    level: { timeMs: 1e9, nodes: undefined },
+  });
 
 // One search of each up front: what it reached, for the workload table, and
 // a warm JIT for the timings
@@ -66,8 +70,8 @@ const reached = cases.map((c) => {
   if (!r) throw new Error(`the ${c.name} position has no legal move`);
   const want = EXPECTED_SEARCH[c.name];
   const move = `${r.move.from}-${r.move.to}${r.move.promotion ?? ''}`;
-  const toDepth = chooseMove(c.records, 'hard', SEED, {
-    level: { timeMs: 1e9, maxDepth: r.depth },
+  const toDepth = chooseMove(c.records, 'hardFixed', SEED, {
+    level: { timeMs: 1e9, maxDepth: r.depth, nodes: undefined },
   });
   const got = { depth: r.depth, move, nodes: toDepth?.nodes };
   if (!want || got.depth !== want.depth || got.move !== want.move || got.nodes !== want.nodes) {

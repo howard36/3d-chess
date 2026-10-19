@@ -1,2 +1,4 @@
-match.mjs
+match*.mjs
+variety.mjs
+marks.mjs
 *.jsonl.tmp

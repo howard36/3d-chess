@@ -1,5 +1,5 @@
 import { SHORT_GAME } from '../game/shortGame';
-import { createComputer } from './computer';
+import { createComputer, gameSeed } from './computer';
 import type { ThinkReply, ThinkRequest } from './computer';
 
 // The page's own searches, timed (and made to fail once on request), each
@@ -63,6 +63,7 @@ class FakeWorker {
                     forced: false,
                     obvious: false,
                     ply: request.records.length,
+                    tension: 1,
                   },
                 };
       this.onmessage?.({ data: reply } as MessageEvent<ThinkReply>);
@@ -81,8 +82,23 @@ it('asks its worker, with the record stripped to plain moves', async () => {
   expect(move?.move).toEqual({ from: 'Dc4', to: 'Cc4' });
   expect(FakeWorker.last!.requests[0].records).toEqual([{ from: 'Bc2', to: 'Cc2' }]);
   expect(FakeWorker.last!.requests[0].difficulty).toBe('easy');
+  expect(FakeWorker.last!.requests[0].game).toBeUndefined();
   computer.dispose();
   expect(FakeWorker.last!.terminated).toBe(true);
+});
+
+it('names the game each move is for by a seed of its own, the same all game', async () => {
+  FakeWorker.mode = 'answer';
+  vi.stubGlobal('Worker', FakeWorker);
+  const computer = createComputer();
+  await computer.think([], 'medium', 'game-a');
+  await computer.think([], 'medium', 'game-a');
+  await computer.think([], 'medium', 'game-b');
+  const [a, again, b] = FakeWorker.last!.requests.map((r) => r.game);
+  expect(a).toBe(gameSeed('game-a'));
+  expect(again).toBe(a);
+  expect(b).not.toBe(a);
+  computer.dispose();
 });
 
 it('asks its worker what it makes of a position, or works it out on the page', async () => {

@@ -11,12 +11,16 @@ import type { GameOver, Turn } from './history';
 export type { PositionAnalysis };
 
 /** How bad a move was, from the least to the worst. */
-export type Grade = 'inaccuracy' | 'mistake' | 'blunder';
+export type Fault = 'inaccuracy' | 'mistake' | 'blunder';
+/** A move's mark: brilliant, or one of the faults. */
+export type Grade = 'brilliant' | Fault;
 
-export const GRADES: readonly Grade[] = ['inaccuracy', 'mistake', 'blunder'];
+export const FAULTS: readonly Fault[] = ['inaccuracy', 'mistake', 'blunder'];
+export const GRADES: readonly Grade[] = ['brilliant', ...FAULTS];
 
 /** How each grade is written after its move, as in chess. */
 export const GRADE_GLYPH: Record<Grade, string> = {
+  brilliant: '!!',
   inaccuracy: '?!',
   mistake: '?',
   blunder: '??',
@@ -27,7 +31,7 @@ export const GRADE_GLYPH: Record<Grade, string> = {
  * of -1 (lost) to 1 (won): lichess's thresholds, which also fit this engine's
  * games (measured by self-play, see ARCHITECTURE.md "Playing the computer").
  */
-export const GRADE_LOSS: Record<Grade, number> = {
+export const GRADE_LOSS: Record<Fault, number> = {
   inaccuracy: 0.1,
   mistake: 0.2,
   blunder: 0.3,
@@ -77,7 +81,7 @@ const mateGrade = (score: number): Grade =>
 /**
  * The grade of `played`, the move between the positions `before` and
  * `after`, or null for a move that gave nothing away. The best move is never
- * marked. Walking into a forced mate is a blunder, and so is letting one go,
+ * marked a fault, but may be brilliant (below). Walking into a forced mate is a blunder, and so is letting one go,
  * unless the player stood (or still stands) so far ahead or behind that it
  * hardly changes the result: then a mistake past seven pawns, an inaccuracy
  * past ten.
@@ -87,7 +91,8 @@ export function gradeMove(
   played: Pick<MoveRecord, 'from' | 'to' | 'promotion'>,
   after: PositionAnalysis,
 ): Grade | null {
-  if (before.best && sameMove(before.best, played)) return null;
+  if (before.best && sameMove(before.best, played))
+    return brilliant(before, after, 0) ? 'brilliant' : null;
   // Mates as the mover sees them: before, its own; after, the opponent's
   const hadMate = before.mate !== undefined && before.mate > 0;
   const wasMated = before.mate !== undefined && before.mate < 0;
@@ -98,11 +103,32 @@ export function gradeMove(
   // Once mated or mating, a longer way there is no mark
   if ((wasMated && allowsMate) || (hadMate && keepsMate)) return null;
   const loss = winningChances(before) + winningChances(after);
-  for (let i = GRADES.length - 1; i >= 0; i--) {
-    if (loss >= GRADE_LOSS[GRADES[i]]) return GRADES[i];
+  for (let i = FAULTS.length - 1; i >= 0; i--) {
+    if (loss >= GRADE_LOSS[FAULTS[i]]) return FAULTS[i];
   }
-  return null;
+  return brilliant(before, after, loss) ? 'brilliant' : null;
 }
+
+/**
+ * How hard to see a brilliant move is, at least (ai/choose.ts, hardness: a
+ * sacrifice across levels, or a long move back, far from the last).
+ */
+export const BRILLIANT_HARDNESS = 0.7;
+
+/**
+ * A brilliant move, as chess sites mark one: a sacrifice, hard to see,
+ * that gives nothing away, played by a side not already winning without it
+ * and not losing after it.
+ */
+function brilliant(before: PositionAnalysis, after: PositionAnalysis, loss: number): boolean {
+  const move = after.played;
+  if (!move?.sacrifice || move.hardness < BRILLIANT_HARDNESS || loss > BRILLIANT_LOSS) return false;
+  if (before.mate !== undefined || after.mate !== undefined) return false;
+  return winningChances(before) < 0.5 && -winningChances(after) > -0.2;
+}
+
+/** The winning chances a brilliant move may give away: next to none. */
+const BRILLIANT_LOSS = 0.02;
 
 /**
  * Plies a recheck searches past the mate seen on the move's other side: one
@@ -183,8 +209,8 @@ export type GradeCounts = Record<Turn, Record<Grade, number>>;
 /** Counts each side's marks (White's moves are the odd plies, from move 1). */
 export function countGrades(grades: readonly (Grade | null | undefined)[]): GradeCounts {
   const counts: GradeCounts = {
-    white: { inaccuracy: 0, mistake: 0, blunder: 0 },
-    black: { inaccuracy: 0, mistake: 0, blunder: 0 },
+    white: { brilliant: 0, inaccuracy: 0, mistake: 0, blunder: 0 },
+    black: { brilliant: 0, inaccuracy: 0, mistake: 0, blunder: 0 },
   };
   grades.forEach((g, i) => {
     if (g) counts[i % 2 === 0 ? 'white' : 'black'][g]++;
@@ -203,6 +229,7 @@ export function betterMove(
   ply: number,
   rechecks: readonly (PositionAnalysis | undefined)[] = [],
 ): PositionAnalysis['best'] {
-  if (ply < 1 || !grades[ply - 1]) return null;
+  const grade = grades[ply - 1];
+  if (ply < 1 || !grade || grade === 'brilliant') return null;
   return gradedBetween(analyses, rechecks, ply - 1)?.[0].best ?? null;
 }

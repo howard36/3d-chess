@@ -188,8 +188,8 @@ describe('the moves of a game', () => {
 
   it('count each side’s marks, White’s on the odd moves', () => {
     expect(countGrades(['blunder', null, 'inaccuracy', 'mistake', undefined, 'blunder'])).toEqual({
-      white: { inaccuracy: 1, mistake: 0, blunder: 1 },
-      black: { inaccuracy: 0, mistake: 1, blunder: 1 },
+      white: { brilliant: 0, inaccuracy: 1, mistake: 0, blunder: 1 },
+      black: { brilliant: 0, inaccuracy: 0, mistake: 1, blunder: 1 },
     });
   });
 
@@ -201,5 +201,37 @@ describe('the moves of a game', () => {
     expect(betterMove(grades, analyses, 2)).toBeNull();
     expect(betterMove(grades, analyses, 3)).toEqual(PLAYED);
     expect(betterMove(grades, [], 1)).toBeNull();
+  });
+});
+
+describe('a brilliant move', () => {
+  /** After a move hard to see (`hardness`), a sacrifice or not, the opponent's position at `score`. */
+  const after = (score: number, hardness: number, sacrifice = true): PositionAnalysis => ({
+    ...at(score, REPLY),
+    played: { hardness, sacrifice },
+  });
+
+  it('is a sacrifice hard to see that gives nothing away', () => {
+    expect(gradeMove(at(0, PLAYED), PLAYED, after(0, 0.7))).toBe('brilliant');
+    // As good as the best by the engine's lights
+    expect(gradeMove(at(0), PLAYED, after(0, 0.7))).toBe('brilliant');
+  });
+
+  it('is not a move easy to see, nor one risking nothing', () => {
+    expect(gradeMove(at(0, PLAYED), PLAYED, after(0, 0.3))).toBeNull();
+    expect(gradeMove(at(0, PLAYED), PLAYED, after(0, 0.9, false))).toBeNull();
+  });
+
+  it('is not one played already winning, nor one that loses', () => {
+    expect(gradeMove(at(500, PLAYED), PLAYED, after(-500, 0.7))).toBeNull();
+    expect(gradeMove(at(-200, PLAYED), PLAYED, after(200, 0.7))).toBeNull();
+    // Nor a sacrifice that gave something away: that is a fault
+    expect(gradeMove(at(0), PLAYED, after(80, 0.7))).toBe('inaccuracy');
+  });
+
+  it('is counted, with no better move shown', () => {
+    const grades = ['brilliant' as const, null];
+    expect(countGrades(grades).white.brilliant).toBe(1);
+    expect(betterMove(grades, [at(0), at(0)], 1)).toBeNull();
   });
 });
