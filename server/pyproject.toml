@@ -22,7 +22,7 @@ test = [
   "httpx2",  # Starlette's TestClient prefers it; plain httpx is deprecated there
   "websockets",
   # Pinned so CI's messages.py freshness check is byte-stable across runs
-  "datamodel-code-generator==0.83.0",
+  "datamodel-code-generator==0.85.0",
   "ruff",
 ]
 
