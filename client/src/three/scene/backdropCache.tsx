@@ -189,8 +189,9 @@ export const BackdropCache = ({
       const size = renderer.getDrawingBufferSize(drawingBuffer);
       skip.clear();
       skip.add(garden.current).add(copy).add(take);
-      // (e2e's damage.spec.ts draws a frame whole to compare it with one drawn in part)
-      const whole = mode !== 'cached' || scene.userData.wholeFrames === true;
+      // (dev only: e2e's damage.spec.ts draws a frame whole to compare it with one drawn in part)
+      const whole =
+        mode !== 'cached' || (import.meta.env.DEV && scene.userData.wholeFrames === true);
       const d = damage(state.damage, scene, skip, camera, size.x, size.y, whole);
       if (d === 'full') {
         renderer.setScissorTest(false);

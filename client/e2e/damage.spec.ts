@@ -21,7 +21,7 @@ const check = async (
   const game = await startGame(browser, { motion: 'full', device });
   const page = game.white;
   await page.evaluate(() => {
-    type Check = { frames: number; partial: number; differ: number[] };
+    type Check = { frames: number; partial: number; notWhole: number; differ: number[] };
     const w = window as unknown as {
       __r3fState: {
         gl: import('three').WebGLRenderer;
@@ -30,7 +30,7 @@ const check = async (
       };
       __damageCheck: Check;
     };
-    const check: Check = (w.__damageCheck = { frames: 0, partial: 0, differ: [] });
+    const check: Check = (w.__damageCheck = { frames: 0, partial: 0, notWhole: 0, differ: [] });
     const read = (ctx: WebGL2RenderingContext, out: Uint8Array) =>
       ctx.readPixels(
         0,
@@ -58,6 +58,8 @@ const check = async (
       scene.userData.wholeFrames = true;
       gl.render(scene, camera);
       scene.userData.wholeFrames = false;
+      // (the hook is read only in a dev build: on a build this check would compare nothing)
+      if (gl.getScissorTest()) check.notWhole++;
       cached &&= copy?.visible === true;
       if (cached) {
         read(ctx, whole);
@@ -77,13 +79,14 @@ const check = async (
     () =>
       (
         window as unknown as {
-          __damageCheck: { frames: number; partial: number; differ: number[] };
+          __damageCheck: { frames: number; partial: number; notWhole: number; differ: number[] };
         }
       ).__damageCheck,
   );
   // Most frames at rest are drawn in part, and none differs from the whole
   expect(result.frames).toBeGreaterThan(20);
   expect(result.partial).toBeGreaterThan(result.frames / 2);
+  expect(result.notWhole).toBe(0);
   expect(result.differ).toEqual([]);
   await game.close();
 };
