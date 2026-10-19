@@ -270,6 +270,26 @@ describe('the draws', () => {
     expect(result.score).toBe(MATE - 1);
   });
 
+  it('scores the kings left alone as a draw, and takes the last piece to get there', () => {
+    const bare = setUp([
+      [4, 0, 0, KING],
+      [3, 3, 3, KING | BLACK],
+    ]);
+    expect(new Searcher(bare).search({ maxDepth: 3, timeMs: 1e9, margin: 0 }).score).toBe(0);
+    // A rook down, Black's king takes White's last piece: a draw
+    const pos = setUp(
+      [
+        [4, 0, 0, KING],
+        [2, 2, 2, ROOK],
+        [3, 3, 3, KING | BLACK],
+      ],
+      BLACK_SIDE,
+    );
+    const result = new Searcher(pos).search({ maxDepth: 3, timeMs: 1e9, margin: INF });
+    expect(Position.record(result.move)).toEqual({ from: 'Dd4', to: 'Cc3' });
+    expect(result.score).toBe(0);
+  });
+
   it('values a lead a little less as the fifty moves run out', () => {
     const pos = kq();
     const fresh = evaluate(pos);

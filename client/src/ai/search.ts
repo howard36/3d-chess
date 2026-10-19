@@ -262,7 +262,7 @@ export class Searcher {
     allowNull: boolean,
   ): number {
     const pos = this.pos;
-    if (ply > 0 && pos.repeated(this.rootPly)) return 0;
+    if (ply > 0 && (pos.repeated(this.rootPly) || pos.onlyKings())) return 0;
     const inCheck = pos.inCheck();
     // Fifty moves each with no capture or pawn move: drawn, unless this
     // position is mate (a mate stands, as in chess)
@@ -406,6 +406,8 @@ export class Searcher {
     this.nodes++;
     this.checkTime();
     if (this.stopped) return 0;
+    // A capture that leaves the kings alone draws
+    if (pos.onlyKings()) return 0;
     // Mobility only where it could matter: not far above beta or below alpha
     const rough = evaluate(pos, false);
     if (rough - LAZY >= beta) return rough;
