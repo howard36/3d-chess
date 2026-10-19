@@ -273,8 +273,9 @@ for (let i = 0; i < 16 * CELLS; i++) {
   ZOBRIST_LO[i] = nextZ();
   ZOBRIST_HI[i] = nextZ();
 }
-const SIDE_LO = nextZ();
-const SIDE_HI = nextZ();
+/** What the side to move adds to a position's hash (Position.hashLo, hashHi). */
+export const SIDE_LO = nextZ();
+export const SIDE_HI = nextZ();
 
 /**
  * What evaluate() adds up over the pieces, kept per ply as moves are played
