@@ -191,7 +191,7 @@ describe('a frame drawn in part', () => {
     };
     const cam = camera();
     /** One frame: its mode, its scissor (CSS px) if it has one, and what it left out. */
-    const frame = () => {
+    const frame = (copyDrawn = true) => {
       scene.updateMatrixWorld(true);
       scene.onBeforeRender(
         gl as unknown as WebGLRenderer,
@@ -204,7 +204,7 @@ describe('a frame drawn in part', () => {
       const mode = copy.visible ? 'cached' : take.visible ? 'capture' : 'plain';
       const hidden = ['piece', 'far'].filter((name) => !scene.getObjectByName(name)!.visible);
       // (three.js draws the copy, once it has listed what it draws)
-      if (copy.visible)
+      if (copy.visible && copyDrawn)
         copy.onAfterRender(
           gl as unknown as WebGLRenderer,
           scene,
@@ -245,6 +245,16 @@ describe('a frame drawn in part', () => {
     expect(scissor![2]).toBeLessThan(320);
     expect(hidden).toEqual(['far']);
     expect([piece.visible, far.visible]).toEqual([true, true]);
+  });
+
+  it('shows again what a frame left out, should the copy not be drawn', async () => {
+    // (three.js throwing mid-frame, or a camera that cannot see the copy)
+    const { frame, piece } = await mountPartial(1);
+    frame();
+    frame();
+    expect(frame(false).hidden).toEqual(['piece', 'far']);
+    piece.position.x = 0.5;
+    expect(frame().hidden).toEqual(['far']);
   });
 
   it('sets its scissor in CSS pixels, whatever the pixel ratio', async () => {
