@@ -1312,10 +1312,11 @@ endgame apart, pawns in the centre, the king's place in each and pressure on the
 the expert everything, tuned. The beginner's and the advanced player's numbers are fitted to the
 expert's judgement of 75,000 positions as closely as their knowledge allows
 (`research/levels/knowledge.py`), rather than the expert's with the rest struck out: a simpler
-judgement, but a coherent one. Each looks as far ahead as one would: Easy one ply and the
-captures after it, Medium three plies, Hard a budget of 30,000 positions (about four plies and
-every capture to its end), so Hard wins by knowing more, not by looking further than
-a person could, and every level plays the same on any device.
+judgement, but a coherent one. Easy looks one ply ahead and follows the captures after it;
+Medium and Hard search the same budget of 30,000 positions (about four plies, deeper where the
+position is simple), Medium following captures 8 plies and Hard every one to its end, so Hard
+wins by knowing more and seeing more, not by looking further, and neither looks further than a
+person could. Every level plays the same on any device: the budget counts positions, not time.
 
 Unlike a pure engine, the search gives an exact score to every root move within a margin of the
 best, and the level chooses among those the way a player would: each move's score off by the
@@ -1345,21 +1346,23 @@ considered.
 | Level  | Knows               | Looks ahead                 | Overlooks, from hardness | Chooses within, at middling tension |
 | ------ | ------------------- | --------------------------- | ------------------------ | ----------------------------------- |
 | Easy   | beginner (11)       | 1 ply, 4 of captures        | 0, up to all             | 60 cp (temperature 30, ±10 cp)      |
-| Medium | advanced (47)       | 3 plies, 8 of captures      | 0.05, up to all          | 53 cp (temperature 19, ±11 cp)      |
+| Medium | advanced (47)       | 30,000 positions, 8 of captures | 0.05, up to all      | 53 cp (temperature 29, ±5 cp)       |
 | Hard   | expert (all, tuned) | 30,000 positions, 16 of captures | 0.45, up to half    | 40 cp (temperature 28)              |
 
 Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, its README) on
-one scale with Medium at 1500, the Medium its owner tied with: every match fitted at once (37,761
-games over 108 pairings, chosen near even and mostly between cheap players, Medium cut to one ply
-and two among them, so as to say the most for the computing), Easy 866 ± 13, Hard 2,049 ± 15
-(± one standard error); the old Medium 1,484 ± 12. Hard's temperature is twice what it was, so
-its first move varies (the most common in 7% of games, where it was 13%), for 61 Elo. Easy's
+one scale with the Medium its owner tied with (three plies, before it had a budget;
+`medium1500`) at 1500: every match fitted at once (44,161 games over 121 pairings, chosen near
+even and mostly between cheap players, Medium cut to one ply and two among them, so as to say
+the most for the computing), Easy 862 ± 12, Medium 1,447 ± 10 and Hard 2,049 ± 15 (± one
+standard error), Medium about halfway; the old Medium 1,484 ± 12. Medium's temperature and noise
+lie between Easy's and Hard's, as its other settings do. Hard's temperature is twice what it was,
+so its first move varies (the most common in 7% of games, where it was 13%), for 61 Elo; Easy's
 and Medium's hardly vary more at a higher temperature (the moves they would choose among are few
-and far apart), so only Hard's was raised.
+and far apart).
 The old levels erred by choosing badly (Easy among moves up to 2.6 pawns worse, at random), so
 they were far apart (Easy −900) for little difference in what they could see; errors of
 perception cost far less strength, so the new levels look further and choose better at the same
-strength. Each takes milliseconds over a move (a median of 2 for Easy, 14 for Medium and 32 for
+strength. Each takes milliseconds over a move (a median of 1 for Easy, 24 for Medium and 27 for
 Hard in a Chromium worker, where Hard took 1.3 s before), and the game shows the move after its
 pace (`thinkTime`).
 
@@ -1404,9 +1407,9 @@ long way back, far from the last move), played by a side not already winning (be
 not losing after it: the review says how hard the move that led to each position was to see
 (`played`). In self-play (`research/levels/marks.ts`: 40 games of each level against itself,
 each position reviewed), per 100 moves: Easy 14.0 inaccuracies, 4.3 mistakes and 5.1 blunders,
-Medium 8.3, 1.9 and 2.5, Hard 5.7, 1.3 and 0.8, and a brilliant move every 170 to 1,000; each
+Medium 8.0, 1.9 and 2.4, Hard 5.7, 1.3 and 0.8, and a brilliant move every 170 to 1,000; each
 blunders more in a tense position than a quiet one (Easy 8.0 per 100 moves against 3.6, Medium
-4.7 against 0.6).
+5.5 against 0.1).
 
 ### Piece values
 
