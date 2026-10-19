@@ -37,7 +37,8 @@ export const GLYPHS: Record<PieceType, string> = {
 // Each silhouette's ink on its 24-unit grid (left, top, right; every one
 // stands on y = 21), as the browser measures GLYPHS (e2e/glyphs.spec.ts):
 // the move record's icon is cut to it (MoveText), so it stands on the
-// baseline, its gap to the letters the same for every piece. Its height is the capitals' times its lift: a top thinner than the
+// baseline, its gap to the letters the same for every piece. Its height is
+// the capitals' times its lift: a top thinner than the
 // letters' stem (193 of the capitals' 1440 units) looks lower than its last
 // pixel, as a point or a pearl does, so a piece whose top is thin stands
 // that much taller, its weight level with the capitals. The lift is that

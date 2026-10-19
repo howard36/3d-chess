@@ -1123,7 +1123,9 @@ function abMain() {
         // (the Change column is the pairs' geometric mean; the speed rule and
         // the overall figure read the median pair)
         const mid = r.v?.ratios.length ? `×${median(r.v.ratios).toFixed(3)}` : '';
-        const verdict = orderGap(order.map(Number)) ? `${cells[4]}, order gap` : cells[4];
+        // (a side with no pairs has no figure, so no gap)
+        const gap = order.every(Boolean) && orderGap(order.map(Number));
+        const verdict = gap ? `${cells[4]}, order gap` : cells[4];
         return [p.moment, ...cells.slice(0, 3), mid, cells[3], ...order, verdict];
       }),
     }),
@@ -1162,8 +1164,8 @@ function abMain() {
       `pair as likely to go either way, about ${chance.toFixed(chance < 0.1 ? 3 : 1)} of these ` +
       `calls would be chance (the sign flips of each row's own pairs: \`chanceOfCall\`, ` +
       `bench/verdict.mjs). That leaves out the VM's drift between the sides' runs, which the ` +
-      `committed A/As of identical code include: 1 of 366 rows called, at 4–12 pairs ` +
-      `(bench/loop/ab-*-aa*.md, to run 20261018-1719).`,
+      `committed A/As of identical code include: 1 of 366 diagnostics called, and 1 of 38 ` +
+      `primary rows, at 4–12 pairs (bench/loop/ab-*-aa*.md, to run 20261018-1719).`,
   );
   if (real.length) {
     md.push(

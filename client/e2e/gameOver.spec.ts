@@ -72,7 +72,6 @@ test('a position repeated three times draws the game for both players', async ({
   await card.getByRole('heading').click();
   await game.white.keyboard.press('Shift');
   await expect(card).toBeFocused();
-  if (process.env.SHOT) await game.white.screenshot({ path: process.env.SHOT });
   await expect(card).toHaveCSS('outline-style', 'none');
   await game.close();
 });

@@ -108,6 +108,9 @@ export const placeLandingPictureEarly = (): Plugin => ({
   },
 });
 
+/** The pages that draw the scene, but for the start page (which loads it itself). */
+export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
+
 /**
  * three.js, the scene and the set's precomputed parts load in a chunk of
  * their own, the one the lobby's canvas (LobbyCanvas.tsx), the game's board
@@ -120,8 +123,6 @@ export const placeLandingPictureEarly = (): Plugin => ({
  * it for later. The build fails if a chunk is not found, rather than quietly
  * shipping a page without the preload.
  */
-/** The pages that draw the scene, but for the start page (which loads it itself). */
-export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
 const PRELOADED = [
   '/src/screens/lobby/LobbyCanvas.tsx',
   '/src/screens/GameCanvas.tsx',
