@@ -30,7 +30,7 @@
      runs, left to right and top to bottom: the home page's title and rims, the lobby's */
   --landing-levels: linear-gradient(90deg, #47bbec, #4180f3, #8f61fc, #de5cec, #ec539b);
   /* The night round the tower: the garden's sky at its top (palette.ts, skyTop), which the
-     start page's pictures fade into at their edges */
+     start page's pictures fade into at their edges; index.html's theme-color copies it */
   --night: #010205;
   /* The start and waiting pages */
   --page-bg: radial-gradient(ellipse at 50% 60%, #0a0d15 0%, #04050a 60%, var(--night) 100%);
