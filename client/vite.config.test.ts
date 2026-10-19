@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -8,6 +9,7 @@ import { parseHeaders } from './bench/preview.config';
 import config, {
   KEEP_A_YEAR,
   keepHashedFiles,
+  keepSceneOutOfEntry,
   landingVersion,
   placeLandingPictureEarly,
   preloadLandingPictureOnStartPage,
@@ -218,4 +220,83 @@ test('the build fails on a file under assets/ with no hash in its name', () => {
 test('the build fails past the host’s 100 rules', () => {
   const many = Array.from({ length: 100 }, (_, i) => `assets/c${i}-B2x9_kQe.js`);
   expect(() => keepFiles(many)).toThrow(/101 rules/);
+});
+
+// The gate that keeps three.js, r3f, the scene and the search out of the
+// start page's code (a build's only), run on a bundle made by hand
+type Part = Record<string, unknown>;
+const chunk = (fileName: string, moduleIds: string[], more: Part = {}): Part => ({
+  type: 'chunk',
+  fileName,
+  isEntry: false,
+  imports: [],
+  code: 'export {}',
+  viteMetadata: { importedCss: new Set((more.css as string[] | undefined) ?? []) },
+  moduleIds,
+  ...more,
+});
+const sceneGate = (change: (parts: Record<string, Part>) => void = () => {}) => {
+  const parts: Record<string, Part> = {
+    'index.js': chunk('index.js', ['/src/main.tsx', '/src/ai/computer.ts', '/src/ai/levels.ts'], {
+      isEntry: true,
+      imports: ['shared.js'],
+      css: ['index.css'],
+    }),
+    'shared.js': chunk('shared.js', ['/src/lib/focus.ts']),
+    'learn.js': chunk('learn.js', ['/src/screens/learn/LearnScreen.tsx']),
+    'computer.js': chunk('computer.js', ['/src/screens/ComputerGameScreen.tsx']),
+    'scene.js': chunk('scene.js', [
+      '/node_modules/three/build/three.module.js',
+      '/src/ai/search.ts',
+    ]),
+    'index.css': { type: 'asset', fileName: 'index.css', source: 'body{}' },
+  };
+  change(parts);
+  const generate = keepSceneOutOfEntry().generateBundle as (...args: unknown[]) => void;
+  const fail = (message: string) => {
+    throw new Error(message);
+  };
+  generate.call({ error: fail }, {}, parts);
+};
+
+test('the build keeps the scene and the search out of the start page and the pages before the scene', () => {
+  expect(() => sceneGate()).not.toThrow();
+  // In a chunk the entry imports, by any path
+  expect(() =>
+    sceneGate((p) => {
+      p['shared.js'].moduleIds = ['C:\\app\\node_modules\\@react-three\\fiber\\index.js'];
+    }),
+  ).toThrow(/shared.js loads before the scene/);
+  expect(() =>
+    sceneGate((p) => {
+      p['index.js'].moduleIds = ['/src/main.tsx', '/src/ai/search.ts'];
+    }),
+  ).toThrow(/holds \/src\/ai\/search.ts/);
+  // In a chunk that the tutorial's page imports statically
+  expect(() =>
+    sceneGate((p) => {
+      p['learn.js'].imports = ['scene.js'];
+    }),
+  ).toThrow(/scene.js loads before the scene/);
+  // The tutorial's page in the entry, not a chunk of its own
+  expect(() =>
+    sceneGate((p) => {
+      p['index.js'].moduleIds = ['/src/main.tsx', '/src/screens/learn/LearnScreen.tsx'];
+    }),
+  ).toThrow(/LearnScreen.tsx is in the entry/);
+});
+
+test('the build fails past the start page’s budget, and on an entry with no styles', () => {
+  // (random text: gzip cannot shrink it below the budget)
+  const noise = randomBytes(200_000).toString('base64');
+  expect(() =>
+    sceneGate((p) => {
+      p['shared.js'].code = noise;
+    }),
+  ).toThrow(/over ENTRY_GZIP_BUDGET/);
+  expect(() =>
+    sceneGate((p) => {
+      p['index.js'].viteMetadata = { importedCss: new Set() };
+    }),
+  ).toThrow(/imports no CSS/);
 });

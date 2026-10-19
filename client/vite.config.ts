@@ -256,7 +256,7 @@ const SHOWN_BEFORE_SCENE = [
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/ComputerGameScreen.tsx',
 ];
-const keepSceneOutOfEntry = (): Plugin => ({
+export const keepSceneOutOfEntry = (): Plugin => ({
   name: 'keep-scene-out-of-entry',
   apply: 'build',
   generateBundle(_options, bundle) {
