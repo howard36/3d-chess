@@ -1,0 +1,1 @@
+medium{"temperature":29,"noise":5} vs medium{"maxDepth":2}: 71.6% ± 2.2% (161 Elo) over 400 games, +272 =29 -99 {"resigned":312,"mate":59,"fifty":27,"length":1,"repetition":1}; medium{"temperature":29,"noise":5}: 60 ms, 49766 positions a move; medium{"maxDepth":2}: 10 ms, 8213 positions a move
