@@ -120,6 +120,20 @@ try {
       console.log(`${name}: ${width}x${height}, ${avif} (${kb(avif)}), ${webp} (${kb(webp)})`);
       await context.close();
     }
+  // The numbers they were rendered at, once every picture is (landingPictureInputs.ts)
+  const all = (names, every) => every.every((n) => names.includes(n));
+  const home = OUT === path.join(CLIENT, 'public', 'landing');
+  if (
+    vite &&
+    home &&
+    all(PICTURES, ['phone-tall', 'phone', 'tablet', 'wide']) &&
+    all(DENSITIES, ['1x', '2x'])
+  ) {
+    const { landingPictureInputs } = await vite.ssrLoadModule('/src/three/landingPictureInputs.ts');
+    const stamp = path.join(CLIENT, 'src', 'three', 'landingPictures.json');
+    fs.writeFileSync(stamp, `${JSON.stringify(landingPictureInputs(), null, 2)}\n`);
+    console.log(`rendered at: ${stamp}`);
+  }
 } finally {
   fs.rmSync(work, { recursive: true, force: true });
   await browser.close();
