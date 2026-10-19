@@ -73,9 +73,12 @@ against players near its target on the scale (`hard0:d1`, `hard0:d2`, `easy0`, `
   the old Medium, the same 3 plies, lost some 500 Elo to its random choice. So Medium chooses
   more freely in a fight (margin, temperature and noise scaled by tension), and still mostly errs
   by not seeing.
-- At one ply, Easy's strength barely moves with how much it overlooks (−600 to −690 from
-  overlooking little to everything): the shallow search is what holds it. It reaches −500 by
-  choosing steadily (margin 30, no noise) and following captures further (8 plies).
+- At one ply, the shallow search is what holds Easy. Against the reference `hard0:d1` it moved
+  only from −523 to −636 between overlooking little (from hardness 0.4, up to 60%) and every
+  hard move it can. Against the new Medium, overlooking from 0.1 (up to 90%) it was −458 and
+  overlooking all it can −594; choosing steadily (margin 30, no noise) and following captures
+  to 8 plies, −313. The game's Easy overlooks from 0.05 (up to 95%) and chooses as freely as
+  Medium: −526.
 - Hard: the expert's numbers on 15,000 positions +491 ± 34 (25,000: +645).
 - The references and the old Medium disagree. Against the old Medium itself the new levels do
   better than the references foretold (Medium +54 where they said about +10, Easy −336 where
@@ -106,8 +109,8 @@ feels are the ones between the levels as they are now: Easy about 525 below Medi
 510 above. Fitted with every other match (`fit.py`), the old Medium at 0: Easy −550 ± 26, Medium
 +3 ± 13, Hard +617 ± 28.
 
-**How the levels err** (`marks.ts`: 6 games of each level against itself, every position
-reviewed as the game's review does), per 100 moves:
+**How the levels err** (`marks.ts`: 10 games of each level against itself, 6 of each old one,
+every position reviewed as the game's review does), per 100 moves:
 
 | Level          | Games | Brilliant | Inaccuracies | Mistakes | Blunders | Blunders, quiet | Blunders, tense |
 | -------------- | ----: | --------: | -----------: | -------: | -------: | --------------: | --------------: |
