@@ -404,6 +404,45 @@ describe('deriveHistory: the draws', () => {
     expect(h.sinceIrreversible).toHaveLength(5);
   });
 
+  // Both sides trading everything off, down to the two kings: the last move,
+  // Black's king taking White's last queen, leaves them alone
+  const toBareKings: MoveRecord[] = [
+    ...['Aa2-Da5', 'Ea4-Bd1', 'Ab1-Bd1', 'Ea5-Da5', 'Ab2-De5', 'Eb4-Bb1', 'Ac1-Bb1', 'Ec4-Bc1'],
+    ...['Ac2-Bc1', 'Ed4-De5', 'Ad2-Dd5', 'Eb5-Dd5', 'Ae2-Db5', 'Da5-Db5', 'Bc1-Dc3', 'Db4-Dc3'],
+    ...['Bd1-Cd3', 'Dc3-Cd3', 'Bd2-Cd3', 'Dd4-Cd3', 'Bc2-Bc3', 'Cd3-Bc3', 'Bb2-Bc3', 'De5-Bc3'],
+    ...['Aa1-Aa4', 'Ee4-Aa4', 'Ae1-Ae5', 'Aa4-Ad1', 'Ae5-Ee5', 'Ad1-Be1', 'Ee5-Ed5', 'Ec5-Ed5'],
+    ...['Be2-Ce2', 'Be1-Ce2', 'Ba1-Ca1', 'Bc3-Cb2', 'Ba2-Cb2', 'Ce2-Ac2', 'Bb1-Ac2', 'Db5-Db3'],
+    ...['Cb2-Db3', 'Da4-Db3', 'Ac2-Bc2', 'Db3-Cb3', 'Bc2-Cb3', 'Dd5-Dc3', 'Cb3-Dc3', 'Ed5-Ee5'],
+    ...['Dc3-Dc4', 'Dc5-Cc5', 'Dc4-Cc5', 'De4-De3', 'Ca1-Ca2', 'De3-De2', 'Ca2-Ca3', 'De2-De1'],
+    ...['Ca3-Ca4', 'De1-Ce1', 'Ca4-Ca5', 'Ce1-Be1', 'Ca5-Da5', 'Be1-Ae1=Q', 'Da5-Ea5=Q'],
+    ...['Ae1-Ea5', 'Cc5-Dc5', 'Ea5-Eb5', 'Dc5-Eb5'],
+  ].map((m, i) => {
+    const [from, to, promotion] = m.split(/[-=]/);
+    return {
+      by: i % 2 ? 'black' : 'white',
+      from,
+      to,
+      ...(promotion && { promotion }),
+    } as MoveRecord;
+  });
+
+  it('draws when only the two kings are left', () => {
+    const before = deriveHistory([snapshot(toBareKings.slice(0, -1))]);
+    expect(before.replayFailedAt).toBeNull();
+    expect(before.gameOver).toBeNull();
+    const h = deriveHistory([snapshot(toBareKings)]);
+    expect(h.replayFailedAt).toBeNull();
+    expect(h.captured.black[h.captured.black.length - 1]).toBe(PieceType.Queen);
+    expect(h.gameOver).toEqual({ result: 'insufficient-material' });
+    // ...and the same move by move
+    const last = toBareKings[toBareKings.length - 1];
+    const landed = deriveHistory(
+      [snapshot(toBareKings.slice(0, -1)), moveMade(last.by, last.from, last.to)],
+      before,
+    );
+    expect(landed.gameOver).toEqual({ result: 'insufficient-material' });
+  });
+
   /**
    * A hundred plies with no capture and no pawn move, no position three
    * times: each side moves its pieces about, the first move in the engine's
