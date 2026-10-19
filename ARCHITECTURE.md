@@ -1238,12 +1238,15 @@ is nothing to take back.
 
 **The engine** (`client/src/ai/`) is separate from the rules engine, built for speed:
 `position.ts` keeps the board as 125 bytes, cells numbered as `engine/board.ts` numbers
-them, with occupancy bitsets per side, moves packed into integers, make/unmake in place and
+them, and a bordered copy (7×7×7, 343 bytes) that the sliders and the attack tests step on
+until they meet a piece or the border, with occupancy bitsets per side, moves packed into integers, make/unmake in place and
 Zobrist hashing (`position.test.ts` checks every move list against the rules engine over
 thousands of positions of random games). `search.ts` is iterative-deepening alpha-beta
 (principal variation search) with a transposition table, quiescence search, null-move
 pruning, late-move reductions, check extensions, futility pruning, and killer and history
-ordering. It plays by the draws too: a position standing for the third time scores as a
+ordering. Its tables (the transposition table, the move lists, killers and history) are
+made at a thread's first search and kept for the next, and `evaluate.ts` keeps a search's
+mobility by the position's hash. It plays by the draws too: a position standing for the third time scores as a
 draw, and so does one repeated inside the line searched (it can always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate. A lead counts for up to a quarter less as
@@ -1255,8 +1258,8 @@ centralisation in the cube, pawns' progress towards their last square (worth mor
 board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
 active king in the endgame, mobility (left out of the quiescence search where it cannot
 matter), the bishop pair, and, a side ahead, trading down and driving the bare king to a
-corner, which mates with king and queen. In the browser it searches some 400,000 positions
-a second.
+corner, which mates with king and queen. How fast it searches in the browser is the
+browser bench's row "Computer’s later moves: positions searched per second".
 
 **The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
 engine, the search gives an exact score to every root move within a margin of the best, and
