@@ -236,7 +236,8 @@ describe('a frame drawn in part', () => {
   });
 
   it('sets its scissor in CSS pixels, whatever the pixel ratio', async () => {
-    // (the same rect but for its margin, PAD, which is in device pixels)
+    // (the same rect but for its margin and its rounding to whole pixels,
+    // both in device pixels: up to 3 CSS px each side at a ratio of 1)
     const scissors = [];
     for (const ratio of [1, 1.5, 2.625]) {
       const { frame, piece } = await mountPartial(ratio);
@@ -247,7 +248,7 @@ describe('a frame drawn in part', () => {
       scissors.push(frame().scissor!);
     }
     for (const s of scissors.slice(1))
-      for (let i = 0; i < 4; i++) expect(Math.abs(s[i] - scissors[0][i])).toBeLessThanOrEqual(3);
+      for (let i = 0; i < 4; i++) expect(Math.abs(s[i] - scissors[0][i])).toBeLessThanOrEqual(6);
   });
 });
 
