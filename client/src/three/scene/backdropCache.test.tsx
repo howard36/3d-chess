@@ -156,6 +156,101 @@ describe('BackdropCache', () => {
   });
 });
 
+describe('a frame drawn in part', () => {
+  /** The cache drawing in part, round one garden mesh, with two boxes of the tower beside it. */
+  const mountPartial = async (ratio: number) => {
+    const r = await ReactThreeTestRenderer.create(
+      <>
+        <BackdropCache partial>
+          <mesh name="sky" material={skyMaterial()} renderOrder={-1000} />
+        </BackdropCache>
+        <mesh name="piece">
+          <boxGeometry />
+          <meshBasicMaterial />
+        </mesh>
+        <mesh name="far" position={[-4, 0, 0]}>
+          <boxGeometry />
+          <meshBasicMaterial />
+        </mesh>
+      </>,
+    );
+    const scene = r.scene.instance as unknown as Scene;
+    const copy = scene.getObjectByName('backdrop-copy')!;
+    const take = scene.getObjectByName('backdrop-take')! as Mesh;
+    const gl = {
+      ...fakeRenderer([640 * ratio, 480 * ratio]),
+      scissor: [0, 0, 0, 0],
+      scissorTest: false,
+      getPixelRatio: () => ratio,
+      setScissor(x: number, y: number, w: number, h: number) {
+        this.scissor = [x, y, w, h];
+      },
+      setScissorTest(on: boolean) {
+        this.scissorTest = on;
+      },
+    };
+    const cam = camera();
+    /** One frame up to its drawing: the mode, and the scissor (CSS px) if it has one. */
+    const frame = () => {
+      scene.updateMatrixWorld(true);
+      scene.onBeforeRender(
+        gl as unknown as WebGLRenderer,
+        scene,
+        cam,
+        null as never,
+        null as never,
+        null as never,
+      );
+      const mode = copy.visible ? 'cached' : take.visible ? 'capture' : 'plain';
+      if (take.visible)
+        take.onAfterRender(
+          gl as unknown as WebGLRenderer,
+          scene,
+          cam,
+          take.geometry,
+          take.material as Material,
+          null as never,
+        );
+      return { mode, scissor: gl.scissorTest ? gl.scissor : null };
+    };
+    const piece = scene.getObjectByName('piece')!;
+    const far = scene.getObjectByName('far')!;
+    return { frame, piece, far };
+  };
+
+  it('draws whole until the garden comes from its copy, then only what changed', async () => {
+    const { frame, piece, far } = await mountPartial(1);
+    expect(frame()).toEqual({ mode: 'plain', scissor: null });
+    expect(frame()).toEqual({ mode: 'capture', scissor: null });
+    // Nothing changed: an empty scissor, and the tower left out
+    expect(frame()).toEqual({ mode: 'cached', scissor: [0, 0, 0, 0] });
+    expect([piece.visible, far.visible]).toEqual([false, false]);
+    // The piece moves: drawn where it was and is, the far box left out,
+    // and what the last frame left out is back before the tower is looked at
+    piece.position.x = 0.5;
+    const { mode, scissor } = frame();
+    expect(mode).toBe('cached');
+    expect(scissor![2]).toBeGreaterThan(0);
+    expect(scissor![2]).toBeLessThan(320);
+    expect([piece.visible, far.visible]).toEqual([true, false]);
+  });
+
+  it('sets its scissor in CSS pixels, whatever the pixel ratio', async () => {
+    // (the same rect but for its margin, PAD, which is in device pixels)
+    const scissors = [];
+    for (const ratio of [1, 1.5, 2.625]) {
+      const { frame, piece } = await mountPartial(ratio);
+      frame();
+      frame();
+      frame();
+      piece.position.x = 0.5;
+      scissors.push(frame().scissor!);
+    }
+    for (const s of scissors.slice(1))
+      for (let i = 0; i < 4; i++) expect(Math.abs(s[i] - scissors[0][i])).toBeLessThanOrEqual(3);
+  });
+});
+
 describe('backdropSignature', () => {
   it('is the same for the same frame and differs when the view does', () => {
     const cam = camera();

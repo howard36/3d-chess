@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BoxGeometry,
+  Color,
   BufferAttribute,
   BufferGeometry,
   Group,
@@ -32,21 +33,27 @@ const camera = () => {
   return c;
 };
 
-const box = (x: number) => {
+const box = (x: number, y = 0) => {
   const m = new Mesh(
     new BoxGeometry(1, 1, 1),
-    new ShaderMaterial({ uniforms: { uGlow: { value: 0 }, uMap: { value: null } } }),
+    new ShaderMaterial({
+      uniforms: {
+        uGlow: { value: 0 },
+        uMap: { value: null },
+        uAt: { value: new Vector3() },
+        uTint: { value: new Color() },
+      },
+    }),
   );
-  m.position.x = x;
+  m.position.set(x, y, 0);
   return m;
 };
 
 /** A scene of three boxes, the first frame (drawn whole) already taken. */
-const setUp = () => {
+const setUp = (cam = camera()) => {
   const root = new Group();
   const boxes = [box(-3), box(0), box(3)];
   root.add(...boxes);
-  const cam = camera();
   const state = damageState();
   const frame = (full = false, skip: ReadonlySet<Object3D> = new Set()) => {
     root.updateMatrixWorld(true);
@@ -63,9 +70,9 @@ const contains = (outer: Rect, inner: Rect) =>
   outer.y + outer.h >= inner.y + inner.h;
 
 /** Where a box alone covers the screen, as the damage of a frame that only adds it. */
-const rectOf = (x: number) => {
-  const { root, frame } = setUp();
-  const extra = box(x);
+const rectOf = (x: number, y = 0, cam = camera()) => {
+  const { root, frame } = setUp(cam);
+  const extra = box(x, y);
   root.add(extra);
   return frame() as Rect;
 };
@@ -92,10 +99,29 @@ describe('damage', () => {
     expect(contains(r, rectOf(3))).toBe(true);
     expect(contains(r, rectOf(2.5))).toBe(true);
     // The other boxes are left as they are
-    const left = rectOf(-3);
-    expect(r.x).toBeGreaterThan(left.x + left.w);
+    const middle = rectOf(0);
+    expect(r.x).toBeGreaterThanOrEqual(middle.x + middle.w);
     expect(r.w * r.h).toBeLessThan(W * H * 0.1);
     expect(frame()).toBeNull();
+    // Up and down as well as across
+    boxes[2].position.y = 1.5;
+    const up = frame() as Rect;
+    expect(contains(up, rectOf(2.5))).toBe(true);
+    expect(contains(up, rectOf(2.5, 1.5))).toBe(true);
+  });
+
+  it('takes every rect anew on a frame drawn whole (the camera may have moved)', () => {
+    const cam = camera();
+    const { boxes, frame } = setUp(cam);
+    cam.position.set(4, 3, 9);
+    cam.lookAt(0, 0, 0);
+    cam.updateMatrixWorld();
+    expect(frame(true)).toBe('full');
+    boxes[2].position.x = 2.5;
+    const r = frame() as Rect;
+    // Where it was, seen from where the camera is now
+    expect(contains(r, rectOf(3, 0, cam))).toBe(true);
+    expect(contains(r, rectOf(2.5, 0, cam))).toBe(true);
   });
 
   it('sees a uniform, a texture and a material change', () => {
@@ -109,6 +135,14 @@ describe('damage', () => {
     expect(frame()).toBeNull();
     texture.needsUpdate = true;
     expect(frame()).not.toBeNull();
+    // A vector's every part, a colour, the draw order
+    (material.uniforms.uAt.value as Vector3).z = 1;
+    expect(frame()).not.toBeNull();
+    (material.uniforms.uTint.value as Color).setRGB(0, 0, 1);
+    expect(frame()).not.toBeNull();
+    boxes[0].renderOrder = 5;
+    expect(frame()).not.toBeNull();
+    expect(frame()).toBeNull();
     material.transparent = true;
     expect(frame()).not.toBeNull();
     boxes[0].material = new ShaderMaterial();
@@ -165,6 +199,10 @@ describe('damage', () => {
     // At 10 units, a unit is about H / (2 tan 18°) / 10 px
     const unit = H / (2 * Math.tan((18 * Math.PI) / 180)) / 10;
     expect(large.w).toBeGreaterThanOrEqual(2 * unit);
+    // Off its centre, it reaches farther that way
+    sprite.center.set(0, 0.5);
+    const shifted = frame() as Rect;
+    expect(shifted.x + shifted.w).toBeGreaterThan(large.x + large.w + unit / 2);
 
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new BufferAttribute(new Float32Array([0, -2, 0]), 3));
