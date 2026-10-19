@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { useComputerGame } from './useComputerGame';
+import { COMPUTER_UNLOADED, useComputerGame } from './useComputerGame';
+import { ChunkLoadError } from '../lib/cachedImport';
 import type { ComputerGameOptions } from './useComputerGame';
 import { loadComputerGame, saveComputerGame } from '../lib/computerGames';
 import type { Computer, ComputerMove } from '../ai/computer';
@@ -21,7 +22,10 @@ const reply = (from: string, to: string): ComputerMove => ({
  * A computer that answers from a script, recording what it was asked: moves,
  * and what it makes of a position (`scores`, centipawns for the side to move).
  */
-const scripted = (answers: (ComputerMove | null | 'fail')[], scores: (number | 'fail')[] = []) => {
+const scripted = (
+  answers: (ComputerMove | null | 'fail' | 'unloaded')[],
+  scores: (number | 'fail')[] = [],
+) => {
   const asked: number[] = [];
   const assessed: number[] = [];
   let disposed = false;
@@ -30,6 +34,7 @@ const scripted = (answers: (ComputerMove | null | 'fail')[], scores: (number | '
     think: (records) => {
       asked.push(records.length);
       const a = answers.shift();
+      if (a === 'unloaded') return Promise.reject(new ChunkLoadError(new Error('Failed to fetch')));
       return a === 'fail' ? Promise.reject(new Error('no')) : Promise.resolve(a ?? null);
     },
     assess: (records) => {
@@ -141,6 +146,23 @@ it('plays a legal move of its own when its search fails or answers nothing', asy
   // have one (its board and the engine disagree)
   expect(error).toHaveBeenCalledTimes(2);
   expect(error.mock.calls[1][0]).toMatch(/found no move/);
+  error.mockRestore();
+});
+
+it('makes no move when its code did not load, and says so', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  newGame('black', 'g2');
+  const ai = scripted(['unloaded']);
+  const { result } = renderHook(() => useComputerGame('g2', options(ai.computer)));
+  await waitFor(() => expect(result.current.messages).toHaveLength(3));
+  expect(result.current.messages[2]).toEqual({
+    type: 'error',
+    code: 'invalid_message',
+    message: COMPUTER_UNLOADED,
+  });
+  // (and nothing played for it: the game waits for the reload)
+  expect(loadComputerGame('g2')!.moves).toEqual([]);
+  expect(error).toHaveBeenCalledOnce();
   error.mockRestore();
 });
 
