@@ -22,6 +22,8 @@ export interface ThinkRequest {
   assess?: boolean;
   /** Asks for the position's best move and its worth, for a review of the game. */
   analyse?: boolean;
+  /** With `analyse`: searched again this many plies deep (choose.ts, recheckPosition). */
+  depth?: number;
 }
 
 export type ThinkReply =
@@ -40,9 +42,10 @@ export interface Computer {
   assess(records: readonly WireMove[]): Promise<number>;
   /**
    * The best move after `records` and what it is worth (choose.ts,
-   * analysePosition): one position of a finished game's review.
+   * analysePosition): one position of a finished game's review. With
+   * `depth`, the position searched again that deep (recheckPosition).
    */
-  analyse(records: readonly WireMove[]): Promise<PositionAnalysis>;
+  analyse(records: readonly WireMove[], depth?: number): Promise<PositionAnalysis>;
   /** Stops the worker; answers still pending are never given. */
   dispose(): void;
 }
@@ -75,11 +78,15 @@ const DROPPED = Symbol('dropped');
  */
 const inline = (request: ThinkRequest, wanted: () => boolean): Promise<Answer> => {
   const run = onPage.then(async () => {
-    const { analysePosition, assessPosition, chooseMove } = await loadSearch();
+    const { analysePosition, assessPosition, chooseMove, recheckPosition } = await loadSearch();
     // Let the page draw the move just made before the thread is taken
     await new Promise((resolve) => setTimeout(resolve, 30));
     if (!wanted()) return DROPPED;
-    if (request.analyse) return analysePosition(request.records);
+    if (request.analyse) {
+      return request.depth
+        ? recheckPosition(request.records, request.depth)
+        : analysePosition(request.records);
+    }
     return request.assess
       ? assessPosition(request.records)
       : chooseMove(request.records, request.difficulty, request.seed);
@@ -133,7 +140,12 @@ export function createComputer(): Computer {
   }
 
   type Kind = 'think' | 'assess' | 'analyse';
-  const ask = (records: readonly WireMove[], difficulty: Difficulty, kind: Kind) => {
+  const ask = (
+    records: readonly WireMove[],
+    difficulty: Difficulty,
+    kind: Kind,
+    depth?: number,
+  ) => {
     if (disposed) return new Promise<Answer>(() => {});
     const request: ThinkRequest = {
       id: nextId++,
@@ -143,6 +155,7 @@ export function createComputer(): Computer {
     };
     if (kind === 'assess') request.assess = true;
     if (kind === 'analyse') request.analyse = true;
+    if (depth) request.depth = depth;
     if (!worker) return inline(request, wanted);
     return new Promise<Answer>((resolve, reject) => {
       pending.set(request.id, { request, resolve, reject });
@@ -154,7 +167,8 @@ export function createComputer(): Computer {
     think: (records, difficulty) =>
       ask(records, difficulty, 'think') as Promise<ComputerMove | null>,
     assess: (records) => ask(records, 'hard', 'assess') as Promise<number>,
-    analyse: (records) => ask(records, 'hard', 'analyse') as Promise<PositionAnalysis>,
+    analyse: (records, depth) =>
+      ask(records, 'hard', 'analyse', depth) as Promise<PositionAnalysis>,
     dispose() {
       disposed = true;
       pending.clear();

@@ -229,7 +229,9 @@ const GameView: React.FC<GameViewProps> = ({
     },
     [gameOver, analysisState, startAnalysis, show],
   );
-  const better = gameOver ? betterMove(analysis.grades, analysis.positions, shown.ply) : null;
+  const better = gameOver
+    ? betterMove(analysis.grades, analysis.positions, shown.ply, analysis.rechecks)
+    : null;
   const betterOnBoard = React.useMemo(
     () => (better ? moveFromMessage({ by: 'white', ...better }) : null),
     [better],
