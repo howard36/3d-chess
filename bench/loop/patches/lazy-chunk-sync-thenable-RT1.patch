@@ -1,0 +1,215 @@
+From 74bca85b0082362df80166651021dff8101a93b1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 01:05:53 +0000
+Subject: [PATCH] perf(client): a chunk that has arrived renders in the page's
+ own commit
+
+React.lazy suspends a part once even when its chunk has loaded (its promise
+answers only in a microtask), and React then holds the commit that reveals
+it until 300 ms after its fallback showed: the computer's game page (and the
+lobby's arrival with it) and a joined game's board came up about 300 ms late
+on every load. lazyChunk now hands its lazy a thenable that answers as it is
+asked once the chunk is in, so the part renders at once; before, it
+suspends as it did. The type stays one lazy (retry still makes a fresh one).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+---
+ .../patches/lazy-chunk-no-throttle-RT1.patch  | 96 -------------------
+ client/src/lib/cachedImport.ts                | 26 +++--
+ client/src/lib/lazyChunk.test.tsx             | 33 +++++++
+ 3 files changed, 53 insertions(+), 102 deletions(-)
+ delete mode 100644 bench/loop/patches/lazy-chunk-no-throttle-RT1.patch
+ create mode 100644 client/src/lib/lazyChunk.test.tsx
+
+diff --git a/bench/loop/patches/lazy-chunk-no-throttle-RT1.patch b/bench/loop/patches/lazy-chunk-no-throttle-RT1.patch
+deleted file mode 100644
+index 5bf5f4f..0000000
+--- a/bench/loop/patches/lazy-chunk-no-throttle-RT1.patch
++++ /dev/null
+@@ -1,96 +0,0 @@
+-diff --git a/client/src/lib/cachedImport.ts b/client/src/lib/cachedImport.ts
+-index f60ed4b..12b9010 100644
+---- a/client/src/lib/cachedImport.ts
+-+++ b/client/src/lib/cachedImport.ts
+-@@ -1,5 +1,5 @@
+--import { lazy } from 'react';
+--import type { ComponentType } from 'react';
+-+import { createElement, lazy, useState } from 'react';
+-+import type { ComponentProps, ComponentType, LazyExoticComponent } from 'react';
+- 
+- /**
+-  * A chunk that did not load (its loader's error is the `cause`), told apart
+-@@ -35,22 +35,35 @@ export const cachedImport = <T>(load: () => Promise<T>): (() => Promise<T>) => {
+- /**
+-  * A component from a chunk of its own (a canvas), for the page around it to
+-  * show without waiting; `preload` asks for the chunk before it first renders.
+-- * React.lazy keeps its first failure for good, so `retry` makes a fresh one,
+-- * which asks for the chunk again, for the next render to use. Render it
+-- * inside a ChunkBoundary.
+-+ * Once the chunk has loaded, a part that mounts renders it at once, in the
+-+ * page's own commit: React.lazy would suspend it once even then, and React
+-+ * holds back the commit that reveals a suspended part until 300 ms after its
+-+ * fallback showed. React.lazy keeps its first failure for good, so `retry`
+-+ * makes a fresh one, which asks for the chunk again, for the next mount (a
+-+ * ChunkBoundary with a new key) to use. Render it inside a ChunkBoundary.
+-  */
+- // As React.lazy's own: any component, whatever its props
+- // eslint-disable-next-line @typescript-eslint/no-explicit-any
+- export const lazyChunk = <C extends ComponentType<any>>(load: () => Promise<{ default: C }>) => {
+-   const get = cachedImport(load);
+--  let component = lazy(get);
+-+  let loaded: C | null = null;
+-+  const track = () =>
+-+    get().then((module) => {
+-+      loaded = module.default;
+-+      return module;
+-+    });
+-+  let component = lazy(track);
+-+  // Which of the two a part renders is settled as it mounts: a type that
+-+  // changed under a mounted part would remount it
+-+  const Chunk = (props: ComponentProps<C>) => {
+-+    const [type] = useState<C | LazyExoticComponent<C>>(() => loaded ?? component);
+-+    return createElement(type, props);
+-+  };
+-   return {
+--    get Component() {
+--      return component;
+--    },
+--    preload: () => void get().catch(() => {}),
+-+    Component: Chunk as unknown as C,
+-+    preload: () => void track().catch(() => {}),
+-     retry: () => {
+--      component = lazy(get);
+-+      component = lazy(track);
+-     },
+-   };
+- };
+-diff --git a/client/src/lib/lazyChunk.test.tsx b/client/src/lib/lazyChunk.test.tsx
+-new file mode 100644
+-index 0000000..6fc2971
+---- /dev/null
+-+++ b/client/src/lib/lazyChunk.test.tsx
+-@@ -0,0 +1,33 @@
+-+import { Suspense } from 'react';
+-+import { render, screen } from '@testing-library/react';
+-+import { expect, it } from 'vitest';
+-+import { lazyChunk } from './cachedImport';
+-+
+-+const fallback = <p>waiting</p>;
+-+
+-+it('renders a chunk already loaded in the page’s own commit, never its fallback', async () => {
+-+  const chunk = lazyChunk(() => Promise.resolve({ default: () => <p>canvas</p> }));
+-+  chunk.preload();
+-+  await new Promise((r) => setTimeout(r));
+-+  const { Component } = chunk;
+-+  render(
+-+    <Suspense fallback={fallback}>
+-+      <Component />
+-+    </Suspense>,
+-+  );
+-+  // (React.lazy suspends once even here, and reveals it up to 300 ms later)
+-+  expect(screen.getByText('canvas')).toBeInTheDocument();
+-+  expect(screen.queryByText('waiting')).toBeNull();
+-+});
+-+
+-+it('shows the fallback while the chunk is on its way, then the chunk', async () => {
+-+  const chunk = lazyChunk(() => Promise.resolve({ default: () => <p>canvas</p> }));
+-+  const { Component } = chunk;
+-+  render(
+-+    <Suspense fallback={fallback}>
+-+      <Component />
+-+    </Suspense>,
+-+  );
+-+  expect(screen.getByText('waiting')).toBeInTheDocument();
+-+  expect(await screen.findByText('canvas')).toBeInTheDocument();
+-+});
+diff --git a/client/src/lib/cachedImport.ts b/client/src/lib/cachedImport.ts
+index f60ed4b..0d33fc6 100644
+--- a/client/src/lib/cachedImport.ts
++++ b/client/src/lib/cachedImport.ts
+@@ -35,22 +35,36 @@ export const cachedImport = <T>(load: () => Promise<T>): (() => Promise<T>) => {
+ /**
+  * A component from a chunk of its own (a canvas), for the page around it to
+  * show without waiting; `preload` asks for the chunk before it first renders.
+- * React.lazy keeps its first failure for good, so `retry` makes a fresh one,
+- * which asks for the chunk again, for the next render to use. Render it
+- * inside a ChunkBoundary.
++ * A chunk that has arrived renders in the page's own commit: its lazy is
++ * handed it at once (a thenable that answers as it is asked), where a
++ * promise, even one settled, would suspend the part once, and React holds
++ * the commit that reveals a suspended part until 300 ms after its fallback
++ * showed. React.lazy keeps its first failure for good, so `retry` makes a
++ * fresh one, which asks for the chunk again, for the next render to use.
++ * Render it inside a ChunkBoundary.
+  */
+ // As React.lazy's own: any component, whatever its props
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+ export const lazyChunk = <C extends ComponentType<any>>(load: () => Promise<{ default: C }>) => {
+   const get = cachedImport(load);
+-  let component = lazy(get);
++  let loaded: { default: C } | null = null;
++  const track = () => get().then((module) => (loaded = module));
++  const make = () =>
++    lazy(() => {
++      const module = loaded;
++      if (!module) return track();
++      return { then: (resolve: (m: { default: C }) => void) => resolve(module) } as Promise<{
++        default: C;
++      }>;
++    });
++  let component = make();
+   return {
+     get Component() {
+       return component;
+     },
+-    preload: () => void get().catch(() => {}),
++    preload: () => void track().catch(() => {}),
+     retry: () => {
+-      component = lazy(get);
++      component = make();
+     },
+   };
+ };
+diff --git a/client/src/lib/lazyChunk.test.tsx b/client/src/lib/lazyChunk.test.tsx
+new file mode 100644
+index 0000000..6fc2971
+--- /dev/null
++++ b/client/src/lib/lazyChunk.test.tsx
+@@ -0,0 +1,33 @@
++import { Suspense } from 'react';
++import { render, screen } from '@testing-library/react';
++import { expect, it } from 'vitest';
++import { lazyChunk } from './cachedImport';
++
++const fallback = <p>waiting</p>;
++
++it('renders a chunk already loaded in the page’s own commit, never its fallback', async () => {
++  const chunk = lazyChunk(() => Promise.resolve({ default: () => <p>canvas</p> }));
++  chunk.preload();
++  await new Promise((r) => setTimeout(r));
++  const { Component } = chunk;
++  render(
++    <Suspense fallback={fallback}>
++      <Component />
++    </Suspense>,
++  );
++  // (React.lazy suspends once even here, and reveals it up to 300 ms later)
++  expect(screen.getByText('canvas')).toBeInTheDocument();
++  expect(screen.queryByText('waiting')).toBeNull();
++});
++
++it('shows the fallback while the chunk is on its way, then the chunk', async () => {
++  const chunk = lazyChunk(() => Promise.resolve({ default: () => <p>canvas</p> }));
++  const { Component } = chunk;
++  render(
++    <Suspense fallback={fallback}>
++      <Component />
++    </Suspense>,
++  );
++  expect(screen.getByText('waiting')).toBeInTheDocument();
++  expect(await screen.findByText('canvas')).toBeInTheDocument();
++});
+-- 
+2.43.0
+
