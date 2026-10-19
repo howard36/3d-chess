@@ -240,6 +240,22 @@ describe('the draws', () => {
     expect(result.score).toBe(0);
   });
 
+  it('scores the kings left alone as a draw in the search of captures too', () => {
+    // White's knight steps beside Black's king without checking it, and
+    // Black's king takes it in the search of captures alone
+    const pos = setUp([
+      [0, 0, 0, KING],
+      [0, 1, 2, KNIGHT],
+      [3, 3, 3, KING | BLACK],
+    ]);
+    const result = new Searcher(pos).search({ maxDepth: 1, timeMs: 1e9, margin: INF });
+    const step = result.scores.find((s) => {
+      const r = Position.record(s.move);
+      return r.from === 'Ca2' && r.to === 'Cc3';
+    });
+    expect(step?.score).toBe(0);
+  });
+
   it('values a lead a little less as the fifty moves run out', () => {
     const pos = kq();
     const fresh = evaluate(pos);

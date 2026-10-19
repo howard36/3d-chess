@@ -1,5 +1,6 @@
 import { Board } from '../engine/board';
 import { fromZXY, toZXY } from '../engine/coords';
+import { onlyKings } from '../engine/draws';
 import { moveFromMessage } from '../engine/protocol';
 import { PieceType } from '../engine/pieces';
 import type { Piece } from '../engine/pieces';
@@ -82,6 +83,7 @@ it('agrees with the engine on every position of random games', () => {
       const expected = engineMoves(board, color);
       expect(positionMoves(pos)).toEqual(expected);
       expect(pos.inCheck()).toBe(board.inCheck(color));
+      expect(pos.onlyKings()).toBe(onlyKings(board));
       positions++;
       if (expected.length === 0) break;
       // Prefer captures now and then, so games reach thin endgames
@@ -104,6 +106,38 @@ it('agrees with the engine on every position of random games', () => {
   // Thousands of positions, each checked against the engine: a few seconds
   // with coverage on a busy runner
 }, 30_000);
+
+it('calls the kings alone a draw exactly when the engine does', () => {
+  // The search reads it from its kept material sums, the engine from the board
+  for (const type of Object.values(PieceType)) {
+    if (type === PieceType.King) continue;
+    for (const color of ['white', 'black'] as const) {
+      const other = color === 'white' ? 'black' : 'white';
+      // The piece's own king far off, the other king beside it, to move
+      const pieces: [number, number, number, Piece][] = [
+        [2, 2, 2, { type, color }],
+        [0, 0, 4, { type: PieceType.King, color }],
+        [3, 3, 3, { type: PieceType.King, color: other }],
+      ];
+      let board = new Board();
+      const pos = new Position();
+      for (const [x, y, z, piece] of pieces) {
+        board.setPiece({ x, y, z }, piece);
+        pos.board[cellOf(x, y, z)] = TYPE_CODE[piece.type] | (piece.color === 'black' ? BLACK : 0);
+      }
+      pos.reset(other === 'white' ? WHITE_SIDE : BLACK_SIDE);
+      expect([pos.onlyKings(), onlyKings(board)], `${color} ${type}`).toEqual([false, false]);
+      const out = new Int32Array(256);
+      const n = pos.legalMoves(out);
+      const take = [...out.subarray(0, n)].find(
+        (m) => Position.record(m).from === 'Dd4' && Position.record(m).to === 'Cc3',
+      )!;
+      board = board.applyMove(moveFromMessage({ by: other, ...Position.record(take) }));
+      pos.make(take);
+      expect([pos.onlyKings(), onlyKings(board)], `${color} ${type} taken`).toEqual([true, true]);
+    }
+  }
+});
 
 /** The sums evaluate() reads at the position's ply, and as a fresh count over its pieces. */
 const termsKept = (pos: Position) => [
