@@ -25,6 +25,7 @@ const scripted = (answers: (ComputerMove | null | 'fail')[], scores: (number | '
   const asked: number[] = [];
   const assessed: number[] = [];
   let disposed = false;
+  let made = 0;
   const computer: Computer = {
     think: (records) => {
       asked.push(records.length);
@@ -41,7 +42,11 @@ const scripted = (answers: (ComputerMove | null | 'fail')[], scores: (number | '
       disposed = true;
     },
   };
-  return { computer: () => computer, asked, assessed, disposed: () => disposed };
+  const make = () => {
+    made++;
+    return computer;
+  };
+  return { computer: make, asked, assessed, disposed: () => disposed, made: () => made };
 };
 
 const newGame = (color: Color, id = 'g1') =>
@@ -245,6 +250,29 @@ it('drops a thought it no longer needs with its worker, so an offer waits on not
     { disposed: true, assessed: 0 },
     { disposed: false, assessed: 1 },
   ]);
+});
+
+it('keeps one computer for the game: its replies and an offer weighed after them', async () => {
+  newGame('white');
+  // (each one made anew is a worker started and its tables built, at the first search)
+  const ai = scripted([reply('Dc4', 'Cc4'), reply('Dd4', 'Cd4')], [0]);
+  const { result, unmount } = renderHook(() => useComputerGame('g1', options(ai.computer)));
+  act(() => {
+    result.current.send({ type: 'move', from: 'Bc2', to: 'Cc2' });
+  });
+  await waitFor(() => expect(result.current.messages).toHaveLength(4));
+  act(() => {
+    result.current.send({ type: 'move', from: 'Bd2', to: 'Cd2' });
+  });
+  await waitFor(() => expect(result.current.messages).toHaveLength(6));
+  act(() => {
+    result.current.send({ type: 'offer_draw' });
+  });
+  await waitFor(() => expect(result.current.messages[7]).toMatchObject({ type: 'draw_declined' }));
+  expect([ai.asked, ai.assessed]).toEqual([[1, 3], [4]]);
+  expect([ai.made(), ai.disposed()]).toEqual([1, false]);
+  unmount();
+  expect(ai.disposed()).toBe(true);
 });
 
 it('accepts a draw when it stands clearly worse', async () => {
