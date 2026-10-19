@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import type { Browser, BrowserContext, Page } from '@playwright/test';
+import type { Browser, BrowserContext, BrowserContextOptions, Page } from '@playwright/test';
 import { getPlayerColor, playFrom, waitForBoard } from './board';
 import type { Orientation } from './board';
 
@@ -46,12 +46,18 @@ export async function startGame(
   {
     side = 'White',
     motion = 'reduced',
-  }: { side?: 'White' | 'Black' | 'Random'; motion?: 'reduced' | 'full' } = {},
+    device = {},
+  }: {
+    side?: 'White' | 'Black' | 'Random';
+    motion?: 'reduced' | 'full';
+    /** The pages' window, e.g. a phone's viewport and deviceScaleFactor. */
+    device?: Pick<BrowserContextOptions, 'viewport' | 'deviceScaleFactor'>;
+  } = {},
 ): Promise<Game> {
   const reducedMotion = motion === 'reduced' ? 'reduce' : 'no-preference';
   const contexts: BrowserContext[] = [
-    await browser.newContext({ reducedMotion }),
-    await browser.newContext({ reducedMotion }),
+    await browser.newContext({ ...device, reducedMotion }),
+    await browser.newContext({ ...device, reducedMotion }),
   ];
   const [pageA, pageB] = await Promise.all(contexts.map((c) => c.newPage()));
 

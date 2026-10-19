@@ -29,10 +29,12 @@ pieces):
   rank 1 on level A), to Q/R/B/N/U (the player picks from a prompt).
 
 No castling. Check, checkmate, and stalemate work as in standard chess and are detected
-by the client engine, and so do chess's other two automatic draws: the same position (the
+by the client engine, and so are the automatic draws: the two kings left alone on the
+board (insufficient material; only bare kings, `onlyKings`), the same position (the
 same pieces on the same squares, the same side to move) standing for the third time, and
 fifty moves by each side (a hundred plies) with no capture and no pawn move
-(`engine/draws.ts`). A mate stands even on the move that would also complete either. The
+(`engine/draws.ts`). A mate stands even on the move that would also complete a repetition
+or the fifty moves. The
 replay (`game/history.ts`) keeps the positions since the last capture or pawn move
 (`GameHistory.sinceIrreversible`, each a Zobrist hash of the pieces and the side to move,
 `positionHash`, updated move by move with `hashAfter`), the only stretch in which one can stand again, and its length less one is the fifty-move
@@ -280,10 +282,11 @@ Key decisions:
   light ("Your move" / "Their move"); check is shown on the board, not here. An opponent with no
   live connection shows as an outlined stone and "Offline"; a connected one is not marked.
   Once the game is over the pill gives the result from the player's side ("Checkmate · you
-  win", "White resigned · you lose", "Repetition · draw", "50-move rule · draw", "Draw
-  agreed"), and the result card says "You win", "You lose" or "Draw" with how ("by
-  checkmate", "White resigned", "by stalemate", "by repetition", "by the 50-move rule", "by
-  agreement"); `data-result` is `checkmate`, `resignation`, `stalemate`, `repetition`,
+  win", "White resigned · you lose", "Insufficient material · draw", "Repetition · draw",
+  "50-move rule · draw", "Draw agreed"), and the result card says "You win", "You lose" or
+  "Draw" with how ("by checkmate", "White resigned", "by stalemate", "by insufficient
+  material", "by repetition", "by the 50-move rule", "by agreement"); `data-result` is
+  `checkmate`, `resignation`, `stalemate`, `insufficient-material`, `repetition`,
   `fifty-moves` or `agreement`, and the board takes no more input. The card's call to
   action, which has the focus, is "Rematch", with "Review" (an outlined pill: the game's
   review, see below) quieter under it (`Rematch` in `screens/EndGameModal.tsx`), against the
@@ -528,7 +531,7 @@ Key decisions:
 - **Words centred by their capitals.** A label in a box (a button, the turn pill, a menu
   item, the offer's words, the share link) is centred as it looks, whatever font draws it
   (`.caps` in `index.css`): it is a block trimmed to its capitals (`text-box: trim-both cap
-  alphabetic`, which applies to blocks only, so a button's words are a span of their own),
+alphabetic`, which applies to blocks only, so a button's words are a span of their own),
   the capitals' fraction of a pixel set over them, so it stands `round(1cap, 1px)` tall with
   its baseline on a whole pixel. A box that centres one grows a pixel where its height and
   the capitals' differ in parity (`calc(H + var(--caps-odd))`, every H even; a browser
@@ -716,7 +719,7 @@ outlined in white neon, which sink into the tower's shade as they near it on scr
 nothing competes with the board; overhead are stars and chess constellations for a camera
 that looks up (see The garden). The garden changes only with the view, so while the camera rests it is drawn
 from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
-move or a selection redraws the tower over it. Files and ranks label the two edges of the bottom platform nearest the
+move or a selection redraws the tower over it, and only the screen rect of what changed (`scene/damage.ts`: each object's signature against the last frame's; the canvas keeps its picture). Files and ranks label the two edges of the bottom platform nearest the
 camera (the top one's, seen from high above). The five level letters, each in its platform's edge colour, share one corner post
 (`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
 corner, out along the corner's diagonal, a little above its platform. From low and middling
@@ -1273,7 +1276,7 @@ mobility by the position's hash. It plays by the draws too: a position standing 
 third time scores as a draw, and so does one repeated inside the line searched (it can
 always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
-without either draw unless the position is mate. A lead counts for up to a quarter less as
+without either draw unless the position is mate; the kings left alone draw at once. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
 side behind takes a repetition when it is offered. `evaluate.ts` scores material at its own
 values (queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4, which play with the
@@ -1648,8 +1651,9 @@ different work.
   client replays history defensively — a record it cannot apply, or one that leaves a
   position it cannot evaluate (a captured king), freezes the board at the last good
   position with an explanation instead of crashing — but it cannot repair the record.
-- A game is not drawn for want of the material to mate (a bare king against king and rook,
-  say): it goes on until the fifty moves run out, or the players agree a draw.
+- A game is drawn for want of the material to mate only when the two kings are left alone:
+  any other ending, however short of material, goes on until the fifty moves run out, or
+  the players agree a draw.
 - No clock: a player may take as long as they like, and an opponent who has walked away
   can only be resigned against or waited for.
 - A game against the computer lives in the browser that played it: it cannot be opened in
