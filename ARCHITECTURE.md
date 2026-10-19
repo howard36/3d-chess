@@ -754,8 +754,10 @@ while the level's own pieces stand forward a little. Holding a piece
 steps nothing back: its moves to other levels count as much as those on its own. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
 a column of cool light. A move glides, the piece rigid, along the straight line
-between the squares, easing out of its square and into the next and taking longer the
-farther it goes (`three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
+between the squares like a critically damped spring: off its square at once, at its
+fastest early, settling onto the next without passing it, and taking longer the farther
+it goes, by the square root of the distance (a square in about 310 ms, the longest moves
+in 500; `three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
 piece the player held up stays up while its move goes to the server and settles onto its
 square on the way. What brought the shown position is decided once each time its move count
 changes (`Board.tsx`, `arrival`): a later position glides its last move in; in the game's
