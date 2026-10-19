@@ -129,12 +129,17 @@ it('asks its worker for a position’s best move, or works it out on the page', 
     records: [{ from: 'Bc2', to: 'Cc2' }],
   });
   expect(FakeWorker.last!.requests[0].assess).toBeUndefined();
+  expect(FakeWorker.last!.requests[0].depth).toBeUndefined();
+  // Searched again deeper, for a mate seen on one side of a move only
+  await computer.analyse([{ from: 'Bc2', to: 'Cc2' }], 9);
+  expect(FakeWorker.last!.requests[1]).toMatchObject({ analyse: true, depth: 9 });
   computer.dispose();
 
   vi.stubGlobal('Worker', undefined);
   const onPage = createComputer();
   const mated = SHORT_GAME.map((m) => ({ from: m.slice(0, 3), to: m.slice(4) }));
   expect(await onPage.analyse(mated)).toMatchObject({ best: null });
+  expect(await onPage.analyse(mated, 3)).toMatchObject({ best: null });
 }, 20_000);
 
 it('passes on a search that failed', async () => {

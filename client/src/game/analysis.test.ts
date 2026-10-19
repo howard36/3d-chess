@@ -5,6 +5,7 @@ import {
   endedAnalysis,
   gradeMove,
   gradeMoves,
+  recheckOf,
   winningChances,
 } from './analysis';
 import type { PositionAnalysis } from './analysis';
@@ -129,6 +130,46 @@ describe('the grades’ edges', () => {
       'mistake',
       'inaccuracy',
     ]);
+  });
+});
+
+describe('a move whose positions disagree on a mate', () => {
+  it('has the side without it searched again, past where the mate would be', () => {
+    // Walked into a mate not seen before the move, from level or far behind
+    expect(recheckOf(at(0), mate(3))).toEqual({ side: 'before', depth: 5 });
+    expect(recheckOf(at(-1230), mate(7))).toEqual({ side: 'before', depth: 9 });
+    // A mate seen before the move and nothing after it
+    expect(recheckOf(mate(3), at(-1100))).toEqual({ side: 'after', depth: 5 });
+  });
+
+  it('needs nothing where both sides see a mate, or neither, or the game ended', () => {
+    expect(recheckOf(at(0), at(300))).toBeNull();
+    expect(recheckOf(mate(-8), mate(7))).toBeNull();
+    expect(recheckOf(mate(3), mate(-2))).toBeNull();
+    expect(recheckOf(mate(3), mate(2))).toBeNull();
+    expect(recheckOf(mate(-2), at(-300))).toBeNull();
+    // The mover's mate found only after the move: nothing given away
+    expect(recheckOf(at(1100), mate(-4))).toBeNull();
+    // Mated, or a draw, on the board: no search
+    expect(recheckOf(mate(1), { best: null, score: 0, mate: 0 })).toBeNull();
+    expect(recheckOf(mate(3), { best: null, score: 0 })).toBeNull();
+  });
+
+  it('is graded once searched again, as that search sees it', () => {
+    // Black's king walking into a mate in 4 that every move allowed (a game's
+    // 65th move): unmarked once the mate is seen before it too
+    const records = [PLAYED, REPLY];
+    const analyses = [at(1050), at(-1230), mate(7)];
+    expect(gradeMoves(records, analyses)).toEqual([null, undefined]);
+    expect(gradeMoves(records, analyses, [undefined, mate(-8, REPLY)])).toEqual([null, null]);
+    // Still unseen there, the mark stands, with the deeper search's better move
+    const deeper = [undefined, at(-1250, BEST)];
+    const grades = gradeMoves(records, analyses, deeper);
+    expect(grades).toEqual([null, 'inaccuracy']);
+    expect(betterMove(grades, analyses, 2, deeper)).toEqual(BEST);
+    // A slower mate played, seen as one after the move once searched again
+    expect(gradeMoves([PLAYED], [mate(3), at(-1100)], [mate(-4)])).toEqual([null]);
+    expect(gradeMoves([PLAYED], [mate(3), at(-1100)], [at(-1150)])).toEqual(['inaccuracy']);
   });
 });
 

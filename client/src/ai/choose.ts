@@ -385,24 +385,12 @@ export function analysePosition(
   records: readonly WireMove[],
   options: Pick<ChooseOptions, 'now' | 'maxNodes'> = {},
 ): PositionAnalysis {
-  const { maxDepth, quiescence } = ENGINE;
-  const result = new Searcher(Position.fromRecords(records, WEIGHTS.expert)).search({
-    maxDepth,
+  const analysis = analyseFrom(Position.fromRecords(records, WEIGHTS.expert), {
+    maxDepth: ENGINE.maxDepth,
     timeMs: ANALYSIS_MS,
     maxNodes: options.maxNodes ?? ANALYSIS_NODES,
-    margin: 0,
-    quiescence,
-    deepenForced: true,
-    endgames: true,
     now: options.now,
   });
-  const analysis: PositionAnalysis = {
-    best: result.move ? Position.record(result.move) : null,
-    score: result.score,
-  };
-  if (result.move && Math.abs(result.score) >= MATE_BOUND) {
-    analysis.mate = result.score > 0 ? MATE - result.score : -(MATE + result.score);
-  }
   const ply = records.length;
   if (ply > 0) {
     const before = Position.fromRecords(records.slice(0, -1));
@@ -414,6 +402,61 @@ export function analysePosition(
       hardness: hardness(before, move, prev),
       sacrifice: sacrifice(before, move),
     };
+  }
+  return analysis;
+}
+
+/**
+ * How many positions a review looks at, at most, when it searches a
+ * position again deeper (recheckPosition): about three seconds in the
+ * browser, and only for the few moves that need it.
+ */
+export const RECHECK_NODES = 1_000_000;
+/** A recheck's limit should the machine be slow (milliseconds). */
+export const RECHECK_MS = 10_000;
+
+/**
+ * The position after `records` searched again, as analysePosition but
+ * `depth` plies deep (or RECHECK_NODES, whichever comes first): for a move
+ * whose positions disagree on a forced mate, one seen on one side of the
+ * move and not on the other only because it lies a ply nearer there
+ * (game/analysis.ts, recheckOf).
+ */
+export function recheckPosition(
+  records: readonly WireMove[],
+  depth: number,
+  options: Pick<ChooseOptions, 'now' | 'maxNodes'> = {},
+): PositionAnalysis {
+  return analyseFrom(Position.fromRecords(records, WEIGHTS.expert), {
+    maxDepth: depth,
+    timeMs: RECHECK_MS,
+    maxNodes: options.maxNodes ?? RECHECK_NODES,
+    now: options.now,
+  });
+}
+
+/**
+ * A review's search of `pos` (made with the numbers it judges by) within
+ * `limits`: every line of captures to its end, king and pawn against king
+ * exactly, no margin.
+ */
+export function analyseFrom(
+  pos: Position,
+  limits: { maxDepth: number; timeMs: number; maxNodes: number; now?: () => number },
+): PositionAnalysis {
+  const result = new Searcher(pos).search({
+    ...limits,
+    margin: 0,
+    quiescence: ENGINE.quiescence,
+    deepenForced: true,
+    endgames: true,
+  });
+  const analysis: PositionAnalysis = {
+    best: result.move ? Position.record(result.move) : null,
+    score: result.score,
+  };
+  if (result.move && Math.abs(result.score) >= MATE_BOUND) {
+    analysis.mate = result.score > 0 ? MATE - result.score : -(MATE + result.score);
   }
   return analysis;
 }

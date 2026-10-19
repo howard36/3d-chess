@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Computer } from '../ai/computer';
-import { countGrades, endedAnalysis, gradeMoves } from '../game/analysis';
+import { countGrades, endedAnalysis, gradeMoves, recheckOf } from '../game/analysis';
 import type { Grade, GradeCounts, PositionAnalysis } from '../game/analysis';
 import type { GameHistory } from '../game/history';
 import type { MoveRecord } from '../types/messages';
@@ -12,11 +12,19 @@ export interface Analysis {
    * for again, it goes on from the positions it has.
    */
   state: 'idle' | 'running' | 'done' | 'stopped';
-  /** Positions done, of `total` (the start and the position after each move). */
+  /**
+   * Searches done, of `total`: the start and the position after each move,
+   * and each recheck found to be needed so far.
+   */
   done: number;
   total: number;
   /** What the engine makes of the position after `n` moves, as each is done. */
   positions: readonly (PositionAnalysis | undefined)[];
+  /**
+   * Move `n`'s position searched again deeper (at `n - 1`), where its two
+   * positions disagree on a forced mate (game/analysis.ts, recheckOf).
+   */
+  rechecks: readonly (PositionAnalysis | undefined)[];
   /** Each move's grade (move `n` at `n - 1`): null unmarked, undefined still to come. */
   grades: readonly (Grade | null | undefined)[];
   counts: GradeCounts;
@@ -29,6 +37,7 @@ interface Run {
   key: string;
   state: Analysis['state'];
   positions: (PositionAnalysis | undefined)[];
+  rechecks: (PositionAnalysis | undefined)[];
 }
 
 const NONE: (PositionAnalysis | undefined)[] = [];
@@ -71,8 +80,9 @@ export function useAnalysis(history: GameHistory): Analysis {
     [over, history.moveRecords, history.appliedMoveCount],
   );
   const key = React.useMemo(() => recordKey(records), [records]);
-  const [run, setRun] = React.useState<Run>({ key, state: 'idle', positions: [] });
-  const current: Run = run.key === key ? run : { key, state: 'idle', positions: NONE };
+  const [run, setRun] = React.useState<Run>({ key, state: 'idle', positions: [], rechecks: [] });
+  const current: Run =
+    run.key === key ? run : { key, state: 'idle', positions: NONE, rechecks: NONE };
 
   // The run under way (its number: one stopped is passed by) and its
   // workers, stopped when the record changes or the page goes
@@ -108,22 +118,40 @@ export function useAnalysis(history: GameHistory): Analysis {
       asked.current = null;
       setRun((r) => (r.key === key ? { ...r, state: 'stopped' } : r));
     };
-    // Asked again after stopping short: the positions found are kept
+    // Asked again after stopping short: the positions and rechecks found are kept
     const found = [...was.positions];
+    const rechecked = [...was.rechecks];
     if (ended) found[records.length] = ended;
     const todo: number[] = [];
     for (let ply = 0; ply < total; ply++) if (!found[ply]) todo.push(ply);
-    let count = total - todo.length;
-    setRun({ key, state: todo.length ? 'running' : 'done', positions: found });
-    if (!todo.length) return;
-    const put = (ply: number, analysis: PositionAnalysis) => {
-      const done = ++count === total;
-      setRun((r) => {
-        if (r.key !== key) return r;
-        const positions = [...r.positions];
-        positions[ply] = analysis;
-        return { key, state: done ? 'done' : 'running', positions };
-      });
+    // The rechecks to do (by move), and how many have been found to be needed
+    const recheckTodo: number[] = [];
+    let needed = 0;
+    const wantRecheck = (move: number) => {
+      const before = found[move];
+      const after = found[move + 1];
+      if (!before || !after || !recheckOf(before, after)) return;
+      needed++;
+      if (!rechecked[move]) recheckTodo.push(move);
+    };
+    for (let move = 0; move < records.length; move++) wantRecheck(move);
+    const snapshot = (): Run => {
+      const count = found.filter(Boolean).length + rechecked.filter(Boolean).length;
+      const state = count === total + needed ? 'done' : 'running';
+      return { key, state, positions: [...found], rechecks: [...rechecked] };
+    };
+    const first = snapshot();
+    setRun(first);
+    if (first.state === 'done') return;
+    // A recheck, once both the move's positions are in, before any other search
+    const next = () => {
+      if (recheckTodo.length) {
+        const move = recheckTodo.shift()!;
+        const recheck = recheckOf(found[move]!, found[move + 1]!)!;
+        const ply = recheck.side === 'before' ? move : move + 1;
+        return { ply, depth: recheck.depth, move };
+      }
+      return todo.length ? { ply: todo.shift()!, depth: undefined, move: -1 } : null;
     };
     void (async () => {
       // The computer's handles, and their workers, only once a review is asked for
@@ -131,22 +159,31 @@ export function useAnalysis(history: GameHistory): Analysis {
       try {
         const { createComputer } = await import('../ai/computer');
         if (!live()) return;
-        computers = Array.from({ length: Math.min(reviewWorkers(), todo.length) }, () =>
-          createComputer(),
+        computers = Array.from(
+          { length: Math.min(reviewWorkers(), todo.length + recheckTodo.length) },
+          () => createComputer(),
         );
       } catch (e) {
         stopped(e);
         return;
       }
       workers.current = computers;
-      let next = 0;
       try {
+        // A worker that finds a recheck is needed is still at work, and takes
+        // it (or another) next: none is left with nobody to do it
         await Promise.all(
           computers.map(async (computer) => {
-            while (next < todo.length && live()) {
-              const ply = todo[next++];
-              const analysis = await computer.analyse(records.slice(0, ply));
-              if (live()) put(ply, analysis);
+            for (let job = next(); job && live(); job = next()) {
+              const analysis = await computer.analyse(records.slice(0, job.ply), job.depth);
+              if (!live()) return;
+              if (job.depth) {
+                rechecked[job.move] = analysis;
+              } else {
+                found[job.ply] = analysis;
+                if (job.ply > 0) wantRecheck(job.ply - 1);
+                if (job.ply < records.length) wantRecheck(job.ply);
+              }
+              setRun((r) => (r.key === key ? snapshot() : r));
             }
           }),
         );
@@ -160,15 +197,25 @@ export function useAnalysis(history: GameHistory): Analysis {
   }, []);
 
   const grades = React.useMemo(
-    () => gradeMoves(records, current.positions),
-    [records, current.positions],
+    () => gradeMoves(records, current.positions, current.rechecks),
+    [records, current.positions, current.rechecks],
   );
   const counts = React.useMemo(() => countGrades(grades), [grades]);
+  const needed = React.useMemo(
+    () =>
+      records.filter((_, n) => {
+        const before = current.positions[n];
+        const after = current.positions[n + 1];
+        return before && after && recheckOf(before, after);
+      }).length,
+    [records, current.positions],
+  );
   return {
     state: current.state,
-    done: current.positions.filter(Boolean).length,
-    total: records.length + 1,
+    done: current.positions.filter(Boolean).length + current.rechecks.filter(Boolean).length,
+    total: records.length + 1 + needed,
     positions: current.positions,
+    rechecks: current.rechecks,
     grades,
     counts,
     start,
