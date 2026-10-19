@@ -1,0 +1,142 @@
+{
+ "title": "Perf run 20261018-2320",
+ "eyebrow": "3D chess · perf-iteration · run 20261018-2320 · speed run",
+ "heading": "The computer searches about 14–21% faster: one kept change, on the computer's search",
+ "meta": "<p>This speed run kept one change, SW1 (<code>760619c</code>): the computer's search walks a bordered copy of the board, keeps its tables and its mobility counts for the thread, and skips quiet moves it can prove useless without playing them. Its A/B on <code>760619c</code> called search speed better, 30.1 → 26.3 ms (−14%, all 16 pairs below 1). On the final commit <code>ef3ee37</code> two more 16-pair A/Bs put it at −18% and −21% with every pair below 1 again, but neither is called: one or two pairs far below the rest widen the spread past the calling rule. The computer plays the same moves; it only finds them sooner, so in its fixed time it searches deeper. A finished game's review is 2.74 → 2.40 s (−11%, 8 of 10 pairs below 1, not called). No headline row is worse.</p><p>The biggest lead for the next speed run is damage-rect frames (drawing only the part of the board that changed). A probe that drew a small fixed part of every frame (wrong pixels, so a ceiling, not a result) took the player's move from 381 to 203 ms. It is not built yet.</p>",
+ "needs": {
+  "intro": "<p>Nothing here blocks the merge. The first item is information the skill asks for; the second lists ideas parked as your call, kept out of this PR.</p>",
+  "items": [
+   {
+    "title": "Information: the 1.2× target is not met on 15 of 16 rows",
+    "body": "<p>Only search speed moved, and it reaches ×1.179 and ×1.166 at the median pair in the two final A/Bs. The other rows were left where they were. The moments with the most room are drawing a move or a pick (the GPU fills the whole canvas for each frame: the damage-rect probe shows up to −66%), and the computer's way in, where about 640 ms of the first board picture is the words' exit before the page changes (LV1). Neither fitted this run.</p>",
+    "recommend": "No decision needed. The next speed run starts with the damage-rect build (ledger 0930:5)."
+   },
+   {
+    "title": "Your calls, parked in the ledger and not in this PR",
+    "body": "<ul><li>RW2: warm the review's three workers with a full search at game end, before the click. A 3-pair probe gave −8.5% on the review; it spends CPU the player did not ask for.</li><li>1017-0532:SW1: cache the start page's HTML in the service worker, with a check for a stale shell.</li><li>EM1: render the start page's menu in the HTML itself.</li></ul>",
+    "recommend": "Leave them parked until a speed run measures one of them as a called win."
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Target: each 1.2× faster than the base <code>29ec2e2</code> (the dashed line). Each bar is the geometric mean of the pairs; each dot is one pair.</p>",
+  "items": [
+   {
+    "title": "Search speed on the final commit",
+    "body": "<p><code>ef3ee37</code> against <code>29ec2e2</code>, the computer's search, 16 pairs, run twice. First: 31.9 → 26.5 ms, −18%, pairs 0.61–0.99. Second: 30.7 → 26.2 ms, −21%, pairs 0.50–0.90. Neither is called: from 10 pairs the rule drops the lowest and highest pair and needs the change to exceed the spread of the rest, and a few very fast pairs make that spread 28–33%. The opening case is called better in both (−21%, −23%). When SW1 was kept, on <code>760619c</code>, the same A/B called it: 30.1 → 26.3 ms, −14%, pairs 0.65–0.92.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: ef3ee37 vs 29ec2e2, search speed, 16 pairs (2nd)",
+       "only": "PRIMARY"
+      },
+      "caption": "Search speed, ef3ee37 against 29ec2e2, 16 pairs (ab-20261018-2320-final2.md).",
+      "target": 1.2
+     },
+     {
+      "rows": {
+       "change": "final: ef3ee37 vs 29ec2e2, search speed, 16 pairs (1st)",
+       "only": "PRIMARY"
+      },
+      "caption": "The same A/B run first, 16 pairs (ab-20261018-2320-final.md).",
+      "target": 1.2
+     },
+     {
+      "rows": {
+       "change": "1018-2320:SW1 (search walks on a bordered board, M9 tables and mobility cache, futile checks found unplayed), 16 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "When SW1 was kept: 760619c against 29ec2e2, 16 pairs (ab-20261018-2320-walks.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "The review on the final commit",
+    "body": "<p><code>ef3ee37</code> against <code>29ec2e2</code>, the review section, 10 pairs: every mark in 2.74 → 2.40 s, −11%, 8 of 10 pairs below 1 (0.79–1.04), not called. Half the positions done −7.2%. The page's longest freeze is flat (98 → 97.5 ms).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: ef3ee37 vs 29ec2e2, review only, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "The review, ef3ee37 against 29ec2e2, 10 pairs (ab-20261018-2320-final-review.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "The base against the last run's base",
+    "body": "<p><code>29ec2e2</code> against <code>9a9e9db</code>, all 16 headline rows, 6 pairs: no row called better or worse, ×1.037 over the rows. Four rows were more than 3% worse at the median, none called: the desktop start page's board ×1.080 and first click ×1.160 (rows that swing this far on identical code), the computer's first board picture ×1.135, and the review ×1.083. The review was re-run alone with 10 pairs and is flat (2.70 → 2.73 s).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: 29ec2e2 vs 9a9e9db (last run's base)",
+       "only": "PRIMARY"
+      },
+      "caption": "29ec2e2 against 9a9e9db, 6 pairs (ab-20261018-2320-regress.md).",
+      "target": 1.2
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>Each change has its own commit, with its evidence in the commit message.</p>",
+  "items": [
+   {
+    "title": "SW1: the computer's search walks a bordered board and keeps its work for the thread (760619c)",
+    "body": "<p>Four parts, judged as one change. (1) <code>Position.pad</code>: a 7×7×7 copy of the board with a border of off-board cells and colour bits, so a walk along a line stops at the edge or a piece with one comparison. (2) One set of search tables per worker instead of 3.3 MB allocated and cleared for every search. (3) Each board's mobility count is kept by the board's hash for one search. (4) At depth-1 nodes that cannot raise the score, a quiet move that gives no check is skipped before it is played (<code>Position.givesCheck</code>, exact). Nodes, depths and moves are unchanged (the bench's fixture check). Search speed called −14% on <code>760619c</code> (16 of 16 pairs). Code: about +181 net lines in <code>client/src/ai</code>, +58 in its tests.</p>"
+   },
+   {
+    "title": "Checks that SW1 stays exact (f3118e7)",
+    "body": "<p>A new test searches a position alone in fresh modules, then searches another position and the first again on the shared tables, and wants the same result each time. It fails when any of the three clears is removed: without the table clear the repeat costs 2,194 nodes instead of 15,345. The mobility test now reads every board from the cache in one search and fails when a stored value is wrong (before, its second pass never hit the cache). The givesCheck comparison was shown failing with its discovered-check half cut and with the king's step dropped.</p>"
+   },
+   {
+    "title": "The computer's way-in steps in the bench's raw results (78b1e03)",
+    "body": "<p>Measurement only, on both sides of any A/B: when the page navigated, the computer arrived, the canvas mounted and the first frame started, relative to the side's click.</p>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>No code removed. <code>bench/loop/patches/search-tables-and-mobility-M9.patch</code> was deleted because its code is now in SW1.</p>",
+  "items": []
+ },
+ "rejected": {
+  "intro": "",
+  "items": [
+   {
+    "title": "M9 alone and M9 with the mobility cache (reverted, then folded into SW1)",
+    "body": "<p>16 pairs against <code>29ec2e2</code>: M9 alone −5.7%, the two together −9.9%, every pair below 1, neither called (<code>ab-20261018-2320-m9.md</code>, <code>-search.md</code>).</p>"
+   },
+   {
+    "title": "RT1: a loaded chunk handed to React's lazy at once",
+    "body": "<p>14 pairs: joining's first board picture −14% (14 of 14 pairs), the computer's −17% (12 of 14), not called (<code>ab-20261018-2320-rt1.md</code>). With r3f's 50 ms first-size wait removed too: the computer's −27% with all 14 pairs below 1, still not called (spread 31%; <code>-canvas.md</code>). Patches kept.</p>"
+   },
+   {
+    "title": "CH1: hold the click's picture until the move's echo",
+    "body": "<p>2-pair probe (<code>ab-20261018-2320-hold.md</code>): the player's move −4%, not called; the opponent's move −21%, called on 2 pairs. Nothing in the change explains the opponent's row, so it may be chance. Back in the ledger to rebuild and measure with 12 or more pairs.</p>"
+   },
+   {
+    "title": "Damage-rect frames: ceiling probe only",
+    "body": "<p>Every frame cut to 4% of the canvas, wrong pixels, 3 pairs (<code>ab-20261018-2320-damage-ceiling.md</code>): player's move 381 → 203 ms (−49%, called), opponent's 269 → 182 ms (−38%), a pick 254 → 81 ms (−66%). It passed the drop rule written before the probe, so it is the next run's first bet.</p>"
+   },
+   {
+    "title": "Smaller probes",
+    "body": "<ul><li>QB1, quiesce's early stand-pat: slower in the node probe (16.2 → 16.9 ms).</li><li>TT1, a packed table: flat in the node probe.</li><li>RW2's ceiling, warm review workers: −8.5% on 3 pairs, too small to call.</li><li>RV3, the shimmer's frames stopped during the review: +6% on 3 pairs, so ambient frames do not slow the review.</li><li>React 19.3.1: not tried. It works through the same mechanism as RT1 and adds 15.8 KB gzipped to the start page.</li></ul>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<ul><li>SW1 judged as one stack of four parts, each part probed in node first. Splitting it into parts is ledger SP3.</li><li>Kept SW1 although the two final A/Bs do not call it. It was called when kept; the final runs are the same code and every one of their 32 pairs is below 1. The misses come from the rule's spread, widened by a few very fast pairs.</li><li>Did not run e2e locally: the run changed only the search worker and its tests, so no UI, socket or protocol. CI runs e2e on the PR.</li><li>CH1 moved back to Open instead of staying rejected, because its probe called the opponent's row.</li><li>Removed three log lines that an earlier stage had written into <code>scoreboard.jsonl</code> by redirecting ab2jsonl's output.</li><li>Merged <code>origin/main</code> (#179, #180) once, before the final checks. Neither touches the search.</li></ul>",
+  "items": []
+ },
+ "notConfirmed": {
+  "intro": "<ul><li>Worker memory: since SW1 each search worker keeps about 3.3 MB of tables and 768 KB of mobility cache until it ends. Read in the code, not measured (ledger WM1).</li><li>The long view against the first recorded run's base was not re-measured this run; run 20261018-1719 measured the head 2.41 times as fast over 13 rows.</li><li>Whether the faster search makes the computer stronger: no self-play match was run (ledger SP3).</li><li>The damage-rect gain with correct pixels: only the ceiling was measured.</li><li>Most probe reports of round 2 and 3 (preserveDrawingBuffer, shimmer, warm workers) stay in <code>bench/out/</code>; only their figures are in the run record.</li></ul>",
+  "items": []
+ },
+ "next": {
+  "intro": "<ol><li>Speed: build damage-rect frames exactly (0930:5): signature, rects and merge, partial action frames, a readPixels e2e, then 12+ pairs of move-latency and select.</li><li>Speed: RT1 with r3f's first-size wait, once LV1's swing is out of the computer's row; FM1, QK1 and KP1 for the search.</li><li>CH1 again with 12+ pairs on the opponent's row.</li><li>General run: SP3 (SW1 by parts, and strength), WM1 (worker memory row), GC1, PD1, EV1.</li></ol>",
+  "items": []
+ }
+}
