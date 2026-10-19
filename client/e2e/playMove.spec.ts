@@ -48,6 +48,14 @@ test('a player can play from the keyboard', async ({ browser }) => {
     await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
     await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Bb1-Cb1');
   }
+  // How a screen reader follows the game: hidden from the eye, never from it
+  for (const id of ['move-announcer', 'move-history'])
+    expect(
+      await white
+        .getByTestId(id)
+        .evaluate((el) => el.checkVisibility({ visibilityProperty: true })),
+      id,
+    ).toBe(true);
 
   await game.close();
 });
