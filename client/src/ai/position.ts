@@ -312,16 +312,19 @@ const LETTER_PROMO: Record<Promotion, number> = {
 // --- Hashing -----------------------------------------------------------------
 
 // Zobrist keys, two 32-bit halves per piece and cell, from a fixed seed so a
-// position hashes the same in every run
+// position hashes the same in every run. The generator multiplies (splitmix32)
+// so that the two halves are independent: one linear in its bits (xorshift)
+// makes each high half a fixed function of the low half before it, and the
+// hash only 32 bits deep (position.test.ts).
 const ZOBRIST_LO = new Int32Array(16 * CELLS);
 const ZOBRIST_HI = new Int32Array(16 * CELLS);
 let zSeed = 0x9e3779b9;
 const nextZ = () => {
-  // xorshift32
-  zSeed ^= zSeed << 13;
-  zSeed ^= zSeed >>> 17;
-  zSeed ^= zSeed << 5;
-  return zSeed | 0;
+  zSeed = (zSeed + 0x9e3779b9) | 0;
+  let z = zSeed;
+  z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
+  z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
+  return z ^ (z >>> 16);
 };
 for (let i = 0; i < 16 * CELLS; i++) {
   ZOBRIST_LO[i] = nextZ();
