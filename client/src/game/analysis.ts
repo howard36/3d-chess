@@ -59,6 +59,7 @@ export function endedAnalysis(gameOver: GameOver): PositionAnalysis | null {
     case 'checkmate':
       return { best: null, score: 0, mate: 0 };
     case 'stalemate':
+    case 'insufficient-material':
     case 'repetition':
     case 'fifty-moves':
       return { best: null, score: 0 };

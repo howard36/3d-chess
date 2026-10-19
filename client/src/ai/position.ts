@@ -546,6 +546,12 @@ export class Position {
     return sum;
   }
 
+  /** Whether the kings are the only pieces left (a draw, engine/draws.ts): no material either side. */
+  onlyKings(): boolean {
+    const o = this.ply * TERMS;
+    return this.terms[o + T_MATERIAL] === 0 && this.terms[o + T_MATERIAL + 1] === 0;
+  }
+
   /** The plies played since the last capture or pawn move (a hundred draw). */
   get halfmoves(): number {
     return this.clocks[this.ply];

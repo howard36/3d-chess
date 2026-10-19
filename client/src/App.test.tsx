@@ -860,6 +860,9 @@ describe('the turn pill', () => {
     rerender(pill({ gameOver: { result: 'fifty-moves' } }));
     expect(indicator).toHaveTextContent('50-move rule · draw');
     expect(screen.getByTestId('seat')).toHaveTextContent('50-move rule, a draw.');
+    rerender(pill({ gameOver: { result: 'insufficient-material' } }));
+    expect(indicator).toHaveTextContent('Insufficient material · draw');
+    expect(indicator).toHaveAttribute('data-result', 'insufficient-material');
   });
 });
 
