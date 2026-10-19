@@ -7,9 +7,9 @@ play as people do, and the tools to measure them again. None of this ships.
 
 The levels as they were before they played as people do are still here as references
 (`players.ts`): `easy0`, `medium0` and `hard0` (the old Hard: the engine on the clock, `hard0:d1`
-its search to one ply). The scale puts the Medium the game's owner tied with at 1500
-(`medium1500`: three plies, before Medium had a budget of positions), the player every other
-rating is measured from.
+its search to one ply), and `medium1`, the Medium the game's owner played to a tie (three plies,
+before Medium had a budget of positions). The scale puts Medium, as the game has it, at 1,300,
+the player every other rating is measured from.
 
 ## The tools
 
@@ -32,7 +32,7 @@ rating is measured from.
   positions a move in it (with all of the match's workers sharing the machine, so slower than a
   search alone).
 - `fit.py`: every player on one Elo scale, fitted to all of `results.txt` at once (Bradley–Terry
-  on the games' scores, a draw half), shifted to put `medium1500` at 1500 (another anchor:
+  on the games' scores, a draw half), shifted to put Medium at 1,300 (another anchor:
   `fit.py medium0=0`).
 - `knowledge.py`: the beginner's and the advanced player's numbers, fitted to the expert's
   evaluation (below).
@@ -48,8 +48,8 @@ hard hardFixed expert@40000`.
 
 Easy, Medium and Hard play as a beginner, an advanced player and an expert (ARCHITECTURE.md
 "Playing the computer"): each knows as much of the game as one would, looks as far ahead, and
-overlooks what is hard to see on five levels, more in a fight: Easy 862, Medium 1,447 and Hard
-2,049, Medium about halfway, on a scale with the Medium the game's owner tied with at 1500.
+overlooks what is hard to see on five levels, more in a fight: Easy 716, Medium 1,300 and Hard
+1,903, Medium about halfway.
 
 **What each knows** (`knowledge.py`, fitted on research/evaluation's 75,235 training positions):
 a subset of the 58 evaluation numbers, fitted by least squares in expected score to the expert's
@@ -93,19 +93,19 @@ against players near its target on the scale (`hard0:d1`, `hard0:d2`, `easy0`, `
 
 The levels as the game has them, every match fitted at once (`fit.py`; ± one standard error):
 
-| Player                     |     Rating | Against `medium1500`, directly    |
+| Player                     |     Rating | Against `medium1`, directly       |
 | -------------------------- | ---------: | --------------------------------- |
-| Easy                       |   862 ± 12 | 3.4% ± 0.9% over 400 games (−583) |
-| Medium                     | 1,447 ± 10 | 42.6% ± 1.7% over 800 (−52)       |
-| Hard                       | 2,049 ± 15 | 95.8% ± 0.7% over 800 (+544)      |
-| `medium1500` (the anchor)  |       1500 |                                   |
-| Easy before this round     |   905 ± 11 | 4.3% ± 0.7% over 800 (−538)       |
-| Hard before this round     | 2,110 ± 17 | 96.4% ± 0.7% over 700 (+569)      |
-| the old Easy (`easy0`)     |   621 ± 23 |                                   |
-| the old Medium (`medium0`) | 1,484 ± 12 | 49.8% ± 2.4% over 400 (−2)        |
+| Easy                       |   716 ± 15 | 3.4% ± 0.9% over 400 games (−583) |
+| Medium (the anchor)        |      1,300 | 42.6% ± 1.7% over 800 (−52)       |
+| Hard                       | 1,903 ± 18 | 95.8% ± 0.7% over 800 (+544)      |
+| `medium1`                  | 1,353 ± 10 |                                   |
+| Easy before this round     |   759 ± 14 | 4.3% ± 0.7% over 800 (−538)       |
+| Hard before this round     | 1,964 ± 20 | 96.4% ± 0.7% over 700 (+569)      |
+| the old Easy (`easy0`)     |   474 ± 25 |                                   |
+| the old Medium (`medium0`) | 1,337 ± 15 | 49.8% ± 2.4% over 400 (−2)        |
 
 (Easy before this round overlooked from hardness 0.05, up to 95%, at temperature 20; Medium,
-`medium1500`, searched three plies on the clock at temperature 19 with noise 11; Hard chose at
+`medium1`, searched three plies on the clock at temperature 19 with noise 11; Hard chose at
 temperature 14.)
 
 In a Chromium worker (`speed.mjs`, 120 positions from games) they take a median of 1 ms a move
@@ -120,24 +120,24 @@ short (in a Chromium worker a median of 11 ms, but 66 ms at the 90th percentile)
 on Hard's budget, with no depth limit, so it never searches more than Hard and plays the same on
 any device; Hard beats it by knowing more and seeing more. Its temperature and noise moved
 between Easy's and Hard's too (29 and 5, from 19 and 11), and its strength to about halfway
-between theirs. The candidates, each against `medium1500`, at temperature 29 and noise 5 unless
+between theirs. The candidates, each against `medium1`, at temperature 29 and noise 5 unless
 said:
 
 | Medium                                |     Rating |
 | ------------------------------------- | ---------: |
-| three plies, no budget                |  1,481 ± 9 |
-| three plies, no budget, noise 10      |  1,481 ± 9 |
-| three plies and 30,000 positions      | 1,431 ± 17 |
-| 30,000 positions (as the game has it) | 1,447 ± 10 |
-| 30,000 positions, noise 0             | 1,468 ± 17 |
-| 20,000 positions                      | 1,441 ± 17 |
-| 20,000 positions, noise 0             | 1,428 ± 17 |
-| 10,000 positions                      | 1,350 ± 18 |
-| 5,000 positions                       | 1,310 ± 19 |
+| three plies, no budget                | 1,334 ± 13 |
+| three plies, no budget, noise 10      | 1,334 ± 13 |
+| three plies and 30,000 positions      | 1,285 ± 20 |
+| 30,000 positions (as the game has it) |      1,300 |
+| 30,000 positions, noise 0             | 1,321 ± 20 |
+| 20,000 positions                      | 1,295 ± 20 |
+| 20,000 positions, noise 0             | 1,281 ± 20 |
+| 10,000 positions                      | 1,203 ± 21 |
+| 5,000 positions                       | 1,164 ± 22 |
 
 Capping the three plies at 30,000 positions changes the move in 40% of positions (Medium needed
 more in 45% of them); a budget alone, which goes deeper where the position is simple, is as
-strong for the same work. Hard beats the old Medium by more than it beats `medium1500` though the
+strong for the same work. Hard beats the old Medium by more than it beats `medium1` though the
 two are level with each other: the old one's random blunders are what Hard punishes best.
 
 **The scale, and the matches chosen for what they tell** (`results.txt`'s last sections,
@@ -147,31 +147,31 @@ cost is the slower player's: Medium about 50 ms a move against Easy's 1 to 2, Me
 ply or two (`medium{"maxDepth":1}`, `{"maxDepth":2}`) 2 to 9. So the last round played near-even
 pairings, most of them between cheap players (Easy's candidates against each other and against
 the cut-down Mediums), linked to Medium and on to Hard by more than one path (Hard on 15,000
-positions, the engine on 10,000), and fitted every match at once, `medium1500` put at 1500. Easy's
-errors came down from ±19–30 to ±13.
+positions, the engine on 10,000), and fitted every match at once. Easy's errors, measured from
+`medium1`, came down from ±19–30 to ±13.
 
 | Player                     | Temperature |     Rating | Same move in a position | First move: most common, different |
 | -------------------------- | ----------: | ---------: | ----------------------: | ---------------------------------- |
-| Easy (overlooking from 0)  |          20 |   871 ± 12 |               40% (5.2) | 3.5%, 50 of 61                     |
-| Easy, as the game has it   |          30 |   862 ± 12 |               38% (5.3) | 3.1%, 50                           |
-| Easy                       |          40 |   848 ± 12 |               38% (5.3) | 3.0%, 50                           |
-| `medium1500`               |          19 |       1500 |               49% (4.4) | 4.7%, 48                           |
-| `medium1500`               |          28 | 1,465 ± 11 |               47% (4.6) | 4.1%, 48                           |
-| `medium1500`               |          38 | 1,449 ± 11 |               47% (4.6) | 4.0%, 48                           |
-| Medium, as the game has it |          29 | 1,447 ± 10 |               45% (4.8) | 3.8%, 48                           |
-| Hard                       |          14 | 2,110 ± 17 |               66% (3.0) | 13.3%, 41                          |
-| Hard                       |          21 | 2,056 ± 20 |                         |                                    |
-| Hard, as the game has it   |          28 | 2,049 ± 15 |               58% (3.6) | 6.6%, 43                           |
+| Easy (overlooking from 0)  |          20 |   724 ± 14 |               40% (5.2) | 3.5%, 50 of 61                     |
+| Easy, as the game has it   |          30 |   716 ± 15 |               38% (5.3) | 3.1%, 50                           |
+| Easy                       |          40 |   702 ± 15 |               38% (5.3) | 3.0%, 50                           |
+| `medium1`                  |          19 | 1,353 ± 10 |               49% (4.4) | 4.7%, 48                           |
+| `medium1`                  |          28 | 1,319 ± 14 |               47% (4.6) | 4.1%, 48                           |
+| `medium1`                  |          38 | 1,303 ± 14 |               47% (4.6) | 4.0%, 48                           |
+| Medium, as the game has it |          29 |      1,300 |               45% (4.8) | 3.8%, 48                           |
+| Hard                       |          14 | 1,964 ± 20 |               66% (3.0) | 13.3%, 41                          |
+| Hard                       |          21 | 1,910 ± 22 |                         |                                    |
+| Hard, as the game has it   |          28 | 1,903 ± 18 |               58% (3.6) | 6.6%, 43                           |
 
 A higher temperature buys Hard variety (its margin is narrow and its scores close, so at 14 it
 played its best most of the time), for 61 Elo (68 ± 16 in their own match). Easy's and Medium's
 hardly vary more: the moves they would choose among are few and far apart, so the temperature
 does not reach them. Easy plays at 30, Medium at 29 (with its budget, above). Easy's candidates that followed captures only 2 plies scored about as
-badly against `medium1500` cut to two plies as against `medium1500` itself, which no single rating fits:
+badly against `medium1` cut to two plies as against `medium1` itself, which no single rating fits:
 left out.
 
 Where the gap is wide the fit leans on the near-even pairings, which carry the information, and
-there the logistic's tail shows: Easy scores 3.4% against `medium1500` where the chain of near-even
+there the logistic's tail shows: Easy scores 3.4% against `medium1` where the chain of near-even
 pairings foretells 2.5% (a direct −583 against the fit's −638). Ratings this far apart are less
 exact than their error bars, by some tens of Elo, the way a weaker player's upsets come a little
 more often than the curve allows.
@@ -186,14 +186,14 @@ come in clusters within a game):
 | Easy           | 4,192 |       0.1 |   14.0 ± 0.5 | 4.3 ± 0.4 | 5.1 ± 0.8 |       3.6 ± 1.3 |       8.0 ± 0.8 |
 | Medium         | 5,338 |       0.2 |    8.0 ± 0.8 | 1.9 ± 0.1 | 2.4 ± 0.4 |       0.1 ± 0.1 |       5.5 ± 0.9 |
 | Hard           | 6,601 |       0.6 |    5.7 ± 0.4 | 1.3 ± 0.1 | 0.8 ± 0.2 |       0.5 ± 0.2 |       1.5 ± 0.2 |
-| `medium1500`   | 5,198 |       0.4 |    8.3 ± 0.9 | 1.9 ± 0.3 | 2.5 ± 0.4 |       0.6 ± 0.3 |       4.7 ± 0.7 |
+| `medium1`      | 5,198 |       0.4 |    8.3 ± 0.9 | 1.9 ± 0.3 | 2.5 ± 0.4 |       0.6 ± 0.3 |       4.7 ± 0.7 |
 | the old Easy   | 4,836 |       0.1 |   15.7 ± 1.2 | 6.9 ± 0.5 | 5.5 ± 0.3 |       4.3 ± 1.4 |       8.5 ± 1.0 |
 | the old Medium | 5,367 |       0.1 |    8.2 ± 1.1 | 2.0 ± 0.3 | 1.9 ± 0.3 |       1.4 ± 0.8 |       2.7 ± 0.3 |
 
 (quiet: tension at most 0.6, few captures to make and few pieces attacked; tense: at least 1;
 per 100 moves of each.) Each blunders more in a fight than in a quiet position; Medium hardly
 ever in a quiet one, Hard hardly ever at all. Medium on its budget errs as it did on three
-plies (`medium1500`). An earlier count on 10 games each, by the review
+plies (`medium1`). An earlier count on 10 games each, by the review
 as it was, had Easy's quiet blunders at 0.6: 10 games are too few (Easy's four runs gave 6.1,
 0.9, 1.5 and 5.1).
 
@@ -233,7 +233,7 @@ The first 5,610 games over 15 pairings (`results.txt`), fitted together; ± one 
 old levels are far apart, so the scale is bridged by the old Hard's search to a fixed depth
 (`hard0:d1`, `hard0:d2`) and on budgets of positions. Time is the median a move in a Chromium worker (`speed.mjs`).
 These ratings put the old Medium at 0 (`fit.py medium0=0`, those games alone); on the scale
-above, with every match since, add about 1,480.
+above, with every match since, add about 1,340.
 
 | Player                     |    Elo |   ± | Time a move | Positions a move |
 | -------------------------- | -----: | --: | ----------: | ---------------: |

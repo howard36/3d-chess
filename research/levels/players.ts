@@ -45,9 +45,9 @@ export const CANDIDATES: Record<string, { base: Player; level: Partial<Level> }>
       style: 0,
     },
   },
-  // Medium as its owner tied with it, the player the scale is standardised on
-  // (1500): three plies, on the clock (0.8 s), choosing at temperature 19
-  medium1500: {
+  // The Medium its owner played to a tie: three plies, on the clock (0.8 s),
+  // choosing at temperature 19
+  medium1: {
     base: 'medium',
     level: {
       maxDepth: 3,

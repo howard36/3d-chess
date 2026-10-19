@@ -1350,11 +1350,11 @@ considered.
 | Hard   | expert (all, tuned) | 30,000 positions, 16 of captures | 0.45, up to half    | 40 cp (temperature 28)              |
 
 Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, its README) on
-one scale with the Medium its owner tied with (three plies, before it had a budget;
-`medium1500`) at 1500: every match fitted at once (44,161 games over 121 pairings, chosen near
-even and mostly between cheap players, Medium cut to one ply and two among them, so as to say
-the most for the computing), Easy 862 ± 12, Medium 1,447 ± 10 and Hard 2,049 ± 15 (± one
-standard error), Medium about halfway; the old Medium 1,484 ± 12. Medium's temperature and noise
+one scale with Medium at 1,300: every match fitted at once (44,161 games over 121 pairings,
+chosen near even and mostly between cheap players, Medium cut to one ply and two among them, so
+as to say the most for the computing), Easy 716 ± 15 and Hard 1,903 ± 18 (± one standard error),
+Medium about halfway; the old Medium 1,337 ± 15, and the Medium its owner played to a tie (three
+plies, before it had a budget; `medium1`) 1,353 ± 10. Medium's temperature and noise
 lie between Easy's and Hard's, as its other settings do. Hard's temperature is twice what it was,
 so its first move varies (the most common in 7% of games, where it was 13%), for 61 Elo; Easy's
 and Medium's hardly vary more at a higher temperature (the moves they would choose among are few
@@ -1372,8 +1372,8 @@ instead of the clock (`nodes`: the search keeps the clock's rules with its clock
 positions, 1.8 million standing for 1.8 s at a million positions a second), so it plays the same
 on any device and takes longer on a slower one; and the expert, the same search, choice and
 budget by the expert's numbers. On budgets of 40,000, 80,000 and 160,000 positions the expert
-takes a median 37, 67 and 133 ms a move in a Chromium worker and rates 2,330, 2,510 and 2,760
-on that scale; `hardFixed` 3,080.
+takes a median 37, 67 and 133 ms a move in a Chromium worker and rates 2,180, 2,360 and 2,610
+on that scale; `hardFixed` 2,930.
 
 **A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the

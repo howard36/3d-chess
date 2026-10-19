@@ -6,7 +6,7 @@ the curvature (against the anchor, which has none), scaled by how much the
 scores varied about the fit (draws make a game's score vary less than a win
 or a loss would). Prints each pairing's score against the fit's, then the
 scale. usage: python3 fit.py [anchor[=rating] [results ...]]
-(default medium1500=1500: Medium as its owner tied with it, the player the scale is standardised on; results.txt)
+(default medium=1300: Medium as the game has it, the player the scale is standardised on; results.txt)
 """
 
 import math
@@ -17,7 +17,7 @@ import sys
 import numpy as np
 
 here = os.path.dirname(os.path.abspath(__file__))
-anchor, _, at = (sys.argv[1] if len(sys.argv) > 1 else 'medium1500=1500').partition('=')
+anchor, _, at = (sys.argv[1] if len(sys.argv) > 1 else 'medium=1300').partition('=')
 shift = float(at or 0)
 files = sys.argv[2:] or [os.path.join(here, 'results.txt')]
 line = re.compile(r'^\w+: (\S+) vs (\S+): .* \+(\d+) =(\d+) -(\d+) ')
