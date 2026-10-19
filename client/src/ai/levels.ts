@@ -169,18 +169,29 @@ export interface MoveFeel {
   obvious: boolean;
   /** Plies played before it. */
   ply: number;
+  /**
+   * How tense the position was (choose.ts, tension): 0.4 with nothing to take
+   * and nothing attacked, up to 1.4 in a fight.
+   */
+  tension: number;
 }
+
+/** The longest the computer takes over a move, however much there is to weigh (milliseconds). */
+export const MAX_THINK_MS = 3000;
 
 /**
  * How long the computer takes over a move, start to finish (milliseconds),
  * from `random` in [0, 1): a forced move at once, an obvious one quickly,
- * the opening's moves briskly, and the rest after a moment's thought,
- * longer the stronger the level.
+ * the opening's moves briskly, and the rest after a moment's thought, longer
+ * the stronger the level and the more there is to weigh (half the level's
+ * time in a quiet position, half as much again in a fight), never more than
+ * MAX_THINK_MS. Only how long the move takes to appear: the move is the same.
  */
 export function thinkTime(difficulty: Difficulty, feel: MoveFeel, random: number): number {
   if (feel.forced) return 450 + 200 * random;
   if (feel.obvious) return 550 + 400 * random;
   const base = { easy: 1000, medium: 1400, hard: 1700 }[difficulty];
   const opening = feel.ply < OPENING_PLIES ? 0.55 : 1;
-  return Math.round(base * opening * (0.65 + 0.7 * random));
+  const weigh = 0.5 + (feel.tension - 0.4);
+  return Math.round(Math.min(MAX_THINK_MS, base * opening * weigh * (0.8 + 0.4 * random)));
 }

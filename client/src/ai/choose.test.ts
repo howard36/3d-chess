@@ -17,7 +17,7 @@ import {
   stylise,
   tension,
 } from './choose';
-import { DIFFICULTIES, ENGINE, LEVELS, isDifficulty, thinkTime } from './levels';
+import { DIFFICULTIES, ENGINE, LEVELS, MAX_THINK_MS, isDifficulty, thinkTime } from './levels';
 import { evaluate } from './evaluate';
 import { NUMBERS } from './numbers';
 import {
@@ -298,17 +298,32 @@ describe('pickMove', () => {
 const INF_MARGIN = 1e9;
 
 it('thinks briefly over forced and obvious moves, briskly in the opening, longer when it matters', () => {
-  const feel = { forced: false, obvious: false, ply: 20 };
+  const feel = { forced: false, obvious: false, ply: 20, tension: 0.9 };
   expect(thinkTime('hard', { ...feel, forced: true }, 0.5)).toBeLessThan(700);
   expect(thinkTime('hard', { ...feel, obvious: true }, 0.5)).toBeLessThan(1000);
   expect(thinkTime('hard', { ...feel, ply: 2 }, 0.5)).toBeLessThan(thinkTime('hard', feel, 0.5));
   expect(thinkTime('easy', feel, 0.5)).toBeLessThan(thinkTime('hard', feel, 0.5));
-  for (const d of DIFFICULTIES)
-    for (const u of [0, 0.999]) {
-      const ms = thinkTime(d, feel, u);
-      expect(ms).toBeGreaterThan(400);
-      expect(ms).toBeLessThan(3500);
-    }
+  // Longer the more there is to weigh: half the time in a quiet position, half as much again in a fight
+  for (const d of DIFFICULTIES) {
+    const at = (tension: number, u = 0.5) => thinkTime(d, { ...feel, tension }, u);
+    expect(at(0.4)).toBeLessThan(at(0.9));
+    expect(at(0.9)).toBeLessThan(at(1.4));
+    expect(at(1.4) / at(0.4)).toBeCloseTo(3, 1);
+    // Never long, however tense
+    for (const tension of [0.4, 0.9, 1.4])
+      for (const u of [0, 0.999]) {
+        const ms = at(tension, u);
+        expect(ms).toBeGreaterThanOrEqual(400);
+        expect(ms).toBeLessThanOrEqual(MAX_THINK_MS);
+      }
+  }
+  expect(thinkTime('hard', { ...feel, tension: 1.4 }, 0.999)).toBe(MAX_THINK_MS);
+});
+
+it('tells how tense the position was with the move it chose', () => {
+  expect(chooseMove([], 'hard', 1)!.tension).toBeCloseTo(tension(Position.start()), 5);
+  const any = chooseMove(demo.slice(0, 12), 'medium', 3)!;
+  expect(any.tension).toBeCloseTo(tension(Position.fromRecords(demo.slice(0, 12))), 5);
 });
 
 describe('how hard a move is to see', () => {

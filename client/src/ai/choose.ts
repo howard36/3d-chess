@@ -323,6 +323,7 @@ export function chooseMove(
     forced: scores.length === 1,
     obvious: recapture || (pick.move === result.move && result.score - second >= 250),
     ply,
+    tension: sight ? tense : tension(pos),
   };
 }
 

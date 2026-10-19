@@ -16,6 +16,7 @@ const reply = (from: string, to: string): ComputerMove => ({
   forced: false,
   obvious: false,
   ply: 0,
+  tension: 1,
 });
 
 /**

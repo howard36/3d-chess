@@ -63,6 +63,7 @@ class FakeWorker {
                     forced: false,
                     obvious: false,
                     ply: request.records.length,
+                    tension: 1,
                   },
                 };
       this.onmessage?.({ data: reply } as MessageEvent<ThinkReply>);

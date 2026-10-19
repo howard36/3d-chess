@@ -1230,7 +1230,10 @@ imported and run on the page. Its move arrives as a `move_made` after a human pa
 (`thinkTime` in `ai/levels.ts`, counted from the question, the search's own time
 included): about half a second for a forced move, under a second for an obvious one (a
 recapture, or one far better than anything else), brisker in the first eight plies, and
-otherwise 0.65–1.35 times 1, 1.4 or 1.7 s by level. Should the search fail, the computer
+otherwise 1, 1.4 or 1.7 s by level, scaled by how much there is to weigh (the position's
+`tension`, which the move brings: half that in a quiet position, half as much again in a
+fight) and 0.8–1.2 times at random, never more than 3 s (`MAX_THINK_MS`). The pause is only
+how long the move takes to appear: the move is the same whatever it is. Should the search fail, the computer
 plays a legal move all the same; should its code not load (`ChunkLoadError`: an old page
 after a deploy, or offline), it waits and the error banner says to reload.
 
