@@ -12,7 +12,16 @@ import {
 } from 'three';
 import type { Camera, Material, Object3D, Scene, WebGLRenderer } from 'three';
 import { noRaycast } from '../noRaycast';
-import { cullOutside, damage, damageState, forgetDamage, restoreCulled } from './damage';
+import {
+  cullOutside,
+  damage,
+  damageState,
+  forgetDamage,
+  pushAll,
+  pushValue,
+  restoreCulled,
+  same,
+} from './damage';
 
 // The garden (Stage: the sky, the ground, the stars, the sculptures and their
 // mist) is most of a frame's fill, and it changes only with the camera, the
@@ -94,42 +103,6 @@ const drawingBuffer = new Vector2();
 
 /** Every material has a numeric `id` (three's Material.js); @types/three 0.186 leaves it out. */
 type NumberedMaterial = Material & { readonly id: number };
-
-const pushAll = (out: number[], values: ArrayLike<number>) => {
-  for (let i = 0; i < values.length; i++) out.push(values[i]);
-};
-
-/** A uniform's value as numbers (numbers, vectors, colours, matrices, arrays of them). */
-const pushValue = (out: number[], v: unknown): void => {
-  if (typeof v === 'number') out.push(v);
-  else if (typeof v === 'boolean') out.push(v ? 1 : 0);
-  else if (v === null || v === undefined) out.push(NaN);
-  else if (Array.isArray(v) || ArrayBuffer.isView(v)) {
-    const list = v as ArrayLike<unknown>;
-    out.push(list.length);
-    for (let i = 0; i < list.length; i++) pushValue(out, list[i]);
-  } else if (typeof v === 'object') {
-    const o = v as { elements?: ArrayLike<number>; isColor?: boolean; id?: number } & Record<
-      string,
-      unknown
-    >;
-    if (o.elements) pushAll(out, o.elements);
-    else if (o.isColor) out.push(o.r as number, o.g as number, o.b as number);
-    else if ('x' in o) {
-      out.push(o.x as number, o.y as number);
-      if ('z' in o) out.push(o.z as number);
-      if ('w' in o) out.push(o.w as number);
-    } else out.push(typeof o.id === 'number' ? o.id : NaN);
-  }
-};
-
-const same = (a: number[], b: number[]) => {
-  if (a.length !== b.length) return false;
-  // NaN stands for "no value" and matches itself
-  for (let i = 0; i < a.length; i++)
-    if (a[i] !== b[i] && !(a[i] !== a[i] && b[i] !== b[i])) return false;
-  return true;
-};
 
 /** A triangle covering the whole view (clip space). */
 const screenTriangle = () => {

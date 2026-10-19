@@ -17,11 +17,12 @@ import type {
 // canvas keeps its last picture: preserveDrawingBuffer). Each drawn object of
 // the tower leaves a signature (its matrix, geometry and material, every
 // uniform), and where it was on screen; a frame whose objects all match the
-// last frame's draws nothing, and otherwise it draws everything, scissored
-// to the screen rect of the objects that changed, where they were and where
-// they are. Inside the rect the frame clears and draws exactly as a full
-// frame does, and outside it nothing changed, so the picture is the full
-// frame's. The garden is not looked at: it is drawn from its copy, which a
+// last frame's draws nothing, and otherwise it draws, scissored to the
+// screen rect of the objects that changed (where they were and where they
+// are), everything but the objects wholly outside that rect (cullOutside:
+// they would write no pixel in it). Inside the rect the frame clears and
+// draws exactly as a full frame does, and outside it nothing changed, so the
+// picture is the full frame's. The garden is not looked at: it is drawn from its copy, which a
 // change to the camera, the drawing buffer or the garden replaces with a
 // full frame (backdropCache.tsx), as it does every frame that is not
 // drawing from the copy. Every vertex shader of the tower places its
@@ -67,12 +68,12 @@ const materialsOf = (o: Object3D): Material[] => {
   return m ? (Array.isArray(m) ? m : [m]) : [];
 };
 
-const pushAll = (out: number[], values: ArrayLike<number>) => {
+export const pushAll = (out: number[], values: ArrayLike<number>) => {
   for (let i = 0; i < values.length; i++) out.push(values[i]);
 };
 
 /** A value as numbers: numbers, vectors, colours, matrices, textures (and their version), arrays. */
-const pushValue = (out: number[], v: unknown): void => {
+export const pushValue = (out: number[], v: unknown): void => {
   if (typeof v === 'number') out.push(v);
   else if (typeof v === 'boolean') out.push(v ? 1 : 0);
   else if (v === null || v === undefined) out.push(NaN);
@@ -98,6 +99,15 @@ const pushValue = (out: number[], v: unknown): void => {
       if ('w' in o) out.push(o.w as number);
     } else out.push(typeof o.id === 'number' ? o.id : NaN);
   }
+};
+
+/** Two signatures alike (here and the garden's, backdropCache.tsx). */
+export const same = (a: number[], b: number[]) => {
+  if (a.length !== b.length) return false;
+  // NaN stands for "no value" and matches itself
+  for (let i = 0; i < a.length; i++)
+    if (a[i] !== b[i] && !(a[i] !== a[i] && b[i] !== b[i])) return false;
+  return true;
 };
 
 /** Material keys whose values are not drawn (or are drawn through `uniforms`, read apart). */
@@ -366,12 +376,4 @@ export const cullOutside = (state: DamageState, rect: Rect) => {
 export const restoreCulled = () => {
   for (const o of culled) o.visible = true;
   culled.length = 0;
-};
-
-const same = (a: number[], b: number[]) => {
-  if (a.length !== b.length) return false;
-  // NaN stands for "no value" and matches itself
-  for (let i = 0; i < a.length; i++)
-    if (a[i] !== b[i] && !(a[i] !== a[i] && b[i] !== b[i])) return false;
-  return true;
 };
