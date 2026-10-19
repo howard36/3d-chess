@@ -10,6 +10,7 @@ import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
 import { LandingPicture } from './LandingPicture';
 import { glassRim } from './turningRim';
+import { DemoPicker } from './DemoPicker';
 
 /** The tiles' rim turns while the pointer is on them. */
 const tileRim = glassRim((_, pointed) => pointed);
@@ -112,6 +113,7 @@ const StartScreen: React.FC = () => {
           <span className="caps">How to play</span>
         </button>
       </div>
+      <DemoPicker />
     </main>
   );
 };

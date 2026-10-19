@@ -11,7 +11,8 @@ import { LANDING_BANDS } from './landingLayout';
 import type { PictureName } from '../three/landingLens';
 import { layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
-import { demoFrame, demoLog, demoOrder } from '../game/demo';
+import { DEMO_GAMES, demoFrame, demoLog, demoOrder } from '../game/demo';
+import { chosenGame } from './demoChoice';
 import type { DemoFrame } from '../game/demo';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
@@ -161,7 +162,12 @@ export function LandingPreview({
   const pixelRatio = usePixelBudget();
   const veil = React.useRef<HTMLDivElement>(null);
   const wrapper = React.useRef<HTMLDivElement>(null);
-  const [order] = React.useState(() => demoOrder());
+  // For review: `?game=N` plays that game first, from its start, then the rest in turn
+  const [order] = React.useState(() => {
+    const first = chosenGame(DEMO_GAMES.length);
+    if (first === null) return demoOrder();
+    return DEMO_GAMES.map((_, i) => (first + i) % DEMO_GAMES.length);
+  });
   const [revealed, setRevealed] = React.useState(false);
   // Where the moving demo stands (DemoDirector reports each new ply and pass)
   const [frame, setFrame] = React.useState<Pick<DemoFrame, 'pass' | 'game' | 'ply'>>(() =>
