@@ -56,12 +56,15 @@ describe('the early socket', () => {
     startEarlySocket(WS_URL, keys);
     await server.connected;
     await expect(server).toReceiveMessage(JSON.stringify({ type: 'look_game', gameId: 'XYZ789' }));
-    WS.clean();
-    server = new WS(WS_URL);
-    window.history.pushState({}, '', '/new');
-    startEarlySocket(WS_URL, keys);
-    await server.connected;
-    expect(window.__earlySocket!.sent).toBeNull();
+    // (nor on an id the server would never make: invitation.ts GAME_ID)
+    for (const path of ['/new', '/game/abc123', `/game/${'A'.repeat(5000)}`]) {
+      WS.clean();
+      server = new WS(WS_URL);
+      window.history.pushState({}, '', path);
+      startEarlySocket(WS_URL, keys);
+      await server.connected;
+      expect(window.__earlySocket!.sent).toBeNull();
+    }
   });
 
   it('opens nothing where the server is never used: the computer’s games, the tutorial', () => {

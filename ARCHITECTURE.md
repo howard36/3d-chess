@@ -575,8 +575,10 @@ Message flow, happy path:
 2. Joiner opens `/game/:gameId`. The invitation first asks `look_game {gameId}` →
    `game_info {gameId, seats}` (the seats already taken; it binds nothing), so it can say
    which side the player will take, or that the game is full or gone (`invalid_game`),
-   before they accept. Accepting sends `join_game {gameId, clientId?}` → the joiner gets
-   `game_joined {color}` (its seat, confirmed before anything is broadcast, so a drop right
+   before they accept. An id the server never makes (six capitals or digits: `GAME_ID` in
+   `game/invitation.ts`, tested against the server's) is gone at once and never asked about.
+   Accepting sends `join_game {gameId, clientId?}` → the joiner gets `game_joined {color}`
+   (its seat, confirmed before anything is broadcast, so a drop right
    after is still rejoinable), then both players get `game_start {color}`. A `join_game`
    from the client id that already claimed a seat in the game gets that seat again rather
    than `game_full`, so a tab whose `game_joined` was lost can simply repeat its join; it is
@@ -1213,7 +1215,8 @@ imported and run on the page. Its move arrives as a `move_made` after a human pa
 included): about half a second for a forced move, under a second for an obvious one (a
 recapture, or one far better than anything else), brisker in the first eight plies, and
 otherwise 0.65–1.35 times 1, 1.4 or 1.7 s by level. Should the search fail, the computer
-plays a legal move all the same.
+plays a legal move all the same; should its code not load (`ChunkLoadError`: an old page
+after a deploy, or offline), it waits and the error banner says to reload.
 
 **A draw offered to the computer.** The computer never offers one. Offered one, it drops any
 move it was thinking over and weighs up the position (`assess` in `ai/computer.ts`,
@@ -1237,13 +1240,18 @@ is nothing to take back.
 
 **The engine** (`client/src/ai/`) is separate from the rules engine, built for speed:
 `position.ts` keeps the board as 125 bytes, cells numbered as `engine/board.ts` numbers
-them, with occupancy bitsets per side, moves packed into integers, make/unmake in place and
-Zobrist hashing (`position.test.ts` checks every move list against the rules engine over
+them, and a bordered copy (7×7×7, 343 bytes) that the sliders and the attack tests step on
+until they meet a piece or the border, with occupancy bitsets per side, moves packed into
+integers, make/unmake in place and Zobrist hashing (`position.test.ts` checks every move
+list against the rules engine over
 thousands of positions of random games). `search.ts` is iterative-deepening alpha-beta
 (principal variation search) with a transposition table, quiescence search, null-move
 pruning, late-move reductions, check extensions, futility pruning, and killer and history
-ordering. It plays by the draws too: a position standing for the third time scores as a
-draw, and so does one repeated inside the line searched (it can always be repeated once
+ordering. Its tables (the transposition table, the move lists, killers and history) are
+made at a thread's first search and kept for the next, and `evaluate.ts` keeps a search's
+mobility by the position's hash. It plays by the draws too: a position standing for the
+third time scores as a draw, and so does one repeated inside the line searched (it can
+always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
@@ -1254,8 +1262,8 @@ centralisation in the cube, pawns' progress towards their last square (worth mor
 board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
 active king in the endgame, mobility (left out of the quiescence search where it cannot
 matter), the bishop pair, and, a side ahead, trading down and driving the bare king to a
-corner, which mates with king and queen. In the browser it searches some 400,000 positions
-a second.
+corner, which mates with king and queen. How fast it searches in the browser is the
+browser bench's row "Computer’s later moves: positions searched per second".
 
 **The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
 engine, the search gives an exact score to every root move within a margin of the best, and

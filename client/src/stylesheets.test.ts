@@ -168,4 +168,16 @@ test('the stylesheets’ night is the sky’s, and no stylesheet spells it out a
     PALETTE.skyTop.toLowerCase(),
   );
   expect(all.match(new RegExp(PALETTE.skyTop, 'gi'))).toHaveLength(1);
+  // Its fades, written as rgba(): every near-night colour is the night's own
+  const night = [1, 3, 5].map((i) => parseInt(PALETTE.skyTop.slice(i, i + 2), 16));
+  const nearNight = [...all.matchAll(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/g)]
+    .map((m) => [1, 2, 3].map((i) => Number(m[i])))
+    .filter((rgb) => rgb.reduce((d, c, i) => d + Math.abs(c - night[i]), 0) <= 4);
+  expect(nearNight.length).toBeGreaterThan(10);
+  for (const rgb of nearNight) expect(rgb).toEqual(night);
+  // and the browser's bars (index.html's theme-color, read before any stylesheet)
+  const html = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
+  expect(html.match(/name="theme-color" content="([^"]+)"/)?.[1].toLowerCase()).toBe(
+    PALETTE.skyTop.toLowerCase(),
+  );
 });

@@ -1,5 +1,5 @@
 // The A/B's rule (bench/verdict.mjs): what it calls and what it leaves alone.
-import { verdict } from '../../bench/verdict.mjs';
+import { chanceOfCall, verdict } from '../../bench/verdict.mjs';
 
 describe('verdict', () => {
   it('calls a change every pair agrees on, beyond 5% and the pairs’ spread', () => {
@@ -147,5 +147,19 @@ describe('verdict', () => {
 
   it('has nothing to say on fewer than two pairs', () => {
     expect(verdict([[100, 90]], 'lower', 'ms')).toBeNull();
+  });
+});
+
+describe('chanceOfCall', () => {
+  it('is the share of sign flips that put every pair one way, when such pairs are called', () => {
+    // Called with every pair one way, whichever way the sizes lie
+    expect(chanceOfCall([0.8, 0.82, 1.25])).toBe(1 / 4);
+    expect(chanceOfCall(Array(10).fill(0.8))).toBe(2 ** -9);
+  });
+
+  it('is 0 where no flip is called: a size within the rule, or a pair unmoved', () => {
+    expect(chanceOfCall([1.02, 1.03, 0.97])).toBe(0);
+    expect(chanceOfCall([0.8, 1, 0.8])).toBe(0);
+    expect(chanceOfCall([0.8])).toBe(0);
   });
 });

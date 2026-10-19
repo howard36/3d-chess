@@ -16,6 +16,7 @@ import {
 } from './landingLens';
 import { COMMON_WINDOWS } from './landingWindows';
 import { landingFrameRings, landingViewDirection } from './landingView';
+import { landingPictureInputs } from './landingPictureInputs';
 import { LANDING_BANDS, landingLayoutOf } from '../screens/landingLayout';
 import type { LandingLayout } from '../screens/landingLayout';
 import type { PictureDensity, PictureName } from './landingLens';
@@ -208,6 +209,11 @@ describe('the pictures', () => {
     // Anything else there (landing-pictures.mjs --keep-png's PNGs) would ship,
     // and change every picture's version (vite.config.ts, landingVersion)
     expect(readdirSync(join(process.cwd(), 'public/landing')).sort()).toEqual(files.sort());
+  });
+
+  it('were rendered at the numbers baked here (landing-pictures.mjs writes them as it renders)', () => {
+    const stamp = readFileSync(join(process.cwd(), 'src/three/landingPictures.json'), 'utf8');
+    expect(landingPictureInputs()).toEqual(JSON.parse(stamp));
   });
 
   it('are placed by the window’s lens: a tangent of the view lands where the camera puts it', () => {

@@ -170,7 +170,7 @@ VALUE[QUEEN] = 980;
 VALUE[KING] = 0;
 
 /** Each piece's weight in the game's phase: the opening's 24 down to the endgame's 0. */
-export const PHASE = [0, 0, 1, 1, 1, 1, 4, 0];
+const PHASE = [0, 0, 1, 1, 1, 1, 4, 0];
 export const PHASE_MAX = 24;
 
 /** From the middle of the cube (0) to a corner (6), in steps along the axes. */
@@ -178,7 +178,7 @@ export const CENTRE = new Int8Array(CELLS);
 /** Chebyshev distance between two cells. */
 export const DIST = new Uint8Array(CELLS * CELLS);
 /** How near a piece on one cell is to a king on another: 4 less the distance, or 0. */
-export const NEAR = new Uint8Array(CELLS * CELLS);
+const NEAR = new Uint8Array(CELLS * CELLS);
 for (let c = 0; c < CELLS; c++) {
   CENTRE[c] = Math.abs(CX[c] - 2) + Math.abs(CY[c] - 2) + Math.abs(CZ[c] - 2);
   for (let d = 0; d < CELLS; d++) {
@@ -199,7 +199,7 @@ const PAWN_STEP_EG = [0, 0, 10, 24, 42, 66, 100, 150, 0];
 // endgame, per piece code and cell. Black's are White's turned through the
 // centre of the cube.
 export const MG = new Int16Array(16 * CELLS);
-export const EG = new Int16Array(16 * CELLS);
+const EG = new Int16Array(16 * CELLS);
 const mirror = (c: number) => CELLS - 1 - c; // (x, y, z) -> (4 - x, 4 - y, 4 - z)
 for (let c = 0; c < CELLS; c++) {
   const centre = CENTRE[c];
@@ -229,7 +229,7 @@ for (let c = 0; c < CELLS; c++) {
 }
 
 /** How much a piece near the enemy king threatens it (pawns and kings: nothing). */
-export const TROPISM_WEIGHT = [0, 0, 3, 2, 1, 2, 6, 0];
+const TROPISM_WEIGHT = [0, 0, 3, 2, 1, 2, 6, 0];
 
 // --- Moves -------------------------------------------------------------------
 
@@ -572,9 +572,10 @@ export class Position {
         const step = STEP[d];
         let t = pk + step;
         if (t === pt) return true;
-        // A king reaches one step only; others along an open line (the cell left counts as open)
+        // A king reaches one step only; others along an open line (never
+        // through the cell left: on this line, the piece checked from it already)
         if (type !== KING) {
-          while (t !== pt && (pad[t] === 0 || t === pf)) t += step;
+          while (t !== pt && pad[t] === 0) t += step;
           if (t === pt) return true;
         }
       }
@@ -583,13 +584,13 @@ export class Position {
     const d = LINE[k * CELLS + from];
     if (d < 0) return false;
     const step = STEP[d];
-    const first = pk + step;
-    let t = first;
+    let t = pk + step;
     let q: number;
     while ((q = t === pt ? 1 : t === pf ? 0 : pad[t]) === 0) t += step;
     if (t === pt || !(q & (side === BLACK_SIDE ? BLACK : WHITE_BIT))) return false;
+    // (not a king: one next to the other checks already)
     const p = q & 7;
-    return p === QUEEN || p === SLIDER_OF[d] || (t === first && p === KING);
+    return p === QUEEN || p === SLIDER_OF[d];
   }
 
   /** Whether `side`'s king is attacked. */
