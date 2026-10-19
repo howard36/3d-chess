@@ -66,5 +66,13 @@ test('a position repeated three times draws the game for both players', async ({
     await expect(pill).toContainText('Repetition · draw');
     await expect(page.getByTestId('end-game')).toContainText('by repetition');
   }
+  // A click on the card's words keeps the focus in it (for Escape); a key
+  // pressed then draws no ring round the whole card
+  const card = game.white.getByRole('dialog');
+  await card.getByRole('heading').click();
+  await game.white.keyboard.press('Shift');
+  await expect(card).toBeFocused();
+  if (process.env.SHOT) await game.white.screenshot({ path: process.env.SHOT });
+  await expect(card).toHaveCSS('outline-style', 'none');
   await game.close();
 });

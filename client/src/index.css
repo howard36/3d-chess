@@ -279,6 +279,11 @@ body {
 [data-quiet-focus]:focus-visible {
   outline: none;
 }
+/* A dialog takes focus on a click only to keep Escape within reach: no ring
+   round the whole card when a key is pressed after it (its controls ring) */
+.hud-dialog:focus-visible {
+  outline: none;
+}
 /*
  * Words centred by their capitals, whatever font the system gives (.caps):
  * a block trimmed to the capitals (text-box: from their top to the
