@@ -1,10 +1,12 @@
 """Every player on one Elo scale, fitted to all the matches in results.txt.
 
-Bradley-Terry on the games' scores (a draw counts half), the anchor at 0,
-by Newton's method; standard errors from the curvature, scaled by how much
-the scores varied about the fit (draws make a game's score vary less than a
-win or a loss would). Prints each pairing's score against the fit's, then the
-scale. usage: python3 fit.py [anchor [results ...]]   (default medium0, the old Medium; results.txt)
+Bradley-Terry on the games' scores (a draw counts half), by Newton's
+method, then shifted to put the anchor at its rating; standard errors from
+the curvature (against the anchor, which has none), scaled by how much the
+scores varied about the fit (draws make a game's score vary less than a win
+or a loss would). Prints each pairing's score against the fit's, then the
+scale. usage: python3 fit.py [anchor[=rating] [results ...]]
+(default medium=1500: Medium, the player its scale is standardised on; results.txt)
 """
 
 import math
@@ -15,7 +17,8 @@ import sys
 import numpy as np
 
 here = os.path.dirname(os.path.abspath(__file__))
-anchor = sys.argv[1] if len(sys.argv) > 1 else 'medium0'
+anchor, _, at = (sys.argv[1] if len(sys.argv) > 1 else 'medium=1500').partition('=')
+shift = float(at or 0)
 files = sys.argv[2:] or [os.path.join(here, 'results.txt')]
 line = re.compile(r'^\w+: (\S+) vs (\S+): .* \+(\d+) =(\d+) -(\d+) ')
 
@@ -88,4 +91,5 @@ for k in sorted(range(len(keys)), key=lambda k: R[A[k]] + R[B[k]]):
     )
 print()
 for i in sorted(range(len(players)), key=lambda i: R[i]):
-    print(f'{players[i]:>18} {R[i]:+6.0f} ± {se[i]:2.0f}')
+    rating = f'{shift + R[i]:6.0f}' if shift else f'{R[i]:+6.0f}'
+    print(f'{players[i]:>18} {rating} ± {se[i]:2.0f}')

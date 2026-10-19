@@ -1341,14 +1341,18 @@ considered.
 
 | Level  | Knows               | Looks ahead                 | Overlooks, from hardness | Chooses within, at middling tension |
 | ------ | ------------------- | --------------------------- | ------------------------ | ----------------------------------- |
-| Easy   | beginner (11)       | 1 ply, 4 of captures        | 0.05, up to 95%          | 60 cp (temperature 20, ±10 cp)      |
+| Easy   | beginner (11)       | 1 ply, 4 of captures        | 0, up to all             | 60 cp (temperature 30, ±10 cp)      |
 | Medium | advanced (47)       | 3 plies, 8 of captures      | 0.05, up to all          | 53 cp (temperature 19, ±11 cp)      |
-| Hard   | expert (all, tuned) | 30,000 positions, 16 of captures | 0.45, up to half    | 40 cp (temperature 14)              |
+| Hard   | expert (all, tuned) | 30,000 positions, 16 of captures | 0.45, up to half    | 40 cp (temperature 28)              |
 
-Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, its README),
-against each other and the levels as they were: Easy about 525 Elo below Medium (4.6% over 400
-games), Medium level with the old Medium (50.2% over 400), Hard about 510 above Medium (95.0% over
-300; the old Medium, whose random blunders it punishes, it beats 97.8%).
+Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, its README) on
+one scale with Medium at 1500, the Medium its owner tied with: every match fitted at once (37,761
+games over 108 pairings, chosen near even and mostly between cheap players, Medium cut to one ply
+and two among them, so as to say the most for the computing), Easy 866 ± 13, Hard 2,049 ± 15
+(± one standard error); the old Medium 1,484 ± 12. Hard's temperature is twice what it was, so
+its first move varies (the most common in 7% of games, where it was 13%), for 61 Elo. Easy's
+and Medium's hardly vary more at a higher temperature (the moves they would choose among are few
+and far apart), so only Hard's was raised.
 The old levels erred by choosing badly (Easy among moves up to 2.6 pawns worse, at random), so
 they were far apart (Easy −900) for little difference in what they could see; errors of
 perception cost far less strength, so the new levels look further and choose better at the same
@@ -1362,8 +1366,8 @@ instead of the clock (`nodes`: the search keeps the clock's rules with its clock
 positions, 1.8 million standing for 1.8 s at a million positions a second), so it plays the same
 on any device and takes longer on a slower one; and the expert, the same search, choice and
 budget by the expert's numbers. On budgets of 40,000, 80,000 and 160,000 positions the expert
-takes a median 37, 67 and 133 ms a move in a Chromium worker and rates +860, +1,040 and +1,290
-on that scale; `hardFixed` +1,610.
+takes a median 37, 67 and 133 ms a move in a Chromium worker and rates 2,330, 2,510 and 2,760
+on that scale; `hardFixed` 3,080.
 
 **A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the
@@ -1386,10 +1390,11 @@ move that gives nothing away (the best, or within 0.02) is brilliant ("!!") when
 sacrifice and hard to see (`hardness` at least 0.7, `BRILLIANT_HARDNESS`: across levels, or a
 long way back, far from the last move), played by a side not already winning (below 0.5) and
 not losing after it: the review says how hard the move that led to each position was to see
-(`played`). In self-play (`research/levels/marks.ts`: each level against itself, each position
-reviewed), per 100 moves: Easy 14.1 inaccuracies, 2.9 mistakes and 4.4 blunders, Medium 11.5,
-2.3 and 1.9, Hard 5.1, 0.5 and 0.3, and a brilliant move every 140 to 1,000; Easy's and Medium's
-blunders all but only in a tense position (Easy 10.6 per 100 moves there, 0.6 in a quiet one).
+(`played`). In self-play (`research/levels/marks.ts`: 40 games of each level against itself,
+each position reviewed), per 100 moves: Easy 14.0 inaccuracies, 4.3 mistakes and 5.1 blunders,
+Medium 8.3, 1.9 and 2.5, Hard 5.7, 1.3 and 0.8, and a brilliant move every 170 to 1,000; each
+blunders more in a tense position than a quiet one (Easy 8.0 per 100 moves against 3.6, Medium
+4.7 against 0.6).
 
 ### Piece values
 
