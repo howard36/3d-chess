@@ -121,7 +121,7 @@
     "items": [
       {
         "title": "Skip the damage walk on frames drawn whole (1841:PS1)",
-        "body": "<p><code>534e140</code> against it, moves and picks, 8 pairs (<code>ab-20261019-1841-plain.md</code>): nothing called, 0 of 3 primary rows and 0 of 33 diagnostics. The opponent's move leaned ×1.110 slower (5 of 8 pairs) and a pick ×1.090 (4 of 8). Reverted; the patch is in <code>patches/20261019-1841-DR6-plain-skip.patch</code>.</p>"
+        "body": "<p><code>534e140</code> against it, moves and picks, 8 pairs (<code>ab-20261019-1841-plain.md</code>): nothing called, 0 of 3 primary rows and 0 of 33 diagnostics. The opponent's move leaned ×1.110 slower (5 of 8 pairs) and a pick ×1.090 (4 of 8). Reverted; the patch is in <code>patches/20261019-1841-PS1-plain-skip.patch</code>.</p>"
       },
       {
         "title": "One path-pattern helper in the bench's Pages model (GP1)",
