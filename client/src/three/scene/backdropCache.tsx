@@ -12,6 +12,16 @@ import {
 } from 'three';
 import type { Camera, Material, Object3D, Scene, WebGLRenderer } from 'three';
 import { noRaycast } from '../noRaycast';
+import {
+  cullOutside,
+  damage,
+  damageState,
+  forgetDamage,
+  pushAll,
+  pushValue,
+  restoreCulled,
+  same,
+} from './damage';
 
 // The garden (Stage: the sky, the ground, the stars, the sculptures and their
 // mist) is most of a frame's fill, and it changes only with the camera, the
@@ -94,42 +104,6 @@ const drawingBuffer = new Vector2();
 /** Every material has a numeric `id` (three's Material.js); @types/three 0.186 leaves it out. */
 type NumberedMaterial = Material & { readonly id: number };
 
-const pushAll = (out: number[], values: ArrayLike<number>) => {
-  for (let i = 0; i < values.length; i++) out.push(values[i]);
-};
-
-/** A uniform's value as numbers (numbers, vectors, colours, matrices, arrays of them). */
-const pushValue = (out: number[], v: unknown): void => {
-  if (typeof v === 'number') out.push(v);
-  else if (typeof v === 'boolean') out.push(v ? 1 : 0);
-  else if (v === null || v === undefined) out.push(NaN);
-  else if (Array.isArray(v) || ArrayBuffer.isView(v)) {
-    const list = v as ArrayLike<unknown>;
-    out.push(list.length);
-    for (let i = 0; i < list.length; i++) pushValue(out, list[i]);
-  } else if (typeof v === 'object') {
-    const o = v as { elements?: ArrayLike<number>; isColor?: boolean; id?: number } & Record<
-      string,
-      unknown
-    >;
-    if (o.elements) pushAll(out, o.elements);
-    else if (o.isColor) out.push(o.r as number, o.g as number, o.b as number);
-    else if ('x' in o) {
-      out.push(o.x as number, o.y as number);
-      if ('z' in o) out.push(o.z as number);
-      if ('w' in o) out.push(o.w as number);
-    } else out.push(typeof o.id === 'number' ? o.id : NaN);
-  }
-};
-
-const same = (a: number[], b: number[]) => {
-  if (a.length !== b.length) return false;
-  // NaN stands for "no value" and matches itself
-  for (let i = 0; i < a.length; i++)
-    if (a[i] !== b[i] && !(a[i] !== a[i] && b[i] !== b[i])) return false;
-  return true;
-};
-
 /** A triangle covering the whole view (clip space). */
 const screenTriangle = () => {
   const g = new BufferGeometry();
@@ -151,12 +125,22 @@ type Mode = 'plain' | 'capture' | 'cached';
 
 /**
  * The garden (`children`: Stage) drawn from a copy while nothing it depends
- * on changes. See the top of this file.
+ * on changes. See the top of this file. `partial` (a canvas that keeps its
+ * picture: preserveDrawingBuffer): a frame drawing the garden from its copy
+ * redraws only what changed in the rest of the scene (damage.ts).
  */
-export const BackdropCache = ({ children }: { children: ReactNode }) => {
+export const BackdropCache = ({
+  children,
+  partial = false,
+}: {
+  children: ReactNode;
+  partial?: boolean;
+}) => {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const garden = useRef<Group>(null);
+  const partialRef = useRef(partial);
+  partialRef.current = partial;
   const parts = useMemo(() => {
     const material = backdropMaterial();
     const copy = new Mesh(screenTriangle(), material);
@@ -186,11 +170,38 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
       next: [] as number[],
       texture: null as FramebufferTexture | null,
       valid: false,
+      damage: damageState(),
     };
+    const skip = new Set<Object3D>();
     const show = (mode: Mode) => {
       if (garden.current) garden.current.visible = mode !== 'cached';
       copy.visible = mode === 'cached';
       take.visible = mode === 'capture';
+    };
+    // Only what changed is drawn when the garden comes from its copy (any
+    // other frame is drawn whole: the capture copies the whole canvas)
+    const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {
+      restoreCulled();
+      if (!partialRef.current || !garden.current) {
+        forgetDamage(state.damage);
+        return;
+      }
+      const size = renderer.getDrawingBufferSize(drawingBuffer);
+      skip.clear();
+      skip.add(garden.current).add(copy).add(take);
+      // (dev only: e2e's damage.spec.ts draws a frame whole to compare it with one drawn in part)
+      const whole =
+        mode !== 'cached' || (import.meta.env.DEV && scene.userData.wholeFrames === true);
+      const d = damage(state.damage, scene, skip, camera, size.x, size.y, whole);
+      if (d === 'full') {
+        renderer.setScissorTest(false);
+        return;
+      }
+      const r = d ?? { x: 0, y: 0, w: 0, h: 0 };
+      cullOutside(state.damage, r);
+      const ratio = renderer.getPixelRatio();
+      renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);
+      renderer.setScissorTest(true);
     };
     take.onAfterRender = (renderer) => {
       const size = renderer.getDrawingBufferSize(drawingBuffer);
@@ -213,18 +224,22 @@ export const BackdropCache = ({ children }: { children: ReactNode }) => {
         return;
       }
       const next = backdropSignature(renderer, camera, g, state.next);
+      let mode: Mode;
       if (!same(next, state.last)) {
         state.valid = false;
         state.next = state.last;
         state.last = next;
-        show('plain');
-      } else show(state.valid ? 'cached' : 'capture');
+        mode = 'plain';
+      } else mode = state.valid ? 'cached' : 'capture';
+      show(mode);
+      scissor(renderer, camera, mode);
     };
     // A lost context loses the copy
     const canvas = gl.domElement;
     const lost = () => {
       state.valid = false;
       state.last = [];
+      forgetDamage(state.damage);
     };
     canvas.addEventListener('webglcontextlost', lost);
     canvas.addEventListener('webglcontextrestored', lost);

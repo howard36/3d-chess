@@ -173,13 +173,25 @@ Key decisions:
   the press), never on pointer-down, so a drag or pinch that starts over the cube only
   moves the camera. With a piece selected, clicking an opposing piece it can take plays
   the capture (the piece fills its cell, so it would otherwise hide the cell's click
-  target). On a touch screen, where the pieces are narrower than a fingertip, a tap that
-  hits nothing the player can act on goes to the nearest thing they can (an own piece, the
-  held piece, a destination or capture) within 22 px of its outline, a destination winning
-  a near tie with another piece (`three/tapAssist.ts`, measured by `useTapAssist`); a tap
-  with nothing in reach puts the selection down, and a mouse is never assisted. A move can
-  also be typed (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only
-  or screen-reader player plays: it is the first thing Tab reaches on the board screen, and
+  target). On a touch screen, where the pieces (about 17 x 28 CSS px on a phone) and the
+  marks (20 x 7) are narrower than a fingertip and a careful tap lands about 10 px from its
+  aim, a finger's tap is read from its own touch and lift (`useTouchIntent`), never from the
+  click the browser makes of it: that click may not come (r3f reports a miss only within
+  2 px of the touch), and may say a mouse made it (Safari since 18.2, WebKit bug 282988).
+  A finger that lifts within 10 px of where it touched (`FINGER_SLOP_PX`), however long it
+  rested, tapped there, as the view stood when it touched; one that travels further turns
+  the view. Every tap acts at once (`three/tapIntent.ts`). A tap whose ray hits something
+  the player can act on takes what it hits first, nearest the camera: a piece (picked up,
+  or put down), a move's mark, or the piece a capture takes. Otherwise every target is
+  weighed: its odds fall off with the tap's distance from its shape (a move's is its mark,
+  the circle a player sees and aims at), a move counts double while a piece is held, and
+  the likeliest is taken; only a tap 56 px (`NOTHING_PX`, a fingertip and a half) clear of
+  everything puts the selection down, so a near miss beside a lone mark still plays it.
+  `e2e/tapIntent.spec.ts` sweeps thousands of scattered taps through the board's real rays
+  and this code, and fails when they go right, or wrong, worse than floors a few points
+  under today's. A mouse or pen keeps exactly the hit it makes. A move can also be typed
+  (`Bb1-Cb1`, `=Q` to promote) in the move box, which is how a keyboard-only or
+  screen-reader player plays: it is the first thing Tab reaches on the board screen, and
   appears when it does, or stays in sight throughout when there is no 3D board (see HUD).
 - **Camera.** The only camera control is turning the view about the board's centre: drag
   with the left mouse button or one finger. The wheel or a two-finger pinch zooms. There
@@ -699,7 +711,7 @@ outlined in white neon, which sink into the tower's shade as they near it on scr
 nothing competes with the board; overhead are stars and chess constellations for a camera
 that looks up (see The garden). The garden changes only with the view, so while the camera rests it is drawn
 from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
-move or a selection redraws the tower over it. Files and ranks label the two edges of the bottom platform nearest the
+move or a selection redraws the tower over it, and only the screen rect of what changed (`scene/damage.ts`: each object's signature against the last frame's; the canvas keeps its picture). Files and ranks label the two edges of the bottom platform nearest the
 camera (the top one's, seen from high above). The five level letters, each in its platform's edge colour, share one corner post
 (`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
 corner, out along the corner's diagonal, a little above its platform. From low and middling
