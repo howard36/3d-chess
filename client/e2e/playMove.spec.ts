@@ -49,7 +49,7 @@ test('a player can play from the keyboard', async ({ browser }) => {
     await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Bb1-Cb1');
   }
   // How a screen reader follows the game: hidden from the eye, never from it
-  for (const id of ['move-announcer', 'move-history'])
+  for (const id of ['move-announcer', 'move-history', 'move-list'])
     expect(
       await white
         .getByTestId(id)
