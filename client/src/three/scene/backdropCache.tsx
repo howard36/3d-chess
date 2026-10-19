@@ -181,7 +181,7 @@ export const BackdropCache = ({
     // Only what changed is drawn when the garden comes from its copy (any
     // other frame is drawn whole: the capture copies the whole canvas)
     const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {
-      restoreCulled();
+      restoreCulled(state.damage);
       if (!partialRef.current || !garden.current) {
         forgetDamage(state.damage);
         return;
@@ -203,6 +203,10 @@ export const BackdropCache = ({
       renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);
       renderer.setScissorTest(true);
     };
+    // The copy is drawn in every frame drawn in part, after three.js has
+    // listed what it draws: what scissor() hid is shown again there, so the
+    // frame leaves nothing hidden, whoever drew it
+    copy.onAfterRender = () => restoreCulled(state.damage);
     take.onAfterRender = (renderer) => {
       const size = renderer.getDrawingBufferSize(drawingBuffer);
       let texture = state.texture;

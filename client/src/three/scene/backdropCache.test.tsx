@@ -175,7 +175,7 @@ describe('a frame drawn in part', () => {
       </>,
     );
     const scene = r.scene.instance as unknown as Scene;
-    const copy = scene.getObjectByName('backdrop-copy')!;
+    const copy = scene.getObjectByName('backdrop-copy')! as Mesh;
     const take = scene.getObjectByName('backdrop-take')! as Mesh;
     const gl = {
       ...fakeRenderer([640 * ratio, 480 * ratio]),
@@ -190,7 +190,7 @@ describe('a frame drawn in part', () => {
       },
     };
     const cam = camera();
-    /** One frame up to its drawing: the mode, and the scissor (CSS px) if it has one. */
+    /** One frame: its mode, its scissor (CSS px) if it has one, and what it left out. */
     const frame = () => {
       scene.updateMatrixWorld(true);
       scene.onBeforeRender(
@@ -202,6 +202,17 @@ describe('a frame drawn in part', () => {
         null as never,
       );
       const mode = copy.visible ? 'cached' : take.visible ? 'capture' : 'plain';
+      const hidden = ['piece', 'far'].filter((name) => !scene.getObjectByName(name)!.visible);
+      // (three.js draws the copy, once it has listed what it draws)
+      if (copy.visible)
+        copy.onAfterRender(
+          gl as unknown as WebGLRenderer,
+          scene,
+          cam,
+          copy.geometry,
+          copy.material as Material,
+          null as never,
+        );
       if (take.visible)
         take.onAfterRender(
           gl as unknown as WebGLRenderer,
@@ -211,7 +222,7 @@ describe('a frame drawn in part', () => {
           take.material as Material,
           null as never,
         );
-      return { mode, scissor: gl.scissorTest ? gl.scissor : null };
+      return { mode, scissor: gl.scissorTest ? gl.scissor : null, hidden };
     };
     const piece = scene.getObjectByName('piece')!;
     const far = scene.getObjectByName('far')!;
@@ -220,19 +231,20 @@ describe('a frame drawn in part', () => {
 
   it('draws whole until the garden comes from its copy, then only what changed', async () => {
     const { frame, piece, far } = await mountPartial(1);
-    expect(frame()).toEqual({ mode: 'plain', scissor: null });
-    expect(frame()).toEqual({ mode: 'capture', scissor: null });
+    expect(frame()).toEqual({ mode: 'plain', scissor: null, hidden: [] });
+    expect(frame()).toEqual({ mode: 'capture', scissor: null, hidden: [] });
     // Nothing changed: an empty scissor, and the tower left out
-    expect(frame()).toEqual({ mode: 'cached', scissor: [0, 0, 0, 0] });
-    expect([piece.visible, far.visible]).toEqual([false, false]);
-    // The piece moves: drawn where it was and is, the far box left out,
-    // and what the last frame left out is back before the tower is looked at
+    expect(frame()).toEqual({ mode: 'cached', scissor: [0, 0, 0, 0], hidden: ['piece', 'far'] });
+    // The frame leaves nothing hidden behind it
+    expect([piece.visible, far.visible]).toEqual([true, true]);
+    // The piece moves: drawn where it was and is, the far box left out
     piece.position.x = 0.5;
-    const { mode, scissor } = frame();
+    const { mode, scissor, hidden } = frame();
     expect(mode).toBe('cached');
     expect(scissor![2]).toBeGreaterThan(0);
     expect(scissor![2]).toBeLessThan(320);
-    expect([piece.visible, far.visible]).toEqual([true, false]);
+    expect(hidden).toEqual(['far']);
+    expect([piece.visible, far.visible]).toEqual([true, true]);
   });
 
   it('sets its scissor in CSS pixels, whatever the pixel ratio', async () => {

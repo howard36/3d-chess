@@ -222,13 +222,13 @@ describe('damage', () => {
     const r = frame() as Rect;
     cullOutside(state, r);
     expect(boxes.map((b) => b.visible)).toEqual([false, false, true]);
-    restoreCulled();
+    restoreCulled(state);
     expect(boxes.map((b) => b.visible)).toEqual([true, true, true]);
     // An object with children stays, whatever its own place
     boxes[0].add(box(2.5));
     frame();
     cullOutside(state, r);
     expect(boxes[0].visible).toBe(true);
-    restoreCulled();
+    restoreCulled(state);
   });
 });
