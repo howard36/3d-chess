@@ -1,0 +1,1 @@
+easy: 1029 moves in 10 games; per 100 moves brilliant 0.1, inaccuracy 13.5, mistake 4.9, blunder 5.3; blunders per 100 quiet moves 1.5 (of 262), per 100 tense 9.3 (of 268)
