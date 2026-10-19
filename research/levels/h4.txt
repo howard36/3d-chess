@@ -1,0 +1,1 @@
+hardFixed@10000 vs medium: 79.6% ± 1.9% (237 Elo) over 400 games, +310 =17 -73 {"resigned":306,"mate":77,"fifty":14,"repetition":3}; hardFixed@10000: 18 ms, 9470 positions a move; medium: 82 ms, 41031 positions a move

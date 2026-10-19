@@ -1,0 +1,1 @@
+hardFixed@10000 vs hard{"temperature":28}: 14.0% ± 1.5% (-315 Elo) over 400 games, +34 =44 -322 {"resigned":336,"fifty":41,"mate":20,"repetition":2,"length":1}; hardFixed@10000: 18 ms, 9376 positions a move; hard{"temperature":28}: 48 ms, 23446 positions a move
