@@ -16,16 +16,11 @@
 // sheet.
 // Remote containers: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium.
 
-import { chromium } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { launchSoftwareGl, opt } from './lib/devScript.mjs';
 
-const argv = process.argv.slice(2);
-const opt = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 ? argv[i + 1] : fallback;
-};
 const list = (s) => s.split(',').map(Number);
 
 const OUT = path.resolve(opt('out', 'sculptures'));
@@ -40,18 +35,9 @@ const ORBIT = opt('orbit');
 const FOV = Number(opt('fov', '30'));
 const NAME = opt('name', `${String(TARGET_RAW).replace(/[^\w]+/g, '-')}`);
 const BASE = process.env.SHOWCASE_URL ?? 'http://127.0.0.1:5173';
-const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 fs.mkdirSync(OUT, { recursive: true });
-const browser = await chromium.launch({
-  executablePath: EXECUTABLE,
-  args: [
-    '--use-gl=angle',
-    '--use-angle=swiftshader',
-    '--enable-unsafe-swiftshader',
-    '--no-sandbox',
-  ],
-});
+const browser = await launchSoftwareGl();
 try {
   const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE } });
   page.on('pageerror', (e) => console.error(`[page] ${e.message}`));

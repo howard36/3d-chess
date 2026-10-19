@@ -108,6 +108,9 @@ export const placeLandingPictureEarly = (): Plugin => ({
   },
 });
 
+/** The pages that draw the scene, but for the start page (which loads it itself). */
+export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
+
 /**
  * three.js, the scene and the set's precomputed parts load in a chunk of
  * their own, the one the lobby's canvas (LobbyCanvas.tsx), the game's board
@@ -155,7 +158,7 @@ const preloadSceneOnGamePages = (): Plugin => ({
         {
           tag: 'script',
           injectTo: 'head',
-          children: `if(/^\\/(game\\/|new$|computer(\\/|$)|learn(\\/|$))/.test(location.pathname)){${files.map(preload).join('')}}`,
+          children: `if(${SCENE_PATH}.test(location.pathname)){${files.map(preload).join('')}}`,
         },
       ];
     },
@@ -256,7 +259,7 @@ const SHOWN_BEFORE_SCENE = [
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/ComputerGameScreen.tsx',
 ];
-const keepSceneOutOfEntry = (): Plugin => ({
+export const keepSceneOutOfEntry = (): Plugin => ({
   name: 'keep-scene-out-of-entry',
   apply: 'build',
   generateBundle(_options, bundle) {
