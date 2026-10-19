@@ -1,5 +1,6 @@
 // A match between two players over this machine's cores, then its score:
 // node run.mjs <A> <B> <games> <seed> [workers] > tag.jsonl ; summary on stderr
+// (MATCH=other.mjs: another build of match.ts, say while one is still playing)
 import { spawn } from 'node:child_process';
 import { cpus } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -14,7 +15,15 @@ await Promise.all(
     { length: workers },
     (_, i) =>
       new Promise((done) => {
-        const p = spawn('node', [join(here, 'match.mjs'), a, b, games, i, workers, seed]);
+        const p = spawn('node', [
+          join(here, process.env.MATCH ?? 'match.mjs'),
+          a,
+          b,
+          games,
+          i,
+          workers,
+          seed,
+        ]);
         let buf = '';
         p.stdout.on('data', (d) => {
           buf += d;

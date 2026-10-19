@@ -403,10 +403,11 @@ Key decisions:
   ended in on the board (a mate, a draw) needs none. Should a search fail, or the search's
   code fail to load, the review stops short and says so ("Review stopped", with "Retry",
   which goes on from the positions already found). As each is done its moves are marked, a glyph after
-  the move in the list, "?!" an inaccuracy, "?" a mistake and "??" a blunder (pale blue,
-  orange and red, but the glyph says which; a screen reader hears the grade), and the list's
-  top shows each side's marks counted by grade (its stone, then "?! 2 ? 0 ?? 1"), a
-  thin bar under them filling as the review goes. Where the move shown is marked, the board
+  the move in the list, "!!" a brilliant move, "?!" an inaccuracy, "?" a mistake and "??" a
+  blunder (teal, pale blue, orange and red, but the glyph says which; a screen reader hears the
+  grade), and the list's top shows each side's marks counted by grade (its stone, then "?! 2 ?
+  0 ?? 1", with "!!" first once either side has one), a thin bar under them filling as the
+  review goes. Where the move shown is marked a fault, the board
   draws the better move beside it (see The board) and the panel names it under the list
   ("Best ♙Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
   more. In a window no wider than 13:9 the mark stands beside the move shown between the
@@ -427,8 +428,8 @@ Key decisions:
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
   while the game is on, `data-analysis` (`running`, `done`, `stopped`) once the review is asked for
   (`analyse`, the button) and `data-best` the better move where the move shown is marked
-  (`Bd2-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
-  `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
+  (`Bd2-Cc2`, named in `best-move`); each move marked carries `data-grade` (`brilliant`,
+  `inaccuracy`, `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
   and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with
   `data-bar` below the tower), its call to action `rematch-go` with `data-state` (`none`,
@@ -1229,7 +1230,10 @@ imported and run on the page. Its move arrives as a `move_made` after a human pa
 (`thinkTime` in `ai/levels.ts`, counted from the question, the search's own time
 included): about half a second for a forced move, under a second for an obvious one (a
 recapture, or one far better than anything else), brisker in the first eight plies, and
-otherwise 0.65–1.35 times 1, 1.4 or 1.7 s by level. Should the search fail, the computer
+otherwise 1, 1.4 or 1.7 s by level, scaled by how much there is to weigh (the position's
+`tension`, which the move brings: half that in a quiet position, half as much again in a
+fight) and 0.8–1.2 times at random, never more than 3 s (`MAX_THINK_MS`). The pause is only
+how long the move takes to appear: the move is the same whatever it is. Should the search fail, the computer
 plays a legal move all the same; should its code not load (`ChunkLoadError`: an old page
 after a deploy, or offline), it waits and the error banner says to reload.
 
@@ -1270,62 +1274,113 @@ always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate; the kings left alone draw at once. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` judges by one of two sets of
-numbers (`numbers.ts`). The levels' scores material at its own values (queen 9.8, knight 3.2,
+side behind takes a repetition when it is offered. The review, a draw offered to the computer
+and Hard also know one ending exactly (`endgames`, `kpk.ts`): king and pawn against king, which
+the search can't tell won from drawn, since a pawn up looks winning for as long as the stronger
+king can wander without repeating (a review once marked a move a blunder in a drawn one). The
+first time a search meets it with the pawn on a square, it solves that square and every one
+ahead of the pawn, backwards from mate, stalemate and the pawn lost (about 10 ms a square, a
+third of a second for a pawn that hasn't moved; kept for the worker's life, nothing stored
+ahead of time), and scores such a position a draw, or its judgement and 5 pawns more.
+`kpk.test.ts` checks it against the engine's own moves. `evaluate.ts` judges by one of four sets of
+numbers (`numbers.ts`), by what the player knows (`Knowledge`). The hand-set one, which the
+engine at full stretch still judges by (`ENGINE`: a draw offered to the computer,
+`hardFixed`), scores material at its own values (queen 9.8, knight 3.2,
 bishop 2.95, rook 2.45, unicorn 1.4, which play with the terms that follow; the captured
 pieces' "+N" counts material alone, see Piece values), development and centralisation in the
 cube, pawns' progress towards their last square (worth more as the board empties), king safety
 (home behind its pawns, enemy pieces near it) giving way to an active king in the endgame,
 mobility (left out of the quiescence search where it cannot matter), the bishop pair, and, a
 side ahead, trading down and driving the bare king to a corner, which mates with king and
-queen. The expert's (the `expert` player, below) has every number tuned for playing strength by
+queen. The expert's (Hard, the review and the `expert` player, below) has every number tuned for playing strength by
 self-play (`research/evaluation/`, its README for the method) and four terms more: the king's
 tables and the pressure on it blend by its own danger (the enemy's pieces, its queen above all)
 rather than the game's phase, own pawns beside the king, enemy pieces a pawn attacks, and
-having the move. At the same number of positions searched it scored 75.2% against the levels'
+having the move. At the same number of positions searched it scored 75.2% against the hand-set
 (2,000 games at 40,000 positions a move, about 190 Elo), and 72.0% at equal time: the board
 keeps its extra terms as moves are played (`position.ts`), but only for a position made with
 the expert's numbers, and that costs its search about 7% of its speed. How fast it searches in
 the browser is the browser bench's row "Computer’s later moves: positions searched per second".
+The beginner's (Easy) and the advanced player's (Medium) know less (below).
 
-**The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
-engine, the search gives an exact score to every root move within a margin of the best, and
-the level chooses among those the way a player would: each move's score off by the level's
-noise, a little less for moving a piece straight back to where it came from, then a softmax
-at the level's temperature over the moves within its margin. A mate is always taken and a
-move into a mate never chosen while there is another. Every level plays the first eight
-plies more freely, so no two games open alike. A level can also overlook moves that are
-hard to see on five levels (`hardToSee`): a knight's jump to another level, or a long move
-(two squares or more) that changes level. An overlooked move is hidden from that turn's search
-below the root (except from a side in check), whoever would play it, so the computer walks
-into a long unicorn line or a knight from the next level up, and misses its own follow-ups,
-the way a person does; its own moves this turn are always all considered.
+**The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`) play as people do at
+three stages: Easy as a beginner, Medium as an advanced player, Hard as an expert. Each knows as
+much of the game as one would (`knows`): the beginner what the pieces are worth (one worth each,
+all game), that pawns gain as they go forward, to bring the pieces out and to keep the king at
+home (11 numbers); the advanced player also the middle of the cube, the middlegame and the
+endgame apart, pawns in the centre, the king's place in each and pressure on the enemy king (47);
+the expert everything, tuned. The beginner's and the advanced player's numbers are fitted to the
+expert's judgement of 75,000 positions as closely as their knowledge allows
+(`research/levels/knowledge.py`), rather than the expert's with the rest struck out: a simpler
+judgement, but a coherent one. Easy looks one ply ahead and follows the captures after it;
+Medium and Hard search the same budget of 30,000 positions (about four plies, deeper where the
+position is simple), Medium following captures 8 plies and Hard every one to its end, so Hard
+wins by knowing more and seeing more, not by looking further, and neither looks further than a
+person could. Every level plays the same on any device: the budget counts positions, not time.
 
-| Level  | Looks ahead                     | Misjudges by | Plays near-best within  | Overlooks hard moves |
-| ------ | ------------------------------- | ------------ | ----------------------- | -------------------- |
-| Easy   | 2 plies, short captures         | ±45 cp       | 260 cp (temperature 70) | half of them         |
-| Medium | 3 plies                         | ±18 cp       | 90 cp (temperature 22)  | about 1 in 5         |
-| Hard   | up to 1.8 s, as deep as it gets | —            | 16 cp (temperature 6)   | none                 |
+Unlike a pure engine, the search gives an exact score to every root move within a margin of the
+best, and the level chooses among those the way a player would: each move's score off by the
+level's noise, a little less for moving a piece straight back to where it came from, then a
+softmax at the level's temperature over the moves within its margin; all three are scaled by how
+tense the position is (`tension`, 0.4 to 1.4: the captures the side to move has and its pieces
+under attack), so it plays its best move in a quiet position and errs, now and then, in a fight.
+A mate is always taken and a move into a mate never chosen while there is another. Every level
+plays the first eight plies more freely, so no two games open alike, and each game in a style of
+its own (`style`, from the game's id, `ChooseOptions.game`: its positional judgements weighted
+up or down by up to 20–30%, and a liking for one kind of piece), never shown.
 
-Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, 5,610 games fitted
-to one Elo scale with Medium at 0): Easy −900, Hard +1,610 on a machine searching a million
-positions a second (as `hardFixed` plays it everywhere), less on a slower one; each fourfold in
-Hard's positions is worth about 350.
+What a level overlooks (`sight`) is what is hard to see on five levels (`hardness`, from the
+move and the board after it alone, no search: about a tenth of the search's speed): nothing for
+a pawn's or the king's move, a short move on one level, or taking the piece that just moved;
+more for a move that changes level, the longer the more, a knight's jump to another level, a
+unicorn's, a move back towards its own side, one far from the last move, or a sacrifice (onto a
+square the enemy attacks, for less than it risks); less for a capture or a check. A move harder
+than the level's `ease` is overlooked the more often the harder it is, up to `miss` at hardness
+1, and more in a tense position. What is overlooked is a piece's harder moves, for eight plies or
+until that piece moves, hidden from the search below the root (except from a side in check),
+whoever would play them: the computer walks into a long unicorn line or a knight from the next
+level up, and misses its own follow-ups, the way a person does, and the player who finds the
+move that beats it has found something hard to see; its own moves this turn are always all
+considered.
 
-Two players the game does not offer (`LEVELS.hardFixed`, `LEVELS.expert`): Hard on a budget
-of positions instead of the clock (`nodes`: the search keeps the clock's rules with its clock
-counting positions, 1.8 million standing for Hard's 1.8 s at a million positions a second), so
-it plays the same on any device and takes longer on a slower one; and the expert, the same
-search, choice and budget by the expert's numbers. On budgets of 40,000, 80,000 and 160,000
-positions the expert takes a median 37, 67 and 133 ms a move in a Chromium worker and rates
-+860, +1,040 and +1,290 on that scale.
+| Level  | Knows               | Looks ahead                 | Overlooks, from hardness | Chooses within, at middling tension |
+| ------ | ------------------- | --------------------------- | ------------------------ | ----------------------------------- |
+| Easy   | beginner (11)       | 1 ply, 4 of captures        | 0, up to all             | 60 cp (temperature 30, ±10 cp)      |
+| Medium | advanced (47)       | 30,000 positions, 8 of captures | 0.05, up to all      | 53 cp (temperature 29, ±5 cp)       |
+| Hard   | expert (all, tuned) | 30,000 positions, 16 of captures | 0.45, up to half    | 40 cp (temperature 28)              |
+
+Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, its README) on
+one scale with Medium at 1,300: every match fitted at once (44,161 games over 121 pairings,
+chosen near even and mostly between cheap players, Medium cut to one ply and two among them, so
+as to say the most for the computing), Easy 716 ± 15 and Hard 1,903 ± 18 (± one standard error),
+Medium about halfway; the old Medium 1,337 ± 15, and the Medium its owner played to a tie (three
+plies, before it had a budget; `medium1`) 1,353 ± 10. Medium's temperature and noise
+lie between Easy's and Hard's, as its other settings do. Hard's temperature is twice what it was,
+so its first move varies (the most common in 7% of games, where it was 13%), for 61 Elo; Easy's
+and Medium's hardly vary more at a higher temperature (the moves they would choose among are few
+and far apart).
+The old levels erred by choosing badly (Easy among moves up to 2.6 pawns worse, at random), so
+they were far apart (Easy −900) for little difference in what they could see; errors of
+perception cost far less strength, so the new levels look further and choose better at the same
+strength. Each takes milliseconds over a move (a median of 1 for Easy, 24 for Medium and 27 for
+Hard in a Chromium worker, where Hard took 1.3 s before), and the game shows the move after its
+pace (`thinkTime`).
+
+Two players the game does not offer (`LEVELS.hardFixed`, `LEVELS.expert`): the engine at full
+stretch (`ENGINE`: up to 1.8 s as deep as that goes, the old Hard) on a budget of positions
+instead of the clock (`nodes`: the search keeps the clock's rules with its clock counting
+positions, 1.8 million standing for 1.8 s at a million positions a second), so it plays the same
+on any device and takes longer on a slower one; and the expert, the same search, choice and
+budget by the expert's numbers. On budgets of 40,000, 80,000 and 160,000 positions the expert
+takes a median 37, 67 and 133 ms a move in a Chromium worker and rates 2,180, 2,360 and 2,610
+on that scale; `hardFixed` 2,930.
 
 **A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the
 start (`analyse` in `ai/computer.ts`, `analysePosition` in `ai/choose.ts`), so the marks come
 in from the first move on and the page's going stops it; each position is a search of its
-own, so the marks are the same however the positions are split: Hard's depth and quiescence,
-margin 0, no noise or blind spots, as `assessPosition`, but bounded by 120,000 positions
+own, so the marks are the same however the positions are split: the expert's numbers, as deep
+as it gets and every capture to its end, king and pawn against king exactly, margin 0, no noise or blind spots, but bounded by 120,000 positions
 searched (`ANALYSIS_NODES`, about a third of a second in the browser) rather than the
 clock, so a game reviewed anywhere gets the same marks (1.5 s is a backstop for a slow
 machine), and looking past a forced move (`deepenForced`; a move needs no choosing, but its
@@ -1345,10 +1400,16 @@ does: what it cost the mover in winning chances (from -1 to 1, a logistic of the
 after it, so a pawn thrown away a queen ahead counts for little; 0.1 an inaccuracy, 0.2 a
 mistake, 0.3 a blunder. The best move is never marked. Walking into a forced mate, or
 letting one go, is a blunder unless the player stood (or still stands) so far behind (or
-ahead) that it hardly changes the result: a mistake past 7 pawns, an inaccuracy past 10. In
-self-play (`chooseMove` games, each position reviewed), per 100 moves: Easy 13.6
-inaccuracies, 6.6 mistakes and 5.8 blunders, Medium 10.5, 2.1 and 2.9, Hard 2.0, 0 and 0.3
-(16 Easy, 12 Medium and 8 Hard sides).
+ahead) that it hardly changes the result: a mistake past 7 pawns, an inaccuracy past 10. A
+move that gives nothing away (the best, or within 0.02) is brilliant ("!!") when it is a
+sacrifice and hard to see (`hardness` at least 0.7, `BRILLIANT_HARDNESS`: across levels, or a
+long way back, far from the last move), played by a side not already winning (below 0.5) and
+not losing after it: the review says how hard the move that led to each position was to see
+(`played`). In self-play (`research/levels/marks.ts`: 40 games of each level against itself,
+each position reviewed), per 100 moves: Easy 14.0 inaccuracies, 4.3 mistakes and 5.1 blunders,
+Medium 8.0, 1.9 and 2.4, Hard 5.7, 1.3 and 0.8, and a brilliant move every 170 to 1,000; each
+blunders more in a tense position than a quiet one (Easy 8.0 per 100 moves against 3.6, Medium
+5.5 against 0.1).
 
 ### Piece values
 
@@ -1453,7 +1514,7 @@ bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patch
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
 research/piece-values/  How the piece values were measured: test bots (a C port of src/ai) and scripts.
 research/evaluation/  How the expert's numbers were tuned: a C port of src/ai, SPSA and matches (not shipped).
-research/levels/  The players' strength on one Elo scale and their time a move: matches as the game plays them (not shipped).
+research/levels/  The players' strength on one Elo scale, their time a move, how the levels err and how they were tuned to play as people do: matches as the game plays them (not shipped).
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).

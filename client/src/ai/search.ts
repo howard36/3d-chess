@@ -7,11 +7,24 @@
 // `margin` of the best, not just the best one: the levels (levels.ts) choose
 // among the moves a player would consider, not always the top one. A level
 // can also hide moves from the search (`hidden`): the moves its player would
-// not notice, the opponent's long lines across levels.
+// not notice, the opponent's long lines across levels. And it can know king
+// and pawn against king exactly (`endgames`, kpk.ts).
 
 import { LAZY, evaluate, forgetMobility, mobilityScore } from './evaluate';
 import { FIFTY_MOVE_PLIES } from '../engine/draws';
-import { KING, PAWN, QUEEN, moveCaptured, movePiece, movePromotion, moveTo } from './position';
+import { kpkWins } from './kpk';
+import {
+  BLACK,
+  BLACK_SIDE,
+  KING,
+  PAWN,
+  QUEEN,
+  WHITE_SIDE,
+  moveCaptured,
+  movePiece,
+  movePromotion,
+  moveTo,
+} from './position';
 import type { Position } from './position';
 
 export const INF = 32000;
@@ -20,6 +33,11 @@ export const MATE = 31000;
 export const MATE_BOUND = MATE - 512;
 
 const MAX_PLY = 64;
+/**
+ * What a won ending of king and pawn against king adds to the judgement: a
+ * win as sure as a piece up, still less than the queen the pawn becomes.
+ */
+const KPK_WIN_BONUS = 500;
 const MOVES_PER_PLY = 512;
 
 interface SearchLimits {
@@ -39,14 +57,25 @@ interface SearchLimits {
   margin: number;
   /** The quiescence search's deepest line of captures, in plies. */
   quiescence?: number;
-  /** Moves the side searching does not see below the root (they are not searched). */
-  hidden?: (move: number) => boolean;
+  /**
+   * Moves the side searching does not see below the root (they are not
+   * searched): called with the move made and the move before it (0 at the
+   * root's replies to a pass), the position as it stands after the move.
+   */
+  hidden?: (move: number, prev: number) => boolean;
   /**
    * Looks deeper at a position with one legal move too, instead of stopping
    * after the first iteration (a move needs no choosing, but a review of the
    * game needs what the move leads to).
    */
   deepenForced?: boolean;
+  /**
+   * Knows king and pawn against king exactly (kpk.ts): a position of that
+   * ending is a draw (0) or a win (the judgement and KPK_WIN_BONUS). The
+   * search's own judgement calls a drawn one a pawn up for as long as the
+   * stronger king can wander.
+   */
+  endgames?: boolean;
   /** The clock (performance.now by default). */
   now?: () => number;
 }
@@ -120,7 +149,10 @@ export class Searcher {
   private deadline = 0;
   private maxNodes = Infinity;
   private qLimit = 64;
-  private hidden: ((move: number) => boolean) | undefined;
+  private hidden: ((move: number, prev: number) => boolean) | undefined;
+  private endgames = false;
+  /** The moves of the line being searched, by ply (0 for a pass). */
+  private readonly line = new Int32Array(MAX_PLY + 1);
   private now: () => number = () => performance.now();
   private canStop = false;
   /** The ply (Position.ply) of the position searched from. */
@@ -154,6 +186,7 @@ export class Searcher {
     this.maxNodes = limits.maxNodes ?? Infinity;
     this.qLimit = limits.quiescence ?? 64;
     this.hidden = limits.hidden;
+    this.endgames = !!limits.endgames;
     this.killers.fill(0);
     this.history.fill(0);
     this.ttFlag.fill(0);
@@ -190,6 +223,7 @@ export class Searcher {
       for (let i = 0; i < root.length; i++) {
         const m = root[i];
         pos.make(m);
+        this.line[0] = m;
         let s: number;
         const floor = margin >= INF ? -INF : best - margin;
         if (i === 0 || floor <= -INF) {
@@ -263,6 +297,8 @@ export class Searcher {
   ): number {
     const pos = this.pos;
     if (ply > 0 && (pos.repeated(this.rootPly) || pos.onlyKings())) return 0;
+    const known = this.endgames ? this.ending() : null;
+    if (ply > 0 && known === 0) return 0;
     const inCheck = pos.inCheck();
     // Fifty moves each with no capture or pawn move: drawn, unless this
     // position is mate (a mate stands, as in chess)
@@ -274,7 +310,7 @@ export class Searcher {
     this.nodes++;
     this.checkTime();
     if (this.stopped) return 0;
-    if (ply >= MAX_PLY - 2) return evaluate(pos);
+    if (ply >= MAX_PLY - 2) return evaluate(pos) + (known ?? 0);
 
     // Mate distance: no line from here beats a mate already found nearer the root
     const mateHere = MATE - ply;
@@ -296,7 +332,7 @@ export class Searcher {
       }
     }
 
-    const staticEval = inCheck ? -INF : evaluate(pos);
+    const staticEval = inCheck ? -INF : evaluate(pos) + (known ?? 0);
     if (!pv && !inCheck) {
       // Far above beta with little depth left: nothing will bring it down
       if (depth <= 2 && staticEval - 160 * depth >= beta && Math.abs(beta) < MATE_BOUND)
@@ -305,6 +341,7 @@ export class Searcher {
       if (allowNull && depth >= 3 && staticEval >= beta && this.hasPieces()) {
         const r = depth > 6 ? 3 : 2;
         pos.makeNull();
+        this.line[ply] = 0;
         const s = -this.negamax(depth - 1 - r, -beta, -beta + 1, ply + 1, false);
         pos.unmakeNull();
         if (this.stopped) return 0;
@@ -334,7 +371,7 @@ export class Searcher {
         continue;
       }
       legal++;
-      if (!inCheck && this.hidden?.(m)) {
+      if (!inCheck && this.hidden?.(m, this.line[ply - 1])) {
         pos.unmake(m);
         continue;
       }
@@ -343,6 +380,7 @@ export class Searcher {
         continue;
       }
       seen++;
+      this.line[ply] = m;
       let s: number;
       if (seen === 1) {
         s = -this.negamax(depth - 1, -beta, -alpha, ply + 1, true);
@@ -408,8 +446,10 @@ export class Searcher {
     if (this.stopped) return 0;
     // A capture that leaves the kings alone draws
     if (pos.onlyKings()) return 0;
+    const known = this.endgames ? this.ending() : null;
+    if (known === 0) return 0;
     // Mobility only where it could matter: not far above beta or below alpha
-    const rough = evaluate(pos, false);
+    const rough = evaluate(pos, false) + (known ?? 0);
     if (rough - LAZY >= beta) return rough;
     const stand = rough + LAZY <= alpha ? rough : rough + mobilityScore(pos);
     if (stand >= beta) return stand;
@@ -429,10 +469,11 @@ export class Searcher {
         pos.unmake(m);
         continue;
       }
-      if (this.hidden?.(m)) {
+      if (this.hidden?.(m, this.line[ply - 1])) {
         pos.unmake(m);
         continue;
       }
+      this.line[ply] = m;
       const s = -this.quiesce(-beta, -alpha, ply + 1, qply + 1);
       pos.unmake(m);
       if (this.stopped) return 0;
@@ -458,6 +499,23 @@ export class Searcher {
       if (legal) return true;
     }
     return false;
+  }
+
+  /**
+   * In king and pawn against king (kpk.ts): 0 a draw, or what the win adds
+   * for the side to move (KPK_WIN_BONUS, less for the side without the
+   * pawn); null if not that ending.
+   */
+  private ending(): number | null {
+    const pos = this.pos;
+    const pawn = pos.lonePawn();
+    if (pawn < 0) return null;
+    const side = pos.board[pawn] & BLACK ? BLACK_SIDE : WHITE_SIDE;
+    const strong = pos.king[side];
+    const weak = pos.king[side ^ 1];
+    if (strong < 0 || weak < 0) return null;
+    if (!kpkWins(pawn, side, strong, weak, pos.side === side)) return 0;
+    return pos.side === side ? KPK_WIN_BONUS : -KPK_WIN_BONUS;
   }
 
   /** Whether the side to move has a piece besides pawns and its king. */

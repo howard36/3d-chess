@@ -6,7 +6,7 @@ import type { MoveNotation } from '../game/notation';
 import type { ReviewStep } from '../game/review';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { sideName } from '../game/sides';
-import { GRADE_GLYPH, GRADES } from '../game/analysis';
+import { FAULTS, GRADE_GLYPH, GRADES } from '../game/analysis';
 import type { Grade, GradeCounts } from '../game/analysis';
 import type { Turn } from '../game/history';
 import { focusFromCode } from '../lib/focus';
@@ -522,6 +522,7 @@ export default MoveHistory;
 
 const SIDES: readonly Turn[] = ['white', 'black'];
 const GRADE_PLURAL: Record<Grade, string> = {
+  brilliant: 'brilliant moves',
   inaccuracy: 'inaccuracies',
   mistake: 'mistakes',
   blunder: 'blunders',
@@ -531,10 +532,12 @@ const plural = (n: number, grade: Grade) =>
 
 /**
  * The top of the list once the review has begun: each side's marks counted
- * by grade, a thin bar under them filling as the review goes, or "Retry"
- * should it stop short.
+ * by grade (brilliant moves only once there is one), a thin bar under them
+ * filling as the review goes, or "Retry" should it stop short.
  */
 function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
+  const { white, black } = analysis.counts;
+  const grades = white.brilliant + black.brilliant > 0 ? GRADES : FAULTS;
   return (
     <div className="hud-review" data-testid="analysis-counts">
       {SIDES.map((side) => {
@@ -543,9 +546,9 @@ function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
           <p key={side} className="hud-counts" data-side={side}>
             <Stone color={side} aria-hidden />
             <span className="sr-only">
-              {sideName(side)}: {GRADES.map((g) => plural(counts[g], g)).join(', ')}
+              {sideName(side)}: {grades.map((g) => plural(counts[g], g)).join(', ')}
             </span>
-            {GRADES.map((g) => (
+            {grades.map((g) => (
               <span key={g} className="hud-count" data-grade={g} data-count={counts[g]} aria-hidden>
                 <span className="hud-mark" data-grade={g}>
                   {GRADE_GLYPH[g]}

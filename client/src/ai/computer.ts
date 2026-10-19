@@ -18,6 +18,8 @@ export interface ThinkRequest {
   records: WireMove[];
   difficulty: Difficulty;
   seed: number;
+  /** The game's own seed (choose.ts, ChooseOptions.game): its style, its blind spots kept. */
+  game?: number;
   /** Asks what the search makes of the position instead of for a move. */
   assess?: boolean;
   /** Asks for the position's best move and its worth, for a review of the game. */
@@ -33,8 +35,15 @@ export type ThinkReply =
   | { id: number; error: string };
 
 export interface Computer {
-  /** The computer's move after `records` (null: it has none). */
-  think(records: readonly WireMove[], difficulty: Difficulty): Promise<ComputerMove | null>;
+  /**
+   * The computer's move after `records` (null: it has none), in the game
+   * `game` (its id: the same game plays in the same style throughout).
+   */
+  think(
+    records: readonly WireMove[],
+    difficulty: Difficulty,
+    game?: string,
+  ): Promise<ComputerMove | null>;
   /**
    * What the computer makes of the position after `records`, in centipawns
    * for the side to move (choose.ts, assessPosition).
@@ -54,6 +63,13 @@ const plain = (records: readonly WireMove[]): WireMove[] =>
   records.map(({ from, to, promotion }) => (promotion ? { from, to, promotion } : { from, to }));
 
 const randomSeed = () => Math.floor(Math.random() * 2 ** 31);
+
+/** A game's id as a number (FNV-1a), its seed for every move of it. */
+export const gameSeed = (id: string) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+};
 
 type Answer = ComputerMove | null | number | PositionAnalysis;
 
@@ -89,7 +105,7 @@ const inline = (request: ThinkRequest, wanted: () => boolean): Promise<Answer> =
     }
     return request.assess
       ? assessPosition(request.records)
-      : chooseMove(request.records, request.difficulty, request.seed);
+      : chooseMove(request.records, request.difficulty, request.seed, { game: request.game });
   });
   onPage = run.catch(() => {});
   return run.then((answer) => (answer === DROPPED ? new Promise<Answer>(() => {}) : answer));
@@ -144,6 +160,7 @@ export function createComputer(): Computer {
     records: readonly WireMove[],
     difficulty: Difficulty,
     kind: Kind,
+    game?: string,
     depth?: number,
   ) => {
     if (disposed) return new Promise<Answer>(() => {});
@@ -153,6 +170,7 @@ export function createComputer(): Computer {
       difficulty,
       seed: randomSeed(),
     };
+    if (game !== undefined) request.game = gameSeed(game);
     if (kind === 'assess') request.assess = true;
     if (kind === 'analyse') request.analyse = true;
     if (depth) request.depth = depth;
@@ -164,11 +182,11 @@ export function createComputer(): Computer {
   };
 
   return {
-    think: (records, difficulty) =>
-      ask(records, difficulty, 'think') as Promise<ComputerMove | null>,
+    think: (records, difficulty, game) =>
+      ask(records, difficulty, 'think', game) as Promise<ComputerMove | null>,
     assess: (records) => ask(records, 'hard', 'assess') as Promise<number>,
     analyse: (records, depth) =>
-      ask(records, 'hard', 'analyse', depth) as Promise<PositionAnalysis>,
+      ask(records, 'hard', 'analyse', undefined, depth) as Promise<PositionAnalysis>,
     dispose() {
       disposed = true;
       pending.clear();
