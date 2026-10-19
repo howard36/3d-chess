@@ -15,6 +15,7 @@ vi.mock('./choose', () => ({
   },
   assessPosition: () => 12,
   analysePosition: () => 'analysis',
+  recheckPosition: (_: unknown, depth: number) => `deeper ${depth}`,
 }));
 
 const ask = async (request: object = {}) => {
@@ -34,6 +35,7 @@ const fail = () => ask();
 it('answers each kind of request', async () => {
   expect(await ask({ assess: true })).toEqual({ id: 7, score: 12 });
   expect(await ask({ analyse: true })).toEqual({ id: 7, analysis: 'analysis' });
+  expect(await ask({ analyse: true, depth: 6 })).toEqual({ id: 7, analysis: 'deeper 6' });
 });
 
 it('answers a throw that is not an Error with what was thrown', async () => {
