@@ -12,7 +12,7 @@ import {
 } from 'three';
 import type { Camera, Material, Object3D, Scene, WebGLRenderer } from 'three';
 import { noRaycast } from '../noRaycast';
-import { damage, damageState, forgetDamage } from './damage';
+import { cullOutside, damage, damageState, forgetDamage, restoreCulled } from './damage';
 
 // The garden (Stage: the sky, the ground, the stars, the sculptures and their
 // mist) is most of a frame's fill, and it changes only with the camera, the
@@ -208,6 +208,7 @@ export const BackdropCache = ({
     // Only what changed is drawn when the garden comes from its copy (any
     // other frame is drawn whole: the capture copies the whole canvas)
     const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {
+      restoreCulled();
       if (!partialRef.current || !garden.current) {
         forgetDamage(state.damage);
         return;
@@ -223,6 +224,7 @@ export const BackdropCache = ({
         return;
       }
       const r = d ?? { x: 0, y: 0, w: 0, h: 0 };
+      cullOutside(state.damage, r);
       const ratio = renderer.getPixelRatio();
       renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);
       renderer.setScissorTest(true);

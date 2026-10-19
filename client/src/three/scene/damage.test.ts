@@ -15,7 +15,7 @@ import {
   Vector3,
 } from 'three';
 import type { Object3D } from 'three';
-import { damage, damageState, forgetDamage } from './damage';
+import { cullOutside, damage, damageState, forgetDamage, restoreCulled } from './damage';
 import type { Rect } from './damage';
 
 // A frame at rest redraws only the screen rect of what changed since the
@@ -176,5 +176,21 @@ describe('damage', () => {
     // gl_PointSize = size * (H / 2) / depth, half of it each side
     expect(r.y).toBeLessThanOrEqual(y - (0.5 * H * 0.5) / 10 / 2);
     expect(r.y + r.h).toBeGreaterThanOrEqual(y + (0.5 * H * 0.5) / 10 / 2);
+  });
+
+  it('hides for one frame the objects wholly outside its rect, and shows them again', () => {
+    const { boxes, frame, state } = setUp();
+    boxes[2].position.x = 2.5;
+    const r = frame() as Rect;
+    cullOutside(state, r);
+    expect(boxes.map((b) => b.visible)).toEqual([false, false, true]);
+    restoreCulled();
+    expect(boxes.map((b) => b.visible)).toEqual([true, true, true]);
+    // An object with children stays, whatever its own place
+    boxes[0].add(box(2.5));
+    frame();
+    cullOutside(state, r);
+    expect(boxes[0].visible).toBe(true);
+    restoreCulled();
   });
 });

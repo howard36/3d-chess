@@ -341,6 +341,33 @@ export const damage = (
   return whole ? 'full' : rect;
 };
 
+/** Objects hidden for the frame being drawn in part, to be shown again after it. */
+const culled: Object3D[] = [];
+
+const meets = (a: Rect, b: Rect) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/**
+ * Hides, for the frame about to be drawn in `rect`, each object of the last
+ * damage() walk that lies wholly outside it: it would write no pixel there,
+ * so the frame is the same without it, and the GPU is spared its vertices.
+ * An object with children stays (they may lie inside), as does one whose
+ * place on screen is not known. restoreCulled() shows them again.
+ */
+export const cullOutside = (state: DamageState, rect: Rect) => {
+  for (const [o, seen] of state.seen)
+    if (seen.rect && !meets(seen.rect, rect) && o.children.length === 0) {
+      o.visible = false;
+      culled.push(o);
+    }
+};
+
+/** Shows again what cullOutside() hid. */
+export const restoreCulled = () => {
+  for (const o of culled) o.visible = true;
+  culled.length = 0;
+};
+
 const same = (a: number[], b: number[]) => {
   if (a.length !== b.length) return false;
   // NaN stands for "no value" and matches itself
