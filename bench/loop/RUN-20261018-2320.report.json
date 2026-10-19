@@ -2,9 +2,9 @@
  "title": "Perf run 20261018-2320",
  "eyebrow": "3D chess · perf-iteration · run 20261018-2320 · speed run",
  "heading": "The computer searches 14% faster (called): one kept change, on the computer's search",
- "meta": "<p>This speed run kept one change, SW1 (<code>760619c</code>): the computer's search walks a bordered copy of the board, keeps its tables and its mobility counts for the thread, and skips quiet moves it can prove useless without playing them. Its A/B on <code>760619c</code> called search speed better, 30.1 → 26.3 ms (−14%, all 16 pairs below 1). That −14% is the figure that holds. On the final commit <code>ef3ee37</code> two more 16-pair A/Bs had every pair below 1 again, but neither is called (one or two pairs far below the rest widen the spread past the calling rule), so their medians are not claimed. The computer plays the same moves; it only finds them sooner, so in its fixed time it searches deeper. A finished game's review is 2.74 → 2.40 s (−11%, 8 of 10 pairs below 1, not called). No headline row is called worse, but one leans worse: the computer's first board picture, A/B'd at step 8 against SW1's parent, 1.42 → 1.73 s (median pair ×1.231, 8 of 10 pairs worse, not called). It is under Needs from me and is the next run's first item.</p><p>The biggest lead for the next speed run is damage-rect frames (drawing only the part of the board that changed). A probe that drew a small fixed part of every frame (wrong pixels, so a ceiling, not a result) took the player's move from 381 to 203 ms. It is not built yet.</p>",
+ "meta": "<p>This speed run kept one change, SW1 (<code>760619c</code>): the computer's search walks a bordered copy of the board, keeps its tables and its mobility counts for the thread, and skips quiet moves it can prove useless without playing them. Its A/B on <code>760619c</code> called search speed better, 30.1 → 26.3 ms (−14%, all 16 pairs below 1). That −14% is the figure that holds. On the final commit <code>ef3ee37</code> two more 16-pair A/Bs had every pair below 1 again, but neither is called (one or two pairs far below the rest widen the spread past the calling rule), so their medians are not claimed. The computer plays the same moves; it only finds them sooner, so in its fixed time it searches deeper. A finished game's review is 2.74 → 2.40 s (−11%, 8 of 10 pairs below 1, not called). No headline row is called worse, but one leans worse: the computer's first board picture, A/B'd at step 8 against SW1's parent, 1.42 → 1.73 s (median pair ×1.231, 8 of 10 pairs worse, not called). The one mechanism SW1 added there, about 800 KB of tables zeroed when the computer's worker loads, is gone: they are made at the first search (<code>ad8f84e</code>), and search speed is still lower, 16 of 16 pairs.</p><p>The biggest lead for the next speed run is damage-rect frames (drawing only the part of the board that changed). A probe that drew a small fixed part of every frame (wrong pixels, so a ceiling, not a result) took the player's move from 381 to 203 ms. It is not built yet.</p>",
  "needs": {
-  "intro": "<p>Nothing here blocks the merge. The first item is information the skill asks for; the second is a primary row more than 3% worse at its median pair, not called; the third lists ideas parked as your call, kept out of this PR.</p>",
+  "intro": "<p>Nothing here blocks the merge. The first item is information the skill asks for; the second is a primary row that leaned more than 3% worse at its median pair, not called, and what was done about it; the third lists ideas parked as your call, kept out of this PR.</p>",
   "items": [
    {
     "title": "Information: the 1.2× target is not met on 15 of 16 rows",
@@ -12,9 +12,9 @@
     "recommend": "No decision needed. The next speed run starts with the damage-rect build (ledger 0930:5)."
    },
    {
-    "title": "The computer's first board picture leans worse with SW1 (not called)",
-    "body": "<p>Two 10-pair A/Bs of the computer section on <code>f6e43b7</code>: against the base <code>29ec2e2</code>, 1.29 → 1.44 s, median pair ×1.081, 7 of 10 pairs worse (1.02 1.20 0.95 0.98 1.16 1.40 1.09 1.07 0.93 1.29); against <code>00018b9</code>, main's parent, so SW1 alone, 1.42 → 1.73 s, ×1.231, 8 of 10 worse (0.96 1.31 1.05 1.07 1.31 1.31 1.30 0.91 1.30 1.16). Neither is called, and this row has swung as far on identical code (ledger CL1). The same A/Bs call the game's positions searched per second +13% better. SW1's work at import is about 1 MB of zeroed arrays and one small table, on the worker, so no mechanism is known.</p>",
-    "recommend": "No decision needed now: SW1 stays (no row is called worse). The next speed run measures it first with 16+ pairs and the way-in steps (ledger CW1) and makes the tables lazy or reverts SW1 if it is called worse."
+    "title": "The computer's first board picture leaned worse with SW1 (not called; its mechanism now removed)",
+    "body": "<p>Two 10-pair A/Bs of the computer section on <code>f6e43b7</code>: against the base <code>29ec2e2</code>, 1.29 → 1.44 s, median pair ×1.081, 7 of 10 pairs worse (1.02 1.20 0.95 0.98 1.16 1.40 1.09 1.07 0.93 1.29); against <code>00018b9</code>, main's parent, so SW1 alone, 1.42 → 1.73 s, ×1.231, 8 of 10 worse (0.96 1.31 1.05 1.07 1.31 1.31 1.30 0.91 1.30 1.16). Neither is called, and this row has swung as far on identical code (ledger CL1). The one thing SW1 added to the worker's start-up was work at import: its mobility cache, three 64K arrays (768 KiB) zeroed as the worker loaded. <code>ad8f84e</code> makes them at the first search instead, and drops two ray tables that only built another table, so the worker's import-time work now matches the base's. Results are unchanged; search speed against <code>29ec2e2</code> is still lower, 33.1 → 26.9 ms, median pair ×0.84, 16 of 16 pairs below 1 (not called: two very fast pairs widen the spread).</p>",
+    "recommend": "No decision needed: CW1 is closed. The next speed run watches this row in its regression check and opens an item only if an A/B calls it worse."
    },
    {
     "title": "Your calls, parked in the ledger and not in this PR",
@@ -26,6 +26,20 @@
  "scoreboard": {
   "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Target: each 1.2× faster than the base <code>29ec2e2</code> (the dashed line). Each bar is the geometric mean of the pairs; each dot is one pair.</p>",
   "items": [
+   {
+    "title": "Search speed with the tables made at the first search",
+    "body": "<p><code>ad8f84e</code> against <code>29ec2e2</code>, the computer's search, 16 pairs: 33.1 → 26.9 ms, −26% (the pairs' geometric mean), median pair ×0.84, all 16 pairs below 1, not called (two pairs at 0.36 and 0.50 widen the spread). SW1 as first kept measured 26.2–26.5 ms on the same row, so making the tables at the first search costs the search nothing seen.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "CW1: ad8f84e (tables at the first search) vs 29ec2e2, search speed, 16 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "Search speed, ad8f84e against 29ec2e2, 16 pairs (ab-20261018-2320-lazy-tables.md).",
+      "target": 1.2
+     }
+    ]
+   },
    {
     "title": "Search speed on the final commit",
     "body": "<p><code>ef3ee37</code> against <code>29ec2e2</code>, the computer's search, 16 pairs, run twice. First: 31.9 → 26.5 ms, −18%, pairs 0.61–0.99. Second: 30.7 → 26.2 ms, −21%, pairs 0.50–0.90. Neither is called: from 10 pairs the rule drops the lowest and highest pair and needs the change to exceed the spread of the rest, and a few very fast pairs make that spread 28–33%. The opening case is called better in both (−21%, −23%). When SW1 was kept, on <code>760619c</code>, the same A/B called it: 30.1 → 26.3 ms, −14%, pairs 0.65–0.92.</p>",
@@ -110,6 +124,10 @@
    {
     "title": "Checks that SW1 stays exact (f3118e7)",
     "body": "<p>A new test searches a position alone in fresh modules, then searches another position and the first again on the shared tables, and wants the same result each time. It fails when any of the three clears is removed: without the table clear the repeat costs 2,194 nodes instead of 15,345. The mobility test now reads every board from the cache in one search and fails when a stored value is wrong (before, its second pass never hit the cache). The givesCheck comparison was shown failing with its discovered-check half cut and with the king's step dropped.</p>"
+   },
+   {
+    "title": "The search's tables made at its first search, not at import (ad8f84e)",
+    "body": "<p>SW1 zeroed its mobility cache, three arrays of 64K entries (768 KiB), when the worker's module loaded, the only mechanism by which it could slow the computer's way in (ledger CW1). They are now made by <code>forgetMobility()</code> at the start of the first search on the thread; the search's own tables were already made at the first search. The ray tables <code>RAY</code> and <code>RAY_LEN</code> (16 KiB), read only to build <code>LINE</code> since SW1, are gone; <code>LINE</code> is built directly and is identical byte for byte. The worker's import-time work now matches the base's (16,250 bytes of tables there, 16,613 here). Nodes, depths and moves are unchanged (the bench's fixture check). Search speed against <code>29ec2e2</code>, 16 pairs: 33.1 → 26.9 ms, median pair ×0.84, all 16 below 1, not called (<code>ab-20261018-2320-lazy-tables.md</code>).</p>"
    }
   ]
  },
@@ -151,7 +169,7 @@
   "items": []
  },
  "next": {
-  "intro": "<ol><li>Speed: CW1 first: does SW1 slow the computer's way in? 16+ pairs against this PR's parent with the way-in steps.</li><li>Speed: build damage-rect frames exactly (0930:5): signature, rects and merge, partial action frames, a readPixels e2e, then 12+ pairs of move-latency and select.</li><li>Speed: RT1 with r3f's first-size wait, once LV1's swing is out of the computer's row; FM1, QK1 and KP1 for the search.</li><li>CH1 again with 12+ pairs on the opponent's row.</li><li>General run: SP3 (SW1 by parts, and strength), WM1 (worker memory row), GC1, PD1, EV1.</li></ol>",
+  "intro": "<ol><li>Speed: build damage-rect frames exactly (0930:5): signature, rects and merge, partial action frames, a readPixels e2e, then 12+ pairs of move-latency and select.</li><li>Speed: RT1 with r3f's first-size wait, once LV1's swing is out of the computer's row; FM1, QK1 and KP1 for the search.</li><li>CH1 again with 12+ pairs on the opponent's row.</li><li>Watch the computer's first board picture in the regression check (CW1 closed: SW1's tables are made at the first search).</li><li>General run: SP3 (SW1 by parts, and strength), WM1 (worker memory row), GC1, PD1, EV1.</li></ol>",
   "items": []
  }
 }
