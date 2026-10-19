@@ -1,0 +1,1 @@
+hard{"temperature":28} vs medium: 95.6% ± 0.9% (536 Elo) over 400 games, +377 =11 -12 {"resigned":331,"mate":58,"fifty":10,"repetition":1}; hard{"temperature":28}: 32 ms, 25398 positions a move; medium: 68 ms, 59236 positions a move
