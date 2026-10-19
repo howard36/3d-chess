@@ -32,8 +32,8 @@ describe('the demo games', () => {
   });
 
   it('promote as the record says', () => {
-    // The fourth game's black pawn becomes a queen on ply 108
-    const history = deriveHistory(demoLog(3, 108));
+    // The fourth game's black pawn becomes a queen on ply 110
+    const history = deriveHistory(demoLog(3, 110));
     expect(history.lastMove?.move.promotion).toBe('Queen');
   });
 
@@ -57,7 +57,7 @@ describe('demoOrder', () => {
     // The random draw picks the order: always the last, the games unturned
     expect(demoOrder(() => 0.999)).toEqual(all);
     // Always the first: each game swapped down in turn
-    expect(demoOrder(() => 0)).toEqual([1, 2, 3, 4, 0]);
+    expect(demoOrder(() => 0)).toEqual([1, 2, 3, 4, 5, 6, 0]);
   });
 
   it('can open on any game', () => {
@@ -70,7 +70,7 @@ describe('demoOrder', () => {
 });
 
 describe('demoFrame', () => {
-  const order = [2, 0, 4, 1, 3];
+  const order = [2, 0, 4, 1, 6, 3, 5];
   const firstMove = DEMO_PACE.fadeIn + DEMO_PACE.open;
   const lastMove = (game: number) => firstMove + (DEMO_GAMES[game].length - 1) * DEMO_PACE.ply;
 
@@ -111,9 +111,9 @@ describe('demoFrame', () => {
       t += passSeconds(game);
     }
     expect(t).toBeCloseTo(2 * DEMO_LOOP_SECONDS);
-    // About twenty minutes before the games come round again
-    expect(DEMO_LOOP_SECONDS / 60).toBeGreaterThan(19);
-    expect(DEMO_LOOP_SECONDS / 60).toBeLessThan(21);
+    // About twenty-eight minutes before the games come round again
+    expect(DEMO_LOOP_SECONDS / 60).toBeGreaterThan(27);
+    expect(DEMO_LOOP_SECONDS / 60).toBeLessThan(29);
   });
 
   it('treats a negative time as the start', () => {
