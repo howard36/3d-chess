@@ -13,6 +13,7 @@ import config, {
   landingVersion,
   placeLandingPictureEarly,
   preloadLandingPictureOnStartPage,
+  SCENE_PATH,
   versionLandingPictures,
 } from './vite.config';
 
@@ -299,4 +300,22 @@ test('the build fails past the start page’s budget, and on an entry with no st
       p['index.js'].viteMetadata = { importedCss: new Set() };
     }),
   ).toThrow(/imports no CSS/);
+});
+
+test('the built page preloads the scene on every page the app draws it on, from App.tsx', () => {
+  const app = readFileSync(resolve(import.meta.dirname, 'src/App.tsx'), 'utf8');
+  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]);
+  expect(routes).toContain('/game/:gameId');
+  // Each route's address, its parameters filled in (and left out where optional)
+  const addresses = routes.flatMap((r) => [
+    r.replace(/:\w+\??/g, 'ABC123'),
+    r.replace(/\/:\w+\?/g, ''),
+  ]);
+  for (const address of new Set(addresses)) {
+    // The start page loads the scene itself; any other address is no page's
+    if (address === '/' || address === '*')
+      expect([address, SCENE_PATH.test(address)]).toEqual([address, false]);
+    else expect([address, SCENE_PATH.test(address)]).toEqual([address, true]);
+  }
+  expect(SCENE_PATH.test('/nope')).toBe(false);
 });

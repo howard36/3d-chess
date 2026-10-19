@@ -120,6 +120,8 @@ export const placeLandingPictureEarly = (): Plugin => ({
  * it for later. The build fails if a chunk is not found, rather than quietly
  * shipping a page without the preload.
  */
+/** The pages that draw the scene, but for the start page (which loads it itself). */
+export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
 const PRELOADED = [
   '/src/screens/lobby/LobbyCanvas.tsx',
   '/src/screens/GameCanvas.tsx',
@@ -155,7 +157,7 @@ const preloadSceneOnGamePages = (): Plugin => ({
         {
           tag: 'script',
           injectTo: 'head',
-          children: `if(/^\\/(game\\/|new$|computer(\\/|$)|learn(\\/|$))/.test(location.pathname)){${files.map(preload).join('')}}`,
+          children: `if(${SCENE_PATH}.test(location.pathname)){${files.map(preload).join('')}}`,
         },
       ];
     },
