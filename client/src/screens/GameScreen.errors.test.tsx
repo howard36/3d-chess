@@ -36,7 +36,7 @@ beforeEach(() => {
 
 describe('the error banner', () => {
   it('goes once a later move lands', async () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     const send = vi.fn(() => true);
     const { rerender } = render(gameScreenAt(fakeSocket(start, send)));
     await boardMounted();
@@ -67,7 +67,7 @@ describe('the error banner', () => {
   });
 
   it('shows a new error after one was dismissed', async () => {
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     const { rerender } = render(gameScreenAt(fakeSocket(start)));
     rerender(gameScreenAt(fakeSocket([...start, wrongTurn])));
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss error' }));
@@ -79,10 +79,10 @@ describe('the error banner', () => {
   it("does not carry the side choice's refusals onto the game's page", () => {
     // The creator's first try was refused, the second made the game; the
     // socket's log comes along from /new
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     const fromSideChoice: WebSocketMessage[] = [
       { type: 'error', code: 'already_in_game', message: 'Already in a game' },
-      { type: 'game_created', gameId: 'abc123', color: 'white' },
+      { type: 'game_created', gameId: 'ABC123', color: 'white' },
     ];
     const { rerender } = render(gameScreenAt(fakeSocket(fromSideChoice)));
     expect(screen.getByTestId('invite-card')).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe('a refused rejoin', () => {
   it('does not take back the seat the page then joins', async () => {
     // A stale stored seat: its rejoin is refused, the page falls back to the
     // invitation, and the guest takes the free seat
-    setStoredRole('abc123', 'white');
+    setStoredRole('ABC123', 'white');
     const send = vi.fn(() => true);
     const { rerender } = render(gameScreenAt(fakeSocket([], send)));
     await waitFor(() =>
@@ -114,10 +114,10 @@ describe('a refused rejoin', () => {
       { type: 'error', code: 'invalid_rejoin', message: 'No such seat to rejoin' },
     ];
     rerender(gameScreenAt(fakeSocket(refused, send)));
-    await waitFor(() => expect(getStoredRole('abc123')).toBeNull());
+    await waitFor(() => expect(getStoredRole('ABC123')).toBeNull());
     const invited: WebSocketMessage[] = [
       ...refused,
-      { type: 'game_info', gameId: 'abc123', seats: ['white'] },
+      { type: 'game_info', gameId: 'ABC123', seats: ['white'] },
     ];
     rerender(gameScreenAt(fakeSocket(invited, send)));
     // The invitation answers; the old refusal no longer stands over it
@@ -126,10 +126,10 @@ describe('a refused rejoin', () => {
     // The seat is confirmed, and the game's start follows in its own message
     const joined: WebSocketMessage[] = [...invited, { type: 'game_joined', color: 'black' }];
     rerender(gameScreenAt(fakeSocket(joined, send)));
-    await waitFor(() => expect(getStoredRole('abc123')).toBe('black'));
+    await waitFor(() => expect(getStoredRole('ABC123')).toBe('black'));
     rerender(gameScreenAt(fakeSocket([...joined, { type: 'game_start', color: 'black' }], send)));
     await boardMounted();
     // Kept for the next visit: the refusal answered the old rejoin, not this seat
-    expect(getStoredRole('abc123')).toBe('black');
+    expect(getStoredRole('ABC123')).toBe('black');
   });
 });

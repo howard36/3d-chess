@@ -24,12 +24,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const argv = process.argv.slice(2);
-const opt = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 ? argv[i + 1] : fallback;
-};
+import { EXECUTABLE, opt } from './lib/devScript.mjs';
 
 const CLIENT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.resolve(opt('out', path.join(CLIENT, '..', 'docs', 'preview.jpg')));
@@ -51,7 +46,6 @@ const QSCALE = opt('qscale', '2');
 const OG = path.resolve(opt('og', path.join(CLIENT, 'public', 'og.jpg')));
 const OG_HEIGHT = Math.round(WIDTH / 1.91);
 const OG_QUALITY = Number(opt('og-quality', '90'));
-const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 // The preview's chunk (src/screens/LandingPreview.tsx in dev,
 // assets/LandingPreview-<hash>.js in a build), whose request is never answered

@@ -3,6 +3,7 @@ import { PerspectiveCamera, Scene } from 'three';
 import type { WebGLRenderer } from 'three';
 import type { RootState } from '@react-three/fiber';
 import { linkBeforeFirstFrame, setUpRenderer } from './rendererSetup';
+import { GPU_WAIT_MAX } from './scene/programs';
 
 const renderer = () =>
   ({
@@ -57,7 +58,7 @@ describe('linkBeforeFirstFrame', () => {
       compile: vi.fn(() => new Set()),
       properties: { get: () => undefined },
       info: { render: { frame: 0 } },
-      domElement: { isConnected: true },
+      domElement: { isConnected: true, dataset: {} as DOMStringMap },
     } as unknown as WebGLRenderer;
     const scene = new Scene();
     const state = { internal: { active: true }, invalidate: vi.fn() };
@@ -80,6 +81,8 @@ describe('linkBeforeFirstFrame', () => {
       await vi.advanceTimersByTimeAsync(10);
       expect(state.internal.active).toBe(true);
       expect(state.invalidate).toHaveBeenCalledOnce();
+      // (for the bench: the programs read back with the GPU idle)
+      expect(gl.domElement.dataset.firstLink).toBe('idle');
     } finally {
       vi.useRealTimers();
     }
@@ -109,8 +112,33 @@ describe('linkBeforeFirstFrame', () => {
       await vi.advanceTimersByTimeAsync(10);
       expect(state.internal.active).toBe(true);
       expect(state.invalidate).toHaveBeenCalledTimes(2);
+      expect(gl.domElement.dataset.firstDrawn).toBe('gpu');
       // The scene's own hook is back
       expect(scene.onAfterRender).toBe(own);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says so, for the bench, when the GPU never answers, and draws anyway', async () => {
+    vi.useFakeTimers();
+    try {
+      const { gl, scene, state, get } = setUp();
+      linkBeforeFirstFrame({ gl, scene, camera: new PerspectiveCamera(), get });
+      await vi.advanceTimersByTimeAsync(GPU_WAIT_MAX + 10);
+      expect(gl.domElement.dataset.firstLink).toBe('timeout');
+      expect(state.internal.active).toBe(true);
+      scene.onAfterRender(
+        gl,
+        scene,
+        new PerspectiveCamera(),
+        null as never,
+        null as never,
+        null as never,
+      );
+      await vi.advanceTimersByTimeAsync(GPU_WAIT_MAX + 10);
+      expect(gl.domElement.dataset.firstDrawn).toBe('none');
+      expect(state.internal.active).toBe(true);
     } finally {
       vi.useRealTimers();
     }

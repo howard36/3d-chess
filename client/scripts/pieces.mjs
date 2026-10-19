@@ -14,23 +14,16 @@
 // Renders in software (SwiftShader), like the showcase: a sheet takes a few
 // seconds.
 
-import { chromium } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-
-const argv = process.argv.slice(2);
-const opt = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 ? argv[i + 1] : fallback;
-};
+import { flag, launchSoftwareGl, opt } from './lib/devScript.mjs';
 
 const OUT = path.resolve(opt('out', 'pieces'));
 const PIECE = opt('piece');
 const QUALITY = opt('quality', 'medium');
 const CELL = opt('cell', '200');
-const SILHOUETTE = argv.includes('--silhouette');
+const SILHOUETTE = flag('silhouette');
 const BASE = process.env.SHOWCASE_URL ?? 'http://127.0.0.1:5173';
-const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -42,15 +35,7 @@ if (SILHOUETTE) {
 }
 const name = ['pieces', PIECE, SILHOUETTE && `silhouette-${QUALITY}`].filter(Boolean).join('-');
 
-const browser = await chromium.launch({
-  executablePath: EXECUTABLE,
-  args: [
-    '--use-gl=angle',
-    '--use-angle=swiftshader',
-    '--enable-unsafe-swiftshader',
-    '--no-sandbox',
-  ],
-});
+const browser = await launchSoftwareGl();
 try {
   const page = await browser.newPage({ viewport: { width: 2400, height: 1800 } });
   page.on('pageerror', (e) => console.error(`[page] ${e.message}`));

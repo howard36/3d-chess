@@ -17,31 +17,24 @@
 // libaom-av1 and libwebp) encodes. Renders in software (SwiftShader).
 // Remote containers: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium.
 
-import { chromium } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const argv = process.argv.slice(2);
-const opt = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 ? argv[i + 1] : fallback;
-};
+import { flag, launchSoftwareGl, opt } from './lib/devScript.mjs';
 
 const CLIENT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.resolve(opt('out', path.join(CLIENT, 'public', 'landing')));
 const PICTURES = opt('picture', 'phone-tall,phone,tablet,wide').split(',');
 const DENSITIES = opt('density', '1x,2x').split(',');
 // --keep-png also writes the lossless render beside them (for comparing encodings)
-const KEEP_PNG = argv.includes('--keep-png');
+const KEEP_PNG = flag('keep-png');
 // Drawn at twice the CSS size, the picture's pixels (the canvas's buffer)
 const SCALE = 2;
 // AVIF's quality (CRF, lower is finer) and WebP's
 const AVIF_CRF = '32';
 const WEBP_QUALITY = '75';
-const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 /** A clock that stands still unless stepped: nothing in the scene moves while it draws. */
 const STILL_CLOCK = () => {
@@ -72,15 +65,7 @@ if (!base) {
   base = vite.resolvedUrls.local[0].replace(/\/$/, '');
 }
 
-const browser = await chromium.launch({
-  executablePath: EXECUTABLE,
-  args: [
-    '--use-gl=angle',
-    '--use-angle=swiftshader',
-    '--enable-unsafe-swiftshader',
-    '--no-sandbox',
-  ],
-});
+const browser = await launchSoftwareGl();
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'landing-pictures-'));
 try {
   fs.mkdirSync(OUT, { recursive: true });
@@ -135,6 +120,20 @@ try {
       console.log(`${name}: ${width}x${height}, ${avif} (${kb(avif)}), ${webp} (${kb(webp)})`);
       await context.close();
     }
+  // The numbers they were rendered at, once every picture is (landingPictureInputs.ts)
+  const all = (names, every) => every.every((n) => names.includes(n));
+  const home = OUT === path.join(CLIENT, 'public', 'landing');
+  if (
+    vite &&
+    home &&
+    all(PICTURES, ['phone-tall', 'phone', 'tablet', 'wide']) &&
+    all(DENSITIES, ['1x', '2x'])
+  ) {
+    const { landingPictureInputs } = await vite.ssrLoadModule('/src/three/landingPictureInputs.ts');
+    const stamp = path.join(CLIENT, 'src', 'three', 'landingPictures.json');
+    fs.writeFileSync(stamp, `${JSON.stringify(landingPictureInputs(), null, 2)}\n`);
+    console.log(`rendered at: ${stamp}`);
+  }
 } finally {
   fs.rmSync(work, { recursive: true, force: true });
   await browser.close();
