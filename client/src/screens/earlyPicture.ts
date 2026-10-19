@@ -1,4 +1,5 @@
 import { picturePlacement, pictureSource, pictureSourceSet } from '../three/landingLens';
+import type { PictureName } from '../three/landingLens';
 
 /**
  * The start page's picture, placed from an inline script in the built page's
@@ -29,6 +30,7 @@ export function preloadLandingPicture(): void {
   link.href = pictureSource(picture, 'avif');
   link.setAttribute('imagesrcset', pictureSourceSet(picture, 'avif'));
   link.setAttribute('fetchpriority', 'high');
+  link.dataset.picture = picture;
   document.head.appendChild(link);
 }
 
@@ -36,7 +38,10 @@ export function placeEarlyPicture(): void {
   const root = document.getElementById('root');
   const [width, height] = [innerWidth, innerHeight];
   if (location.pathname !== '/' || !root || !(width > 0 && height > 0)) return;
-  const place = picturePlacement(width, height);
+  // The head's choice stays while it covers the window (a phone's bars may
+  // have come or gone since), so one picture is fetched, not two
+  const preloaded = document.querySelector<HTMLElement>('link[data-picture]')?.dataset.picture;
+  const place = picturePlacement(width, height, preloaded as PictureName | undefined);
   if (place.layout !== 'phone') return;
   const picture = document.createElement('div');
   picture.id = EARLY_PICTURE_ID;

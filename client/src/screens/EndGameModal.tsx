@@ -72,6 +72,8 @@ const EndGameModal: React.FC<EndGameModalProps> = ({
         className="hud-dialog"
         role="dialog"
         aria-modal="true"
+        // A click on the card keeps the focus in it, within Escape's reach
+        tabIndex={-1}
         aria-labelledby="end-game-title"
         aria-describedby="end-game-how"
         data-testid="end-game"

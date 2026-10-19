@@ -10,11 +10,14 @@ const browser = source('../scripts/bench-browser.mjs');
 describe('each headline measurement names a row its bench writes', () => {
   it.each(PRIMARY.filter((r) => r.tier === 'browser').map((r) => [r.moment, r]))('%s', (_, row) => {
     expect(browser).toContain(`title: '${row.where}'`);
-    // A row's name is its case and its label joined by " · ", either of which
-    // may be built from a template: the longest part is written out
+    // A row's name is its parts joined by " · ", each written out in the
+    // bench but a count of plies, built from a template; a cold load's
+    // first part is the name of one of its cases
     const parts = row.what.split(' · ');
-    const longest = parts.reduce((a, b) => (b.length > a.length ? b : a));
-    expect(browser).toContain(longest);
+    for (const part of parts)
+      if (/^\d+ plies$/.test(part)) expect(browser).toContain('} plies`');
+      else expect(browser).toContain(part);
+    if (row.section === 'cold-load') expect(browser).toContain(`label: '${parts[0]}'`);
   });
 
   it.each(PRIMARY.filter((r) => r.tier === 'client').map((r) => [r.moment, r]))('%s', (_, row) => {

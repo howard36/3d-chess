@@ -56,6 +56,24 @@ describe('retireMaterial', () => {
     expect(b.dispose).not.toHaveBeenCalled();
   });
 
+  it('never disposes a material keeping a program, retired again (StrictMode rehearses an unmount)', () => {
+    const program = {};
+    const [live, other] = [material(), material()];
+    const gl = rendererWith(
+      new Map([
+        [live, program],
+        [other, {}],
+      ]),
+    );
+    // Drawn before the rehearsal, which retires it: it keeps the program...
+    retireMaterial(gl, live);
+    // ...and still keeps it at its real unmount, whatever it drew with since
+    retireMaterial(gl, live);
+    keepPrograms(gl, [other]);
+    retireMaterial(rendererWith(new Map([[live, {}]])), live);
+    expect(live.dispose).not.toHaveBeenCalled();
+  });
+
   it('disposes a material that never drew (it holds no program)', () => {
     const m = material();
     retireMaterial(rendererWith(new Map()), m);

@@ -16,6 +16,9 @@ import type { WebSocketMessage } from '../types/messages';
 /** The game server, unless the build names another (VITE_WS_URL). */
 export const DEFAULT_WS_URL = 'wss://howard36--3d-chess-backend-serve.modal.run/ws';
 
+/** The pages that never use the server: the computer's and the tutorial's. */
+export const SERVERLESS_PATH = /^\/(computer|learn)(\/|$)/;
+
 /** What the inline script leaves for the app. */
 export interface EarlySocket {
   socket: WebSocket;
@@ -42,6 +45,9 @@ interface EarlyKeys {
  * source), so it may use nothing from outside but its arguments.
  */
 export function startEarlySocket(url: string, keys: EarlyKeys): void {
+  // A game against the computer and the tutorial never use the server
+  // (SERVERLESS_PATH, written out: this function may use nothing from outside)
+  if (/^\/(computer|learn)(\/|$)/.test(location.pathname)) return;
   try {
     const socket = new WebSocket(url);
     const early: EarlySocket = { socket, received: [], sent: null };
