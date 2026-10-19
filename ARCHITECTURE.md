@@ -427,7 +427,7 @@ Key decisions:
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
   while the game is on, `data-analysis` (`running`, `done`, `stopped`) once the review is asked for
   (`analyse`, the button) and `data-best` the better move where the move shown is marked
-  (`Bc1-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
+  (`Bd2-Cc2`, named in `best-move`); each move marked carries `data-grade` (`inaccuracy`,
   `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
   and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with
@@ -1270,15 +1270,23 @@ always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
 without either draw unless the position is mate; the kings left alone draw at once. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
-side behind takes a repetition when it is offered. `evaluate.ts` scores material at its own
-values (queen 9.8, knight 3.2, bishop 2.95, rook 2.45, unicorn 1.4, which play with the
-terms that follow; the captured pieces' "+N" counts material alone, see Piece values), development and
-centralisation in the cube, pawns' progress towards their last square (worth more as the
-board empties), king safety (home behind its pawns, enemy pieces near it) giving way to an
-active king in the endgame, mobility (left out of the quiescence search where it cannot
-matter), the bishop pair, and, a side ahead, trading down and driving the bare king to a
-corner, which mates with king and queen. How fast it searches in the browser is the
-browser bench's row "Computer’s later moves: positions searched per second".
+side behind takes a repetition when it is offered. `evaluate.ts` judges by one of two sets of
+numbers (`numbers.ts`). The levels' scores material at its own values (queen 9.8, knight 3.2,
+bishop 2.95, rook 2.45, unicorn 1.4, which play with the terms that follow; the captured
+pieces' "+N" counts material alone, see Piece values), development and centralisation in the
+cube, pawns' progress towards their last square (worth more as the board empties), king safety
+(home behind its pawns, enemy pieces near it) giving way to an active king in the endgame,
+mobility (left out of the quiescence search where it cannot matter), the bishop pair, and, a
+side ahead, trading down and driving the bare king to a corner, which mates with king and
+queen. The expert's (the `expert` player, below) has every number tuned for playing strength by
+self-play (`research/evaluation/`, its README for the method) and four terms more: the king's
+tables and the pressure on it blend by its own danger (the enemy's pieces, its queen above all)
+rather than the game's phase, own pawns beside the king, enemy pieces a pawn attacks, and
+having the move. At the same number of positions searched it scored 75.2% against the levels'
+(2,000 games at 40,000 positions a move, about 190 Elo), and 72.0% at equal time: the board
+keeps its extra terms as moves are played (`position.ts`), but only for a position made with
+the expert's numbers, and that costs its search about 7% of its speed. How fast it searches in
+the browser is the browser bench's row "Computer’s later moves: positions searched per second".
 
 **The levels** (`LEVELS` in `ai/levels.ts`, the choice in `ai/choose.ts`). Unlike a pure
 engine, the search gives an exact score to every root move within a margin of the best, and
@@ -1299,8 +1307,18 @@ the way a person does; its own moves this turn are always all considered.
 | Medium | 3 plies                         | ±18 cp       | 90 cp (temperature 22)  | about 1 in 5         |
 | Hard   | up to 1.8 s, as deep as it gets | —            | 16 cp (temperature 6)   | none                 |
 
-Measured by self-play (`chooseMove`, alternating colours): Easy beat a random mover 6–0,
-Medium beat Easy 18–0, and Hard beat Medium 16–0 even on half its thinking time.
+Measured by self-play (`chooseMove`, alternating colours; `research/levels/`, 5,610 games fitted
+to one Elo scale with Medium at 0): Easy −900, Hard +1,610 on a machine searching a million
+positions a second (as `hardFixed` plays it everywhere), less on a slower one; each fourfold in
+Hard's positions is worth about 350.
+
+Two players the game does not offer (`LEVELS.hardFixed`, `LEVELS.expert`): Hard on a budget
+of positions instead of the clock (`nodes`: the search keeps the clock's rules with its clock
+counting positions, 1.8 million standing for Hard's 1.8 s at a million positions a second), so
+it plays the same on any device and takes longer on a slower one; and the expert, the same
+search, choice and budget by the expert's numbers. On budgets of 40,000, 80,000 and 160,000
+positions the expert takes a median 37, 67 and 133 ms a move in a Chromium worker and rates
++860, +1,040 and +1,290 on that scale.
 
 **A finished game's review** ("Review", see HUD) asks workers of its own, one fewer than
 the machine's cores and at most three, one position each at a time, handed out from the
@@ -1434,6 +1452,8 @@ bench/           The benchmark runner (run.mjs) and the primary rows (primary.mj
 bench/loop/      Performance work log: ledger of ideas tried, A/B reports, patches, tools.
 docs/            The README's picture (preview.jpg, from client/scripts/readme-image.mjs).
 research/piece-values/  How the piece values were measured: test bots (a C port of src/ai) and scripts.
+research/evaluation/  How the expert's numbers were tuned: a C port of src/ai, SPSA and matches (not shipped).
+research/levels/  The players' strength on one Elo scale and their time a move: matches as the game plays them (not shipped).
 .claude/         Claude Code settings, format hook and project skills (check, regen-types, run-3d-chess).
 .github/workflows/  ci.yml (tests, gates, deploy) and claude.yml (@claude on issues and PRs).
 .github/dependabot.yml  Weekly dependency PRs (npm, uv, GitHub Actions).

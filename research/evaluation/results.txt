@@ -1,0 +1,94 @@
+# Every match: the candidate's score against the evaluation named second (or the game's,
+# 100,320,295,245,140,980), the game's own search, each opening twice with colours swapped.
+## Screening new terms, 20k nodes (x_*: the game's numbers and one term)
+scr2_pass: 0.485 ± 0.018 (-10 Elo) over 600 games {'adjudicated': 420, 'fifty': 61, 'mate': 48, 'repetition': 71}
+scr2_threat: 0.544 ± 0.018 (+31 Elo) over 600 games {'adjudicated': 402, 'mate': 55, 'repetition': 78, 'fifty': 65}
+scr2_force: 0.513 ± 0.018 (+9 Elo) over 600 games {'mate': 55, 'adjudicated': 399, 'fifty': 74, 'repetition': 72}
+scr2_queen: 0.527 ± 0.018 (+19 Elo) over 600 games {'adjudicated': 398, 'fifty': 83, 'repetition': 71, 'mate': 48}
+scr2_shield: 0.532 ± 0.018 (+23 Elo) over 600 games {'mate': 65, 'adjudicated': 388, 'repetition': 77, 'fifty': 70}
+## Fitted to deeper searches, 20k
+scr2_fitS: 0.517 ± 0.018 (+12 Elo) over 600 games {'adjudicated': 405, 'repetition': 80, 'fifty': 76, 'mate': 39}
+## Piece values within the evaluation, 40k
+fairmul40: @k_fairmul.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.440 ± 0.014 (-42 Elo) over 1000 games {'adjudicated': 691, 'fifty': 143, 'repetition': 95, 'mate': 71}
+fairadd40: 100,334,329,316,126,1280 vs 100,320,295,245,140,980 at 40000 nodes: 0.426 ± 0.014 (-51 Elo) over 1000 games {'repetition': 93, 'adjudicated': 692, 'fifty': 144, 'mate': 71}
+spsak40: @spsak_final.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.548 ± 0.014 (+34 Elo) over 1000 games {'mate': 88, 'adjudicated': 687, 'fifty': 123, 'repetition': 102}
+kwin40: 0.472 ± 0.014 (-19 Elo) over 1000 games {'adjudicated': 687, 'fifty': 148, 'repetition': 92, 'mate': 73}
+fitR40: 0.467 ± 0.014 (-23 Elo) over 1000 games {'adjudicated': 711, 'mate': 96, 'fifty': 148, 'repetition': 45}
+## The joint run: its start, mid-run (2,544 pairs) and final (5,696 pairs, joint_final.txt)
+jstart40: 0.544 ± 0.014 (+31 Elo) over 1000 games {'adjudicated': 698, 'repetition': 118, 'fifty': 126, 'mate': 58}
+jmid40: 0.636 ± 0.013 (+97 Elo) over 1000 games {'adjudicated': 670, 'repetition': 94, 'fifty': 134, 'mate': 102}
+jmid160: 0.672 ± 0.018 (+125 Elo) over 500 games {'adjudicated': 361, 'fifty': 65, 'mate': 31, 'repetition': 43}
+vf40a: 0.701 ± 0.013 (+148 Elo) over 1000 games {'adjudicated': 704, 'fifty': 97, 'mate': 97, 'repetition': 102}
+vf40b: 0.673 ± 0.013 (+125 Elo) over 1000 games {'adjudicated': 706, 'repetition': 87, 'mate': 96, 'fifty': 111}
+vf80: 0.704 ± 0.013 (+151 Elo) over 1000 games {'adjudicated': 720, 'repetition': 85, 'mate': 82, 'fifty': 113}
+vf160: 0.712 ± 0.018 (+157 Elo) over 500 games {'adjudicated': 387, 'repetition': 45, 'fifty': 47, 'mate': 21}
+vfeqt36a: 0.661 ± 0.013 (+116 Elo) over 1000 games {'adjudicated': 727, 'mate': 91, 'repetition': 84, 'fifty': 98}
+vfeqt36b: 0.656 ± 0.013 (+112 Elo) over 1000 games {'adjudicated': 692, 'fifty': 118, 'repetition': 94, 'mate': 96}
+vfeqt40b: 0.627 ± 0.014 (+90 Elo) over 1000 games {'adjudicated': 707, 'repetition': 91, 'mate': 91, 'fifty': 111}
+vfnx40: 0.641 ± 0.013 (+101 Elo) over 1000 games {'adjudicated': 677, 'fifty': 106, 'mate': 118, 'repetition': 99}
+## The whole evaluation fitted to results (the strength run's 57 numbers, fitR_ext.txt), 40k
+fitRext40: 0.586 ± 0.014 (+60 Elo) over 1000 games {'adjudicated': 728, 'mate': 109, 'fifty': 112, 'repetition': 51}
+fitRext_vs_final40: @fitR_ext.txt vs @joint_final.txt at 40000 nodes: 0.401 ± 0.018 (-70 Elo) over 600 games {'mate': 76, 'adjudicated': 399, 'fifty': 90, 'repetition': 35}
+## Averaging an SPSA run: the joint run's second half (joint_avg.txt) against its last step, 40k
+@joint_avg.txt vs @joint_final.txt at 40000 nodes: 0.514 ± 0.014 (+10 Elo) over 1000 games {'adjudicated': 672, 'fifty': 125, 'repetition': 113, 'mate': 90}
+## Piece strength curves: one piece of the tuned evaluation moved (curves/), against it, 40k
+cB26: @curves/B_2.6.txt vs @joint_final.txt at 40000 nodes: 0.469 ± 0.010 (-22 Elo) over 2000 games {'mate': 162, 'adjudicated': 1351, 'fifty': 290, 'repetition': 197}
+cQ100: @curves/Q_10.0.txt vs @joint_final.txt at 40000 nodes: 0.498 ± 0.010 (-1 Elo) over 2000 games {'mate': 175, 'adjudicated': 1368, 'fifty': 235, 'repetition': 222}
+cQ112: @curves/Q_11.2.txt vs @joint_final.txt at 40000 nodes: 0.512 ± 0.010 (+9 Elo) over 2000 games {'adjudicated': 1343, 'mate': 156, 'repetition': 245, 'fifty': 256}
+cQ78: @curves/Q_7.8.txt vs @joint_final.txt at 40000 nodes: 0.498 ± 0.010 (-1 Elo) over 2000 games {'adjudicated': 1227, 'mate': 317, 'repetition': 236, 'fifty': 220}
+cB32: @curves/B_3.2.txt vs @joint_final.txt at 40000 nodes: 0.482 ± 0.010 (-12 Elo) over 2000 games {'adjudicated': 1339, 'mate': 184, 'fifty': 281, 'repetition': 196}
+cR20: @curves/R_2.0.txt vs @joint_final.txt at 40000 nodes: 0.468 ± 0.010 (-22 Elo) over 2000 games {'adjudicated': 1322, 'fifty': 299, 'mate': 171, 'repetition': 208}
+cR26: @curves/R_2.6.txt vs @joint_final.txt at 40000 nodes: 0.492 ± 0.010 (-5 Elo) over 2000 games {'adjudicated': 1350, 'mate': 171, 'repetition': 204, 'fifty': 275}
+cR284: @curves/R_2.84.txt vs @joint_final.txt at 40000 nodes: 0.466 ± 0.010 (-24 Elo) over 2000 games {'adjudicated': 1334, 'mate': 174, 'fifty': 340, 'repetition': 152}
+cN30: @curves/N_3.0.txt vs @joint_final.txt at 40000 nodes: 0.482 ± 0.010 (-12 Elo) over 2000 games {'adjudicated': 1344, 'fifty': 298, 'repetition': 195, 'mate': 163}
+cN36: @curves/N_3.6.txt vs @joint_final.txt at 40000 nodes: 0.490 ± 0.010 (-7 Elo) over 2000 games {'adjudicated': 1334, 'repetition': 196, 'fifty': 277, 'mate': 193}
+cU10: @curves/U_1.0.txt vs @joint_final.txt at 40000 nodes: 0.426 ± 0.010 (-52 Elo) over 2000 games {'mate': 222, 'fifty': 276, 'adjudicated': 1357, 'repetition': 145}
+cU12: @curves/U_1.2.txt vs @joint_final.txt at 40000 nodes: 0.488 ± 0.010 (-8 Elo) over 2000 games {'adjudicated': 1340, 'fifty': 267, 'mate': 188, 'repetition': 205}
+cU16: @curves/U_1.6.txt vs @joint_final.txt at 40000 nodes: 0.462 ± 0.010 (-27 Elo) over 2000 games {'adjudicated': 1356, 'repetition': 204, 'fifty': 255, 'mate': 185}
+## Further terms on the tuned evaluation (terms/), against it, 20k (s_tempo15_40 at 40k)
+s_tempo15: @terms/tempo15.txt vs @terms/base78.txt at 20000 nodes: 0.597 ± 0.013 (+68 Elo) over 1000 games {'mate': 104, 'repetition': 102, 'adjudicated': 658, 'fifty': 136}
+s_tempo25: @terms/tempo25.txt vs @terms/base78.txt at 20000 nodes: 0.552 ± 0.014 (+36 Elo) over 1000 games {'adjudicated': 668, 'mate': 86, 'fifty': 152, 'repetition': 94}
+s_tempo35: @terms/tempo35.txt vs @terms/base78.txt at 20000 nodes: 0.520 ± 0.014 (+14 Elo) over 1000 games {'adjudicated': 659, 'mate': 100, 'fifty': 160, 'repetition': 81}
+s_tempo15_40: @terms/tempo15_78.txt vs @terms/base78.txt at 40000 nodes: 0.567 ± 0.014 (+46 Elo) over 1000 games {'adjudicated': 683, 'repetition': 112, 'fifty': 127, 'mate': 78}
+s_thr30: @terms/thr30.txt vs @terms/base78.txt at 20000 nodes: 0.478 ± 0.014 (-15 Elo) over 1000 games {'adjudicated': 674, 'mate': 108, 'repetition': 106, 'fifty': 112}
+s_kz8: @terms/kz8.txt vs @terms/base78.txt at 20000 nodes: 0.496 ± 0.014 (-2 Elo) over 1000 games {'repetition': 93, 'adjudicated': 689, 'fifty': 104, 'mate': 114}
+s_kzq8: @terms/kzq8.txt vs @terms/base78.txt at 20000 nodes: 0.493 ± 0.014 (-5 Elo) over 1000 games {'adjudicated': 653, 'mate': 132, 'fifty': 124, 'repetition': 91}
+s_safe: @terms/safe.txt vs @terms/base78.txt at 20000 nodes: 0.500 ± 0.014 (-0 Elo) over 1000 games {'adjudicated': 656, 'fifty': 139, 'repetition': 101, 'mate': 104}
+## A second tuning from the first (5,696 pairs): continuing (contB, to 17,696 pairs, later half averaged), and with the side to move's bonus (jt runs, averaged from 7,696: terms/jt_avg2.txt; the bonus set to 15: jt_avg2_t15.txt), against the first round's, 40k
+contB40: @contB_avg.txt vs @joint_final.txt at 40000 nodes: 0.539 ± 0.010 (+27 Elo) over 2000 games {'repetition': 230, 'adjudicated': 1249, 'fifty': 226, 'mate': 295}
+v_jt2: @terms/jt_avg2.txt vs @terms/base78.txt at 40000 nodes: 0.614 ± 0.013 (+81 Elo) over 1000 games {'mate': 92, 'adjudicated': 676, 'fifty': 120, 'repetition': 112}
+v_jt2t15: @terms/jt_avg2_t15.txt vs @terms/base78.txt at 40000 nodes: 0.610 ± 0.013 (+77 Elo) over 1000 games {'adjudicated': 691, 'mate': 78, 'fifty': 120, 'repetition': 111}
+## The second round's numbers against the hand-set evaluation
+v40_jt2: @terms/jt_avg2.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.751 ± 0.008 (+192 Elo) over 2000 games {'mate': 200, 'adjudicated': 1423, 'fifty': 229, 'repetition': 148}
+v80_jt2: @terms/jt_avg2.txt vs 100,320,295,245,140,980 at 80000 nodes: 0.761 ± 0.012 (+202 Elo) over 1000 games {'repetition': 70, 'adjudicated': 747, 'fifty': 111, 'mate': 72}
+r2_160: @round2_final.txt vs 100,320,295,245,140,980 at 160000 nodes: 0.775 ± 0.016 (+215 Elo) over 500 games {'adjudicated': 374, 'repetition': 36, 'mate': 39, 'fifty': 51}
+v40_jt2t15: @terms/jt_avg2_t15.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.769 ± 0.008 (+209 Elo) over 2000 games {'adjudicated': 1440, 'mate': 206, 'repetition': 133, 'fifty': 221}
+## Longer runs (later halves averaged), against the first round's, 40k: contA (no bonus for the move, to 17,696 pairs), jtA alone (to 17,696, averaged from 11,696)
+contA40: @contA_avg.txt vs @joint_final.txt at 40000 nodes: 0.552 ± 0.010 (+37 Elo) over 2000 games {'mate': 168, 'adjudicated': 1396, 'repetition': 194, 'fifty': 242}
+jtA40: @jtA_avg.txt vs @joint_final.txt at 40000 nodes: 0.607 ± 0.010 (+76 Elo) over 2000 games {'adjudicated': 1360, 'repetition': 199, 'fifty': 242, 'mate': 199}
+## Further terms on the second round's evaluation (terms2/: round2_final with one term added), against it, 20k (s2_chain4_40 at 40k)
+s2_prot8: @terms2/prot8.txt vs @terms2/base.txt at 20000 nodes: 0.522 ± 0.013 (+15 Elo) over 1000 games {'adjudicated': 640, 'repetition': 95, 'fifty': 175, 'mate': 90}
+s2_chain4: @terms2/chain4.txt vs @terms2/base.txt at 20000 nodes: 0.556 ± 0.014 (+39 Elo) over 1000 games {'adjudicated': 704, 'fifty': 117, 'mate': 98, 'repetition': 81}
+s2_iso8: @terms2/iso8.txt vs @terms2/base.txt at 20000 nodes: 0.508 ± 0.014 (+6 Elo) over 1000 games {'adjudicated': 678, 'mate': 108, 'fifty': 138, 'repetition': 76}
+s2_chain4_40: @terms2/chain4.txt vs @terms2/base.txt at 40000 nodes: 0.524 ± 0.014 (+17 Elo) over 1000 games {'adjudicated': 680, 'fifty': 160, 'mate': 77, 'repetition': 83}
+## The runs continued and pooled (r3/jt_avg3_r.txt = round3_final.txt), and with pawn chains at 4 (r3/jt3c4.txt = terms2/round3_chain4.txt), against the second round's numbers, 40k
+r3j1: @r3/jt_avg3_r.txt vs @round2_final.txt at 40000 nodes: 0.496 ± 0.014 (-2 Elo) over 1000 games {'adjudicated': 676, 'mate': 89, 'fifty': 141, 'repetition': 94}
+r3j2: @r3/jt_avg3_r.txt vs @round2_final.txt at 40000 nodes: 0.521 ± 0.014 (+15 Elo) over 1000 games {'adjudicated': 661, 'repetition': 93, 'fifty': 149, 'mate': 97}
+r3j3: @r3/jt_avg3_r.txt vs @round2_final.txt at 40000 nodes: 0.536 ± 0.014 (+25 Elo) over 1000 games {'mate': 100, 'adjudicated': 671, 'repetition': 90, 'fifty': 139}
+r3k1: @r3/jt3c4.txt vs @round2_final.txt at 40000 nodes: 0.542 ± 0.014 (+30 Elo) over 1000 games {'adjudicated': 700, 'fifty': 136, 'repetition': 89, 'mate': 75}
+r3k2: @r3/jt3c4.txt vs @round2_final.txt at 40000 nodes: 0.531 ± 0.014 (+22 Elo) over 1000 games {'adjudicated': 677, 'repetition': 94, 'fifty': 144, 'mate': 85}
+r3k3: @r3/jt3c4.txt vs @round2_final.txt at 40000 nodes: 0.525 ± 0.014 (+18 Elo) over 1000 games {'adjudicated': 687, 'fifty': 129, 'mate': 86, 'repetition': 98}
+r3k4: @r3/jt3c4.txt vs @round2_final.txt at 40000 nodes: 0.552 ± 0.014 (+37 Elo) over 1000 games {'adjudicated': 679, 'fifty': 142, 'repetition': 93, 'mate': 86}
+## The same with pawn chains against the hand-set evaluation, 40k
+r3h1: @r3/jt3c4.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.771 ± 0.012 (+211 Elo) over 1000 games {'adjudicated': 751, 'fifty': 86, 'mate': 95, 'repetition': 68}
+r3h2: @r3/jt3c4.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.783 ± 0.011 (+223 Elo) over 1000 games {'adjudicated': 725, 'fifty': 93, 'repetition': 78, 'mate': 104}
+## The game's numbers (round3_final.txt = r3/jt_avg3_r.txt) against the hand-set evaluation: 40k, 80k (two halves), 160k (two halves), and at equal time (36.2k against 40k)
+r3v40: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 40000 nodes: 0.752 ± 0.008 (+193 Elo) over 2000 games {'mate': 208, 'adjudicated': 1446, 'repetition': 146, 'fifty': 200}
+r3m1: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 80000 nodes: 0.777 ± 0.016 (+217 Elo) over 500 games {'adjudicated': 377, 'repetition': 33, 'fifty': 44, 'mate': 46}
+r3m2: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 80000 nodes: 0.751 ± 0.017 (+192 Elo) over 500 games {'adjudicated': 371, 'mate': 44, 'repetition': 35, 'fifty': 50}
+r3p1: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 160000 nodes: 0.756 ± 0.023 (+196 Elo) over 250 games {'adjudicated': 182, 'fifty': 25, 'repetition': 27, 'mate': 16}
+r3p2: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 160000 nodes: 0.770 ± 0.023 (+210 Elo) over 250 games {'adjudicated': 189, 'mate': 14, 'fifty': 28, 'repetition': 19}
+r3q1: @r3/jt_avg3_r.txt vs 100,320,295,245,140,980 at 40000 nodes (the candidate 36200): 0.720 ± 0.012 (+164 Elo) over 1000 games {'adjudicated': 711, 'mate': 101, 'fifty': 116, 'repetition': 72}
+## Pawn chains on the game's numbers (terms2/round3_chain4.txt), counted as pairs (CHAIN_PAIRS=1) and as pawns, against them, 40k, the same openings
+s3_pairs4: @terms2/round3_chain4.txt vs @round3_final.txt at 40000 nodes: 0.516 ± 0.014 (+11 Elo) over 1000 games {'adjudicated': 685, 'mate': 90, 'repetition': 92, 'fifty': 133}
+s3_chain4: @terms2/round3_chain4.txt vs @round3_final.txt at 40000 nodes: 0.517 ± 0.014 (+12 Elo) over 1000 games {'adjudicated': 681, 'fifty': 142, 'mate': 92, 'repetition': 85}

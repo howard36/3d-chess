@@ -9,7 +9,7 @@
 // can also hide moves from the search (`hidden`): the moves its player would
 // not notice, the opponent's long lines across levels.
 
-import { LAZY, VALUE, evaluate, forgetMobility, mobilityScore } from './evaluate';
+import { LAZY, evaluate, forgetMobility, mobilityScore } from './evaluate';
 import { FIFTY_MOVE_PLIES } from '../engine/draws';
 import { KING, PAWN, QUEEN, moveCaptured, movePiece, movePromotion, moveTo } from './position';
 import type { Position } from './position';
@@ -29,6 +29,12 @@ interface SearchLimits {
   timeMs: number;
   /** Stop after this many nodes (for repeatable tests). */
   maxNodes?: number;
+  /**
+   * A budget of positions instead of the clock: the search keeps the same
+   * rules with its clock counting positions, as if `nodes` took `timeMs`, so
+   * it stops where it would on a machine that fast, on any machine.
+   */
+  nodes?: number;
   /** Root moves scoring within this of the best get an exact score. */
   margin: number;
   /** The quiescence search's deepest line of captures, in plies. */
@@ -139,7 +145,11 @@ export class Searcher {
     this.stopped = false;
     this.canStop = false;
     this.rootPly = pos.ply;
-    this.now = limits.now ?? (() => performance.now());
+    const budget = limits.nodes;
+    this.now =
+      budget !== undefined
+        ? () => (this.nodes * limits.timeMs) / budget
+        : (limits.now ?? (() => performance.now()));
     this.deadline = this.now() + limits.timeMs;
     this.maxNodes = limits.maxNodes ?? Infinity;
     this.qLimit = limits.quiescence ?? 64;
@@ -233,7 +243,7 @@ export class Searcher {
   /** Root ordering before any search: captures by value, then promotions. */
   private staticOrder(m: number): number {
     const captured = moveCaptured(m);
-    let s = captured ? 1000 + VALUE[captured & 7] - ATTACKER_ORDER[movePiece(m) & 7] : 0;
+    let s = captured ? 1000 + this.pos.w.value[captured & 7] - ATTACKER_ORDER[movePiece(m) & 7] : 0;
     if (movePromotion(m) === QUEEN) s += 900;
     return s;
   }
@@ -409,11 +419,12 @@ export class Searcher {
     const base = ply * MOVES_PER_PLY;
     const end = pos.generate(this.moves, base, true);
     this.scoreMoves(base, end, 0, ply);
+    const value = pos.w.value;
     for (let i = base; i < end; i++) {
       const m = this.pickNext(i, end);
       const captured = moveCaptured(m);
       // Even winning this piece outright cannot reach alpha
-      if (!movePromotion(m) && stand + VALUE[captured & 7] + 200 <= alpha) continue;
+      if (!movePromotion(m) && stand + value[captured & 7] + 200 <= alpha) continue;
       if (!pos.make(m)) {
         pos.unmake(m);
         continue;
@@ -467,6 +478,7 @@ export class Searcher {
   private scoreMoves(base: number, end: number, ttMove: number, ply: number): void {
     const k0 = this.killers[ply * 2];
     const k1 = this.killers[ply * 2 + 1];
+    const value = this.pos.w.value;
     for (let i = base; i < end; i++) {
       const m = this.moves[i];
       let s: number;
@@ -477,7 +489,7 @@ export class Searcher {
         if (captured || promo) {
           s =
             (1 << 28) +
-            (captured ? VALUE[captured & 7] * 16 - ATTACKER_ORDER[movePiece(m) & 7] : 0) +
+            (captured ? value[captured & 7] * 16 - ATTACKER_ORDER[movePiece(m) & 7] : 0) +
             (promo === QUEEN ? 9000 : promo ? -1000 : 0);
         } else if (m === k0) s = (1 << 27) + 1;
         else if (m === k1) s = 1 << 27;

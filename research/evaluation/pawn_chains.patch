@@ -1,0 +1,141 @@
+# Pawn chains (pawns a pawn defends, 4 cp each) for client/src/ai, kept as moves are played: README "More terms".
+# Apply from the repository root: git apply research/evaluation/pawn_chains.patch
+--- a/client/src/ai/position.ts
++++ b/client/src/ai/position.ts
+@@ -298,7 +298,8 @@
+ export const T_QUEENS = 13;
+ export const T_SHIELD = 15;
+ export const T_THREATS = 17;
+-export const TERMS = 19;
++export const T_CHAIN = 19;
++export const TERMS = 21;
+ 
+ /** Plies of history kept at first; the record grows as a game goes on. */
+ const HISTORY_PLIES = 256;
+@@ -411,6 +412,8 @@
+     t[T_PRESSURE + 1] = this.pressure(BLACK_SIDE);
+     t[T_SHIELD] = this.shield(WHITE_SIDE);
+     t[T_SHIELD + 1] = this.shield(BLACK_SIDE);
++    t[T_CHAIN] = this.chain(WHITE_SIDE);
++    t[T_CHAIN + 1] = this.chain(BLACK_SIDE);
+   }
+ 
+   /** `side`'s pawns beside its own king. */
+@@ -440,6 +443,64 @@
+     return n;
+   }
+ 
++  /** `side`'s pawns that another of its pawns defends. */
++  private chain(side: number): number {
++    const board = this.board;
++    const pawn = side === WHITE_SIDE ? PAWN : PAWN | BLACK;
++    let n = 0;
++    for (let word = 0; word < 4; word++) {
++      let bits = this.occ[(side << 2) | word];
++      while (bits !== 0) {
++        const low = bits & -bits;
++        bits ^= low;
++        const c = (word << 5) | (31 - Math.clz32(low));
++        if (board[c] === pawn && this.pawnsOn(c, side, -1) > 0) n++;
++      }
++    }
++    return n;
++  }
++
++  /**
++   * The change to chain(side) when one of `side`'s pawns has just left
++   * `from` for `to` (-1: it promoted there), the board already showing it.
++   */
++  private chainMoved(side: number, from: number, to: number): number {
++    const board = this.board;
++    const pawn = side === WHITE_SIDE ? PAWN : PAWN | BLACK;
++    const caps = PAWN_CAP[side];
++    let d = this.pawnsOn(from, side, -1) > 0 ? -1 : 0;
++    // The pawns it defended from `from`, now left with no other
++    for (let i = 0, len = PAWN_CAP_LEN[side][from]; i < len; i++) {
++      const c = caps[from * 5 + i];
++      if (c !== to && board[c] === pawn && this.pawnsOn(c, side, -1) === 0) d--;
++    }
++    if (to < 0) return d;
++    if (this.pawnsOn(to, side, -1) > 0) d++;
++    // The pawns it defends from `to` that had no defender (`from` was not one)
++    for (let i = 0, len = PAWN_CAP_LEN[side][to]; i < len; i++) {
++      const c = caps[to * 5 + i];
++      if (board[c] !== pawn || this.pawnsOn(c, side, -1) !== 1) continue;
++      let k = 0;
++      const n = PAWN_CAP_LEN[side][from];
++      while (k < n && caps[from * 5 + k] !== c) k++;
++      if (k === n) d++;
++    }
++    return d;
++  }
++
++  /** The change to chain(side) when its pawn on `cell` has just been taken. */
++  private chainTaken(side: number, cell: number): number {
++    const board = this.board;
++    const pawn = side === WHITE_SIDE ? PAWN : PAWN | BLACK;
++    const caps = PAWN_CAP[side];
++    let d = this.pawnsOn(cell, side, -1) > 0 ? -1 : 0;
++    for (let i = 0, len = PAWN_CAP_LEN[side][cell]; i < len; i++) {
++      const c = caps[cell * 5 + i];
++      if (board[c] === pawn && this.pawnsOn(c, side, -1) === 0) d--;
++    }
++    return d;
++  }
++
+   /** How many of `side`'s pawns attack `cell`, `skip` aside. */
+   private pawnsOn(cell: number, side: number, skip: number): number {
+     const from = PAWN_FROM[side];
+@@ -758,6 +819,10 @@
+       t[o + T_PRESSURE + enemy] = this.pressure(enemy);
+       t[o + T_SHIELD + side] = this.shield(side);
+     }
++    // The pawns that pawns defend: only a pawn's move or a pawn taken changes
++    // them, and only near it
++    if (type === PAWN) t[o + T_CHAIN + side] += this.chainMoved(side, from, promo ? -1 : to);
++    if (ct === PAWN) t[o + T_CHAIN + enemy] += this.chainTaken(enemy, to);
+ 
+     const k = this.king[side];
+     if (k < 0) return true;
+--- a/client/src/ai/evaluate.ts
++++ b/client/src/ai/evaluate.ts
+@@ -7,9 +7,9 @@
+ // own danger, the enemy's pieces and above all its queen: home behind its
+ // pawns while there is an attack to fear, to the middle after. On top: pieces
+ // with room to move and near the enemy king, the bishop pair, pawns beside
+-// their king, pieces a pawn attacks, having the move, and, a side ahead,
+-// trading down and driving the bare king to a corner. The numbers were tuned for playing
+-// strength by self-play (research/evaluation/).
++// their king, pieces a pawn attacks, pawns a pawn defends, having the move,
++// and, a side ahead, trading down and driving the bare king to a corner. The
++// numbers were tuned for playing strength by self-play (research/evaluation/).
+ 
+ import {
+   BLACK,
+@@ -23,6 +23,7 @@
+   PHASE_MAX,
+   TERMS,
+   T_BISHOPS,
++  T_CHAIN,
+   T_EG,
+   T_FORCE,
+   T_MATERIAL,
+@@ -49,6 +50,8 @@
+ const SHIELD = 13.7;
+ /** Each enemy piece (no pawn or king) a pawn attacks. */
+ const PAWN_THREAT = 41.6;
++/** Each own pawn another own pawn defends. */
++const PAWN_CHAIN = 4;
+ /** Having the move. */
+ const TEMPO = 20;
+ const WHITE_KING = KING * CELLS;
+@@ -101,6 +104,9 @@
+   // Pieces a pawn attacks
+   sum += PAWN_THREAT * 24 * t[o + T_THREATS];
+   sum += -1 * PAWN_THREAT * 24 * t[o + T_THREATS + 1];
++  // Pawns their own pawns defend
++  sum += 24 * (PAWN_CHAIN * t[o + T_CHAIN]);
++  sum += -24 * (PAWN_CHAIN * t[o + T_CHAIN + 1]);
+   let score = Math.round(sum / PHASE_MAX);
+ 
+   // Ahead on material: trade down (each trade makes the lead count for more),

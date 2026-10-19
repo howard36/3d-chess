@@ -1,39 +1,59 @@
-// How the computer judges a position, in centipawns for the side to move.
+// How the computer judges a position, in centipawns for the side to move,
+// by one of two sets of numbers (numbers.ts): the levels' or the expert's.
 //
-// Material at the engine's own values (queen 9.8, knight 3.2, bishop 2.95,
-// rook 2.45, unicorn 1.4), which play with the terms below; the captured
-// pieces' "+N" (game/material.ts) counts its own, in half pawns. On top of
-// it, what a club player looks for: pieces brought out towards the middle of
-// the cube, pawns pushed on towards their last square (counted more as the
-// board empties), the king kept home behind its pawns while queens and
-// knights are about and brought out once they are gone (position.ts), pieces
-// with room to move and near the enemy king, and, a side ahead, trading down
-// and driving the bare king to a corner.
+// Material and position together, in tables per piece and cell (position.ts):
+// pieces brought out towards the middle of the cube, pawns pushed on towards
+// their last square (counted more as the board empties), the king kept home
+// behind its pawns while there is an attack to fear and brought to the middle
+// after, each table blending a middlegame and an endgame half by the game's
+// phase. On top: pieces with room to move and near the enemy king, the bishop
+// pair, and, a side ahead, trading down and driving the bare king to a
+// corner. The expert's numbers add four terms: the king's tables and the
+// pressure on it blend by its own danger (the enemy's pieces and above all its
+// queen) rather than the game's phase; own pawns beside the king; enemy
+// pieces a pawn attacks; and having the move.
 
 import {
+  BLACK,
   BLACK_SIDE,
   CELLS,
   CENTRE,
   DIST,
+  KING,
   PHASE_MAX,
   SIDE_HI,
   SIDE_LO,
   TERMS,
   T_BISHOPS,
   T_EG,
+  T_FORCE,
   T_MATERIAL,
   T_MG,
   T_PHASE,
   T_PIECES,
   T_PRESSURE,
+  T_QUEENS,
+  T_SHIELD,
+  T_THREATS,
   WHITE_SIDE,
 } from './position';
-import type { Position } from './position';
+import type { Position, Weights } from './position';
+import type { EvalNumbers } from './numbers';
 
-export { DIST, VALUE } from './position';
+export { DIST } from './position';
 
-/** Positional terms beyond the tables, weighted per piece type. */
-const MOBILITY_WEIGHT = [0, 0, 2, 2, 2, 2, 1, 0];
+const WHITE_KING = KING * CELLS;
+const BLACK_KING = (KING | BLACK) * CELLS;
+
+/** A king's danger (the expert's), 0 to 24, from the game's phase and the enemy's pieces and queen. */
+const danger = (n: EvalNumbers, phase: number, enemyForce: number, enemyQueens: number) => {
+  const f = enemyForce < 12 ? enemyForce : 12;
+  const w =
+    (1 - n.dangerForce - n.dangerQueen) * phase +
+    2 * n.dangerForce * f +
+    24 * n.dangerQueen * (enemyQueens > 0 ? 1 : 0);
+  return w > 24 ? 24 : w;
+};
 
 /**
  * The position for the side to move, in centipawns (positive: better for
@@ -41,20 +61,52 @@ const MOBILITY_WEIGHT = [0, 0, 2, 2, 2, 2, 1, 0];
  * pieces (position.ts) are kept by the board as moves are played.
  */
 export function evaluate(pos: Position, full = true): number {
+  const w = pos.w;
+  const n = w.numbers;
   const t = pos.terms;
   const o = pos.ply * TERMS;
-  let mg = t[o + T_MG];
-  const eg = t[o + T_EG];
   let phase = t[o + T_PHASE];
   if (phase > PHASE_MAX) phase = PHASE_MAX;
+  let score: number;
+  if (!w.extended) {
+    let mg = t[o + T_MG];
+    const eg = t[o + T_EG];
+    // Pressure on a king counts while there are pieces to make it tell
+    mg += t[o + T_PRESSURE] - t[o + T_PRESSURE + 1];
+    // Two bishops cover both colours of the cube
+    if (t[o + T_BISHOPS] >= 2) mg += n.bishopPair;
+    if (t[o + T_BISHOPS + 1] >= 2) mg -= n.bishopPair;
+    score = Math.round((mg * phase + eg * (PHASE_MAX - phase)) / PHASE_MAX);
+  } else {
+    // The kings' tables apart: they blend by each king's danger
+    const wk = pos.king[0];
+    const bk = pos.king[1];
+    const kingMgW = wk >= 0 ? w.mg[WHITE_KING + wk] : 0;
+    const kingEgW = wk >= 0 ? w.eg[WHITE_KING + wk] : 0;
+    const kingMgB = bk >= 0 ? w.mg[BLACK_KING + bk] : 0;
+    const kingEgB = bk >= 0 ? w.eg[BLACK_KING + bk] : 0;
+    let mg = t[o + T_MG] - kingMgW - kingMgB;
+    const eg = t[o + T_EG] - kingEgW - kingEgB;
 
-  // Pressure on a king counts while there are pieces to make it tell
-  mg += t[o + T_PRESSURE] - t[o + T_PRESSURE + 1];
-  // Two bishops cover both colours of the cube
-  if (t[o + T_BISHOPS] >= 2) mg += 20;
-  if (t[o + T_BISHOPS + 1] >= 2) mg -= 20;
+    // Two bishops cover both colours of the cube
+    if (t[o + T_BISHOPS] >= 2) mg += n.bishopPair;
+    if (t[o + T_BISHOPS + 1] >= 2) mg -= n.bishopPair;
 
-  let score = Math.round((mg * phase + eg * (PHASE_MAX - phase)) / PHASE_MAX);
+    // Each king's danger, in 24ths: its tables, the pressure on it and its
+    // pawns beside it count by that
+    const dangerW = danger(n, phase, t[o + T_FORCE + 1], t[o + T_QUEENS + 1]);
+    const dangerB = danger(n, phase, t[o + T_FORCE], t[o + T_QUEENS]);
+    let sum = mg * phase + eg * (PHASE_MAX - phase);
+    sum +=
+      kingMgW * dangerW + kingEgW * (24 - dangerW) + kingMgB * dangerB + kingEgB * (24 - dangerB);
+    sum += t[o + T_PRESSURE] * dangerB - t[o + T_PRESSURE + 1] * dangerW;
+    if (wk >= 0) sum += n.shield * t[o + T_SHIELD] * dangerW;
+    if (bk >= 0) sum += -1 * n.shield * t[o + T_SHIELD + 1] * dangerB;
+    // Pieces a pawn attacks
+    sum += n.pawnThreat * 24 * t[o + T_THREATS];
+    sum += -1 * n.pawnThreat * 24 * t[o + T_THREATS + 1];
+    score = Math.round(sum / PHASE_MAX);
+  }
 
   // Ahead on material: trade down (each trade makes the lead count for more),
   // and with the enemy short of pieces, drive the king to a corner and bring
@@ -74,7 +126,9 @@ export function evaluate(pos: Position, full = true): number {
     }
   }
 
-  const relative = pos.side === WHITE_SIDE ? score : -score;
+  let relative = pos.side === WHITE_SIDE ? score : -score;
+  // Having the move
+  if (n.tempo) relative += n.tempo;
   const scaled = toward50(relative, pos.halfmoves);
   return full ? scaled + mobilityScore(pos) : scaled;
 }
@@ -94,7 +148,11 @@ const toward50 = (score: number, halfmoves: number) =>
  */
 export const mobilityScore = (pos: Position) => {
   // Kept by the board's own hash (the side to move taken out), as the
-  // transposition table keeps a search's results
+  // transposition table keeps a search's results, for one set of weights
+  if (pos.w !== owner) {
+    owner = pos.w;
+    age++;
+  }
   const black = pos.side !== WHITE_SIDE;
   const lo = black ? pos.hashLo ^ SIDE_LO : pos.hashLo;
   const hi = black ? pos.hashHi ^ SIDE_HI : pos.hashHi;
@@ -103,7 +161,7 @@ export const mobilityScore = (pos: Position) => {
   if (mobilityAge[slot] === age && mobilityCheck[slot] === hi) {
     m = mobilityValue[slot];
   } else {
-    m = pos.mobility(MOBILITY_WEIGHT);
+    m = pos.mobility(pos.w.mobility);
     mobilityAge[slot] = age;
     mobilityCheck[slot] = hi;
     mobilityValue[slot] = m;
@@ -125,6 +183,8 @@ let mobilityCheck = new Int32Array(0);
 let mobilityValue = new Int32Array(0);
 let mobilityAge = new Int32Array(0);
 let age = 1;
+// The weights the kept mobility was counted by: another set forgets it
+let owner: Weights | null = null;
 
 export const forgetMobility = () => {
   if (mobilityAge.length === 0) {

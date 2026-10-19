@@ -1,8 +1,10 @@
 import { SHORT_GAME } from '../game/shortGame';
 import { evaluate, forgetMobility, mobilityScore } from './evaluate';
 import {
+  BISHOP,
   BLACK,
   BLACK_SIDE,
+  EXPERT_WEIGHTS,
   KING,
   KNIGHT,
   PAWN,
@@ -141,6 +143,54 @@ it('does not see a hidden move, so walks into it', () => {
     hidden: (m) => (m & 127) === cellOf(2, 2, 1),
   });
   expect(pawnMove(blind) - pawnMove(seeing)).toBeGreaterThan(600);
+});
+
+it('on a budget of positions, stops where the clock would at that speed, on any machine', () => {
+  const pos = Position.fromRecords(demo.slice(0, 6));
+  const limits = { maxDepth: 30, timeMs: 1800, margin: 16, nodes: 20_000 };
+  const budgeted = new Searcher(pos).search({ ...limits, now: () => performance.now() * 1e6 });
+  // The clock's own rules, with a clock that counts the positions searched
+  const searcher = new Searcher(pos);
+  const counted = () => (searcher as unknown as { nodes: number }).nodes;
+  const clocked = searcher.search({
+    ...limits,
+    nodes: undefined,
+    now: () => (counted() * limits.timeMs) / limits.nodes,
+  });
+  expect(budgeted).toEqual(clocked);
+  // Past the budget by at most the stretch between looks at the clock
+  expect(budgeted.nodes).toBeLessThanOrEqual(limits.nodes + 1024);
+  const more = new Searcher(pos).search({ ...limits, nodes: 200_000 });
+  expect(more.depth).toBeGreaterThan(budgeted.depth);
+  // A few searches: seconds with coverage on a busy runner
+}, 30_000);
+
+it('the expert judges a position as its mirror image, with or without a king', () => {
+  const pieces: [number, number, number, number][] = [
+    [2, 0, 0, KING],
+    [1, 1, 0, PAWN],
+    [2, 1, 1, PAWN],
+    [3, 1, 0, BISHOP],
+    [1, 2, 1, QUEEN],
+    [2, 4, 4, KING | BLACK],
+    [2, 3, 4, PAWN | BLACK],
+    [1, 2, 2, PAWN | BLACK],
+    [0, 3, 3, ROOK | BLACK],
+    [3, 2, 2, KNIGHT | BLACK],
+  ];
+  for (const kings of [2, 1]) {
+    const here = kings === 2 ? pieces : pieces.filter(([, , , code]) => code !== (KING | BLACK));
+    const pos = new Position(EXPERT_WEIGHTS);
+    for (const [x, y, z, code] of here) pos.board[cellOf(x, y, z)] = code;
+    pos.reset(WHITE_SIDE);
+    // Turned through the centre of the cube, the colours swapped
+    const mirror = new Position(EXPERT_WEIGHTS);
+    for (const [x, y, z, code] of here) mirror.board[cellOf(4 - x, 4 - y, 4 - z)] = code ^ BLACK;
+    mirror.reset(BLACK_SIDE);
+    expect(Math.abs(evaluate(mirror) - evaluate(pos))).toBeLessThanOrEqual(1);
+    // A pawn of each side attacks a piece, and the kings have their pawns beside them
+    expect(evaluate(pos)).not.toBe(evaluate(setUp(here)));
+  }
 });
 
 it('judges the start as even, and a piece up as winning', () => {
