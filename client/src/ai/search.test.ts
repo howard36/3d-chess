@@ -1,5 +1,5 @@
 import { SHORT_GAME } from '../game/shortGame';
-import { evaluate, forgetMobility, mobilityScore } from './evaluate';
+import { evaluate } from './evaluate';
 import {
   BLACK,
   BLACK_SIDE,
@@ -228,26 +228,4 @@ describe('the draws', () => {
     expect(late).toBeLessThan(fresh);
     expect(late).toBeGreaterThan(fresh * 0.7);
   });
-});
-
-it('keeps each board\'s mobility as its own, whichever side is to move', () => {
-  const pos = Position.fromRecords([]);
-  const fresh: number[] = [];
-  const seen: number[] = [];
-  for (const m of demo) {
-    forgetMobility();
-    fresh.push(mobilityScore(pos));
-    pos.makeNull();
-    // The same board with the other side to move: the same count, turned round
-    expect(mobilityScore(pos)).toBe(-fresh[fresh.length - 1]);
-    pos.unmakeNull();
-    pos.make(pos.findMove(m));
-  }
-  // Met again, each board's from the kept counts
-  const again = Position.fromRecords([]);
-  for (const m of demo) {
-    seen.push(mobilityScore(again));
-    again.make(again.findMove(m));
-  }
-  expect(seen).toEqual(fresh);
 });

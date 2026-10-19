@@ -16,8 +16,6 @@ import {
   CENTRE,
   DIST,
   PHASE_MAX,
-  SIDE_HI,
-  SIDE_LO,
   TERMS,
   T_BISHOPS,
   T_EG,
@@ -93,39 +91,8 @@ const toward50 = (score: number, halfmoves: number) =>
  * so the quiescence search leaves it out where it cannot matter (LAZY).
  */
 export const mobilityScore = (pos: Position) => {
-  // Kept by the board's own hash (the side to move taken out), as the
-  // transposition table keeps a search's results
-  const black = pos.side !== WHITE_SIDE;
-  const lo = black ? pos.hashLo ^ SIDE_LO : pos.hashLo;
-  const hi = black ? pos.hashHi ^ SIDE_HI : pos.hashHi;
-  const slot = lo & MOBILITY_MASK;
-  let m: number;
-  if (mobilityAge[slot] === age && mobilityCheck[slot] === hi) {
-    m = mobilityValue[slot];
-  } else {
-    m = pos.mobility(MOBILITY_WEIGHT);
-    mobilityAge[slot] = age;
-    mobilityCheck[slot] = hi;
-    mobilityValue[slot] = m;
-  }
-  return toward50(black ? -m : m, pos.halfmoves);
-};
-
-/**
- * The boards' mobility met in a search, by slot (the hash's low bits) with
- * the high half to check: a board's mobility is the same wherever the search
- * meets it again (the next iteration, a re-search, another move order).
- * forgetMobility() at each search's start empties it, so a search costs the
- * same whatever searched before it on the thread.
- */
-const MOBILITY_MASK = (1 << 16) - 1;
-const mobilityCheck = new Int32Array(MOBILITY_MASK + 1);
-const mobilityValue = new Int32Array(MOBILITY_MASK + 1);
-const mobilityAge = new Int32Array(MOBILITY_MASK + 1);
-let age = 1;
-
-export const forgetMobility = () => {
-  age++;
+  const m = pos.mobility(MOBILITY_WEIGHT);
+  return toward50(pos.side === WHITE_SIDE ? m : -m, pos.halfmoves);
 };
 
 /** The most mobility is taken to swing a position by. */

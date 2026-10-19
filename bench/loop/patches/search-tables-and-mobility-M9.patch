@@ -1,0 +1,226 @@
+From c71182451193d3e688ac32945b905022329849d1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 00:47:38 +0000
+Subject: [PATCH] perf(client): the search keeps its work a thread: one set of
+ tables, each board's mobility once
+
+A search clears what it reads before reading it (ttFlag gates the table; the
+move lists are written before they are read) and runs start to finish without
+yielding, so the searches of one thread share one set of tables instead of
+allocating and zeroing 3.3 MB for every think, assessment and review position.
+
+The pieces' room to move, a third of the search's time, is a property of the
+board alone, and the search meets the same board again and again (the next
+iteration's frontier, a re-search after a null window or a reduction, captures
+in another order): it is kept by the board's hash (the side to move taken
+out, so a null move's board is met too), emptied at each search's start, in
+a 64K-slot table a thread. 36% of the calls hit on the bench's positions.
+Nodes, depths and moves are unchanged (EXPECTED_SEARCH).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+---
+ client/src/ai/evaluate.ts    | 37 +++++++++++++++++++++++--
+ client/src/ai/position.ts    |  5 ++--
+ client/src/ai/search.test.ts | 24 +++++++++++++++-
+ client/src/ai/search.ts      | 53 ++++++++++++++++++++++++++++--------
+ 4 files changed, 103 insertions(+), 16 deletions(-)
+
+diff --git a/client/src/ai/evaluate.ts b/client/src/ai/evaluate.ts
+index 396c570..c9c3c2b 100644
+--- a/client/src/ai/evaluate.ts
++++ b/client/src/ai/evaluate.ts
+@@ -16,6 +16,8 @@ import {
+   CENTRE,
+   DIST,
+   PHASE_MAX,
++  SIDE_HI,
++  SIDE_LO,
+   TERMS,
+   T_BISHOPS,
+   T_EG,
+@@ -91,8 +93,39 @@ const toward50 = (score: number, halfmoves: number) =>
+  * so the quiescence search leaves it out where it cannot matter (LAZY).
+  */
+ export const mobilityScore = (pos: Position) => {
+-  const m = pos.mobility(MOBILITY_WEIGHT);
+-  return toward50(pos.side === WHITE_SIDE ? m : -m, pos.halfmoves);
++  // Kept by the board's own hash (the side to move taken out), as the
++  // transposition table keeps a search's results
++  const black = pos.side !== WHITE_SIDE;
++  const lo = black ? pos.hashLo ^ SIDE_LO : pos.hashLo;
++  const hi = black ? pos.hashHi ^ SIDE_HI : pos.hashHi;
++  const slot = lo & MOBILITY_MASK;
++  let m: number;
++  if (mobilityAge[slot] === age && mobilityCheck[slot] === hi) {
++    m = mobilityValue[slot];
++  } else {
++    m = pos.mobility(MOBILITY_WEIGHT);
++    mobilityAge[slot] = age;
++    mobilityCheck[slot] = hi;
++    mobilityValue[slot] = m;
++  }
++  return toward50(black ? -m : m, pos.halfmoves);
++};
++
++/**
++ * The boards' mobility met in a search, by slot (the hash's low bits) with
++ * the high half to check: a board's mobility is the same wherever the search
++ * meets it again (the next iteration, a re-search, another move order).
++ * forgetMobility() at each search's start empties it, so a search costs the
++ * same whatever searched before it on the thread.
++ */
++const MOBILITY_MASK = (1 << 16) - 1;
++const mobilityCheck = new Int32Array(MOBILITY_MASK + 1);
++const mobilityValue = new Int32Array(MOBILITY_MASK + 1);
++const mobilityAge = new Int32Array(MOBILITY_MASK + 1);
++let age = 1;
++
++export const forgetMobility = () => {
++  age++;
+ };
+ 
+ /** The most mobility is taken to swing a position by. */
+diff --git a/client/src/ai/position.ts b/client/src/ai/position.ts
+index 8d70c33..9a9c7ae 100644
+--- a/client/src/ai/position.ts
++++ b/client/src/ai/position.ts
+@@ -273,8 +273,9 @@ for (let i = 0; i < 16 * CELLS; i++) {
+   ZOBRIST_LO[i] = nextZ();
+   ZOBRIST_HI[i] = nextZ();
+ }
+-const SIDE_LO = nextZ();
+-const SIDE_HI = nextZ();
++/** What the side to move adds to a position's hash (Position.hashLo, hashHi). */
++export const SIDE_LO = nextZ();
++export const SIDE_HI = nextZ();
+ 
+ /**
+  * What evaluate() adds up over the pieces, kept per ply as moves are played
+diff --git a/client/src/ai/search.test.ts b/client/src/ai/search.test.ts
+index 6f09caa..e8fafdd 100644
+--- a/client/src/ai/search.test.ts
++++ b/client/src/ai/search.test.ts
+@@ -1,5 +1,5 @@
+ import { SHORT_GAME } from '../game/shortGame';
+-import { evaluate } from './evaluate';
++import { evaluate, forgetMobility, mobilityScore } from './evaluate';
+ import {
+   BLACK,
+   BLACK_SIDE,
+@@ -229,3 +229,25 @@ describe('the draws', () => {
+     expect(late).toBeGreaterThan(fresh * 0.7);
+   });
+ });
++
++it('keeps each board\'s mobility as its own, whichever side is to move', () => {
++  const pos = Position.fromRecords([]);
++  const fresh: number[] = [];
++  const seen: number[] = [];
++  for (const m of demo) {
++    forgetMobility();
++    fresh.push(mobilityScore(pos));
++    pos.makeNull();
++    // The same board with the other side to move: the same count, turned round
++    expect(mobilityScore(pos)).toBe(-fresh[fresh.length - 1]);
++    pos.unmakeNull();
++    pos.make(pos.findMove(m));
++  }
++  // Met again, each board's from the kept counts
++  const again = Position.fromRecords([]);
++  for (const m of demo) {
++    seen.push(mobilityScore(again));
++    again.make(again.findMove(m));
++  }
++  expect(seen).toEqual(fresh);
++});
+diff --git a/client/src/ai/search.ts b/client/src/ai/search.ts
+index d8097c9..3150648 100644
+--- a/client/src/ai/search.ts
++++ b/client/src/ai/search.ts
+@@ -9,7 +9,7 @@
+ // can also hide moves from the search (`hidden`): the moves its player would
+ // not notice, the opponent's long lines across levels.
+ 
+-import { LAZY, VALUE, evaluate, mobilityScore } from './evaluate';
++import { LAZY, VALUE, evaluate, forgetMobility, mobilityScore } from './evaluate';
+ import { FIFTY_MOVE_PLIES } from '../engine/draws';
+ import { KING, PAWN, QUEEN, moveCaptured, movePiece, movePromotion, moveTo } from './position';
+ import type { Position } from './position';
+@@ -79,17 +79,36 @@ const UPPER = 3;
+  */
+ const ATTACKER_ORDER = [0, 0, 3, 3, 2, 1, 4, 5];
+ 
++/**
++ * The tables a search works in, one set a thread: a search clears what it
++ * reads before reading it (ttFlag gates the rest of the table, and the move
++ * lists are written before they are read), and runs start to finish without
++ * yielding, so the searches of one thread can share them.
++ */
++const makeTables = () => ({
++  ttCheck: new Int32Array(TT_SIZE),
++  ttMove: new Int32Array(TT_SIZE),
++  ttScore: new Int16Array(TT_SIZE),
++  ttDepth: new Int8Array(TT_SIZE),
++  ttFlag: new Uint8Array(TT_SIZE),
++  moves: new Int32Array(MAX_PLY * MOVES_PER_PLY),
++  order: new Int32Array(MAX_PLY * MOVES_PER_PLY),
++  killers: new Int32Array(MAX_PLY * 2),
++  history: new Int32Array(16 * 125),
++});
++let shared: ReturnType<typeof makeTables> | null = null;
++
+ export class Searcher {
+-  private readonly ttCheck = new Int32Array(TT_SIZE);
+-  private readonly ttMove = new Int32Array(TT_SIZE);
+-  private readonly ttScore = new Int16Array(TT_SIZE);
+-  private readonly ttDepth = new Int8Array(TT_SIZE);
+-  private readonly ttFlag = new Uint8Array(TT_SIZE);
+-  private readonly moves = new Int32Array(MAX_PLY * MOVES_PER_PLY);
+-  private readonly order = new Int32Array(MAX_PLY * MOVES_PER_PLY);
+-  private readonly killers = new Int32Array(MAX_PLY * 2);
++  private readonly ttCheck: Int32Array;
++  private readonly ttMove: Int32Array;
++  private readonly ttScore: Int16Array;
++  private readonly ttDepth: Int8Array;
++  private readonly ttFlag: Uint8Array;
++  private readonly moves: Int32Array;
++  private readonly order: Int32Array;
++  private readonly killers: Int32Array;
+   /** history[piece * 125 + to]: how often a quiet move there has cut off. */
+-  private readonly history = new Int32Array(16 * 125);
++  private readonly history: Int32Array;
+   private nodes = 0;
+   private stopped = false;
+   private deadline = 0;
+@@ -101,7 +120,18 @@ export class Searcher {
+   /** The ply (Position.ply) of the position searched from. */
+   private rootPly = 0;
+ 
+-  constructor(private readonly pos: Position) {}
++  constructor(private readonly pos: Position) {
++    const t = (shared ??= makeTables());
++    this.ttCheck = t.ttCheck;
++    this.ttMove = t.ttMove;
++    this.ttScore = t.ttScore;
++    this.ttDepth = t.ttDepth;
++    this.ttFlag = t.ttFlag;
++    this.moves = t.moves;
++    this.order = t.order;
++    this.killers = t.killers;
++    this.history = t.history;
++  }
+ 
+   search(limits: SearchLimits): SearchResult {
+     const pos = this.pos;
+@@ -117,6 +147,7 @@ export class Searcher {
+     this.killers.fill(0);
+     this.history.fill(0);
+     this.ttFlag.fill(0);
++    forgetMobility();
+     const margin = limits.margin;
+ 
+     // The legal root moves, in move-ordering order to begin with
+-- 
+2.43.0
+
