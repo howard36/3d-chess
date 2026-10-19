@@ -1,0 +1,1 @@
+hard{"temperature":28} vs hard: 40.4% ± 2.2% (-68 Elo) over 400 games, +128 =67 -205 {"resigned":323,"fifty":65,"mate":10,"repetition":1,"length":1}; hard{"temperature":28}: 40 ms, 24430 positions a move; hard: 40 ms, 24573 positions a move

@@ -1,0 +1,1 @@
+hard{"nodes":15000,"temperature":28} vs medium: 89.0% ± 1.5% (363 Elo) over 400 games, +346 =20 -34 {"resigned":322,"mate":58,"fifty":17,"repetition":3}; hard{"nodes":15000,"temperature":28}: 22 ms, 13398 positions a move; medium: 80 ms, 53433 positions a move
