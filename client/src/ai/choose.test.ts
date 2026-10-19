@@ -1,11 +1,24 @@
 import { Board } from '../engine/board';
 import { moveFromMessage } from '../engine/protocol';
 import { SHORT_GAME } from '../game/shortGame';
-import { analysePosition, assessPosition, chooseMove, hardToSee, pickMove, seeded } from './choose';
-import { DIFFICULTIES, LEVELS, isDifficulty, thinkTime } from './levels';
+import {
+  analysePosition,
+  assessPosition,
+  chooseMove,
+  hardToSee,
+  hardness,
+  pickMove,
+  sacrifice,
+  seeded,
+  stylise,
+  tension,
+} from './choose';
+import { DIFFICULTIES, ENGINE, LEVELS, isDifficulty, thinkTime } from './levels';
 import { evaluate } from './evaluate';
+import { NUMBERS } from './numbers';
 import {
   BISHOP,
+  CZ,
   EXPERT_WEIGHTS,
   KING,
   KNIGHT,
@@ -14,6 +27,9 @@ import {
   QUEEN,
   UNICORN,
   cellOf,
+  moveFrom,
+  movePiece,
+  moveTo,
 } from './position';
 import type { WireMove } from './position';
 import { MATE, Searcher } from './search';
@@ -64,7 +80,7 @@ describe('a review’s look at a position', () => {
   });
 
   it('counts a forced mate in plies, for the side to move or against it', () => {
-    expect(analysePosition(demo.slice(0, -1), { maxNodes: 4000 })).toEqual({
+    expect(analysePosition(demo.slice(0, -1), { maxNodes: 4000 })).toMatchObject({
       best: demo[demo.length - 1],
       score: MATE - 1,
       mate: 1,
@@ -152,14 +168,16 @@ it('says a recapture is obvious', () => {
   expect(choice!.forced).toBe(false);
 });
 
-it('the levels grow stronger: deeper, steadier, seeing more', () => {
+it('the levels grow stronger: knowing more, seeing more, steadier', () => {
   const [easy, medium, hard] = DIFFICULTIES.map((d) => LEVELS[d]);
+  expect([easy.knows, medium.knows, hard.knows]).toEqual(['beginner', 'advanced', 'expert']);
   expect(easy.maxDepth).toBeLessThan(medium.maxDepth);
-  expect(medium.maxDepth).toBeLessThan(hard.maxDepth);
-  expect(easy.noise).toBeGreaterThan(medium.noise);
-  expect(medium.noise).toBeGreaterThanOrEqual(hard.noise);
-  expect(easy.blindness).toBeGreaterThan(medium.blindness);
-  expect(hard.blindness).toBe(0);
+  // Hard on a budget of positions, the same on any device
+  expect(hard.nodes).toBeGreaterThan(0);
+  // Easy overlooks what Medium sees, and Medium what Hard sees
+  expect(easy.sight!.miss).toBeGreaterThanOrEqual(medium.sight!.miss * 0.9);
+  expect(medium.sight!.ease).toBeLessThan(hard.sight!.ease);
+  expect(easy.sight!.ease).toBeLessThan(hard.sight!.ease);
   expect(isDifficulty('hard')).toBe(true);
   expect(isDifficulty('impossible')).toBe(false);
 });
@@ -171,9 +189,9 @@ it('plays Hard on a budget of positions the same on any machine, and the expert 
   const a = chooseMove(records, 'hardFixed', 5, fixed)!;
   const b = chooseMove(records, 'hardFixed', 5, { ...fixed, ...slow })!;
   expect(b).toEqual(a);
-  expect(LEVELS.hardFixed).toMatchObject({ ...LEVELS.hard, nodes: 1_800_000 });
+  expect(LEVELS.hardFixed).toMatchObject({ ...ENGINE, nodes: 1_800_000 });
   // The expert plays Hard's search on the expert's numbers
-  expect(LEVELS.expert).toMatchObject({ ...LEVELS.hardFixed, expert: true });
+  expect(LEVELS.expert).toMatchObject({ ...LEVELS.hardFixed, knows: 'expert' });
   const start = Position.start();
   const expert = Position.start(EXPERT_WEIGHTS);
   expect(evaluate(expert)).not.toBe(evaluate(start));
@@ -257,4 +275,95 @@ it('thinks briefly over forced and obvious moves, briskly in the opening, longer
       expect(ms).toBeGreaterThan(400);
       expect(ms).toBeLessThan(3500);
     }
+});
+
+describe('how hard a move is to see', () => {
+  /** The position after `records` and `next`, the move, and the move before it. */
+  const play = (records: WireMove[], next: WireMove) => {
+    const pos = Position.fromRecords(records);
+    const prev = records.length
+      ? Position.fromRecords(records.slice(0, -1)).findMove(records[records.length - 1])
+      : 0;
+    const move = pos.findMove(next);
+    pos.make(move);
+    return { pos, move, prev };
+  };
+
+  it('sees a pawn’s move or a short one on its own level at once, a knight changing level less', () => {
+    const pos = Position.start();
+    const moves = new Int32Array(512);
+    const n = pos.generate(moves, 0);
+    let knights = 0;
+    for (let i = 0; i < n; i++) {
+      const m = moves[i];
+      if (pos.make(m)) {
+        const h = hardness(pos, m, 0);
+        const type = movePiece(m) & 7;
+        const across = CZ[moveFrom(m)] !== CZ[moveTo(m)];
+        if (type === PAWN) expect(h).toBe(0);
+        if (type === KNIGHT && !across) expect(h).toBeLessThan(0.1);
+        if (type === KNIGHT && across) {
+          expect(h).toBeGreaterThanOrEqual(0.5);
+          knights++;
+        }
+      }
+      pos.unmake(m);
+    }
+    expect(knights).toBeGreaterThan(0);
+  });
+
+  it('always sees taking the piece that just moved', () => {
+    // Black's queen takes back on Dd5
+    const { pos, move, prev } = play(demo.slice(0, 5), demo[5]);
+    expect(hardness(pos, move, prev)).toBe(0);
+  });
+
+  it('finds a sacrifice across levels hard to see', () => {
+    // White's queen goes to Cc4, where Black's pawn takes it
+    const { pos, move, prev } = play(demo.slice(0, 2), demo[2]);
+    expect(sacrifice(pos, move)).toBe(true);
+    expect(hardness(pos, move, prev)).toBeGreaterThan(0.8);
+    // Black's rook, defended, takes back nothing at risk
+    const rook = play(demo.slice(0, 6), demo[6]);
+    expect(sacrifice(rook.pos, rook.move)).toBe(false);
+  });
+
+  it('calls a fight more tense than the start', () => {
+    const start = tension(Position.start());
+    expect(start).toBeGreaterThanOrEqual(0.4);
+    expect(tension(Position.fromRecords(demo.slice(0, 5)))).toBeGreaterThan(start);
+    expect(tension(Position.fromRecords(demo.slice(0, 5)))).toBeLessThanOrEqual(1.4);
+  });
+});
+
+it('plays in a style of its own each game, the same all game', () => {
+  const n = NUMBERS.advanced;
+  expect(stylise(n, 0, 7)).toEqual({ ...n, pawnMg: [...n.pawnMg], pawnEg: [...n.pawnEg] });
+  expect(stylise(n, 0.3, 7)).toEqual(stylise(n, 0.3, 7));
+  expect(stylise(n, 0.3, 7)).not.toEqual(stylise(n, 0.3, 8));
+  const styled = stylise(n, 0.3, 7);
+  expect(styled.knight.mgCentre / n.knight.mgCentre).toBeGreaterThanOrEqual(0.7);
+  expect(styled.knight.mgCentre / n.knight.mgCentre).toBeLessThanOrEqual(1.3);
+  // A game's moves come from its own style
+  const records = demo.slice(0, 4);
+  const level = { style: 0.3, knows: 'advanced' as const };
+  const a = chooseMove(records, 'medium', 3, { ...quick, level, game: 11 })!;
+  const b = chooseMove(records, 'medium', 3, { ...quick, level, game: 11 })!;
+  expect(b).toEqual(a);
+});
+
+it('overlooks the harder moves of a piece, the same all through a move', () => {
+  const records = demo.slice(0, 4);
+  const level = (ease: number) => ({
+    maxDepth: 2,
+    timeMs: 1e9,
+    nodes: undefined,
+    sight: { ease, miss: 1 },
+  });
+  const blind = chooseMove(records, 'hard', 9, { game: 5, level: level(0) })!;
+  expect(chooseMove(records, 'hard', 9, { game: 5, level: level(0) })).toEqual(blind);
+  expect(isLegal(records, blind.move)).toBe(true);
+  // Moves overlooked are not searched: seeing everything, it looks at more
+  const seeing = chooseMove(records, 'hard', 9, { game: 5, level: level(5) })!;
+  expect(blind.nodes).toBeLessThan(seeing.nodes);
 });

@@ -39,8 +39,12 @@ interface SearchLimits {
   margin: number;
   /** The quiescence search's deepest line of captures, in plies. */
   quiescence?: number;
-  /** Moves the side searching does not see below the root (they are not searched). */
-  hidden?: (move: number) => boolean;
+  /**
+   * Moves the side searching does not see below the root (they are not
+   * searched): called with the move made and the move before it (0 at the
+   * root's replies to a pass), the position as it stands after the move.
+   */
+  hidden?: (move: number, prev: number) => boolean;
   /**
    * Looks deeper at a position with one legal move too, instead of stopping
    * after the first iteration (a move needs no choosing, but a review of the
@@ -101,7 +105,9 @@ export class Searcher {
   private deadline = 0;
   private maxNodes = Infinity;
   private qLimit = 64;
-  private hidden: ((move: number) => boolean) | undefined;
+  private hidden: ((move: number, prev: number) => boolean) | undefined;
+  /** The moves of the line being searched, by ply (0 for a pass). */
+  private readonly line = new Int32Array(MAX_PLY + 1);
   private now: () => number = () => performance.now();
   private canStop = false;
   /** The ply (Position.ply) of the position searched from. */
@@ -159,6 +165,7 @@ export class Searcher {
       for (let i = 0; i < root.length; i++) {
         const m = root[i];
         pos.make(m);
+        this.line[0] = m;
         let s: number;
         const floor = margin >= INF ? -INF : best - margin;
         if (i === 0 || floor <= -INF) {
@@ -274,6 +281,7 @@ export class Searcher {
       if (allowNull && depth >= 3 && staticEval >= beta && this.hasPieces()) {
         const r = depth > 6 ? 3 : 2;
         pos.makeNull();
+        this.line[ply] = 0;
         const s = -this.negamax(depth - 1 - r, -beta, -beta + 1, ply + 1, false);
         pos.unmakeNull();
         if (this.stopped) return 0;
@@ -298,7 +306,7 @@ export class Searcher {
         continue;
       }
       legal++;
-      if (!inCheck && this.hidden?.(m)) {
+      if (!inCheck && this.hidden?.(m, this.line[ply - 1])) {
         pos.unmake(m);
         continue;
       }
@@ -307,6 +315,7 @@ export class Searcher {
         continue;
       }
       seen++;
+      this.line[ply] = m;
       let s: number;
       if (seen === 1) {
         s = -this.negamax(depth - 1, -beta, -alpha, ply + 1, true);
@@ -391,10 +400,11 @@ export class Searcher {
         pos.unmake(m);
         continue;
       }
-      if (this.hidden?.(m)) {
+      if (this.hidden?.(m, this.line[ply - 1])) {
         pos.unmake(m);
         continue;
       }
+      this.line[ply] = m;
       const s = -this.quiesce(-beta, -alpha, ply + 1, qply + 1);
       pos.unmake(m);
       if (this.stopped) return 0;

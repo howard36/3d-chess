@@ -24,30 +24,63 @@ export interface Level {
   timeMs: number;
   /** How long a line of captures it follows to the end, in plies. */
   quiescence: number;
-  /** Moves within this many centipawns of the best are the ones it considers. */
+  /**
+   * Moves within this many centipawns of the best are the ones it considers.
+   * With `sight`, this, `temperature` and `noise` are for a position of
+   * middling tension (choose.ts, tension): less in a quiet one, where it plays
+   * the best move, more in a fight.
+   */
   margin: number;
   /** How readily it plays the second-best of those over the best (centipawns; 0 never). */
   temperature: number;
   /** How far off its judgement of each move may be (centipawns, one standard deviation). */
   noise: number;
   /**
-   * The chance it overlooks a move that is hard to see on this board: a long
-   * move across levels, a unicorn's, a knight's jump to another level. A move
-   * overlooked is overlooked for the whole of that turn's thinking, whoever
-   * would play it.
+   * Instead of `sight`, a flat chance of overlooking a move that is hard to
+   * see on this board: a long move across levels, a unicorn's, a knight's jump
+   * to another level, for the whole of that turn's thinking, whoever would
+   * play it (the levels before they saw by `sight`, which research/levels/
+   * still plays as references).
    */
-  blindness: number;
+  blindness?: number;
   /**
    * A budget of positions instead of time: the search stops where it would at
    * `timeMs` on a machine searching this many in that time, so the level plays
    * the same on any device (and takes longer on a slower one).
    */
   nodes?: number;
-  /** Judges by the expert's numbers (numbers.ts) instead of the levels'. */
-  expert?: boolean;
+  /** What it knows of the game: the numbers it judges a position by (the hand-set by default). */
+  knows?: Knowledge;
+  /**
+   * How well it sees (instead of `blindness`): a move harder to see than
+   * `ease` (hardness, choose.ts: 0 a short move on one level, about 1 a long
+   * quiet sacrifice across levels) is overlooked more often the harder it is,
+   * up to `miss` of the time at hardness 1, and more in a tense position than
+   * a quiet one. What it overlooks is a piece's harder moves, for a few moves
+   * running, until that piece moves.
+   */
+  sight?: { ease: number; miss: number };
+  /**
+   * Its style, drawn afresh each game: how far each of its positional
+   * judgements (the middle of the cube, development, pawns going forward, the
+   * king's safety, pressure on the enemy king) may be weighted up or down, a
+   * fraction (0.3: by up to 30%), and a liking for one kind of piece.
+   */
+  style?: number;
 }
 
-const HARD: Level = {
+/**
+ * What a player knows: which numbers it judges by (numbers.ts), a beginner's,
+ * an advanced player's, the expert's, or the hand-set ones.
+ */
+export type Knowledge = 'handset' | 'beginner' | 'advanced' | 'expert';
+
+/**
+ * The engine at full stretch: up to 1.8 s as deep as that goes, every line of
+ * captures to its end, the best move or one as good. The players the game
+ * does not offer play it, and it weighs up a draw offered to the computer.
+ */
+export const ENGINE: Level = {
   maxDepth: 40,
   timeMs: 1800,
   quiescence: 64,
@@ -58,46 +91,66 @@ const HARD: Level = {
 };
 
 /**
- * Hard's positions a second, as measured in a Chromium worker: the budget of
- * positions that plays Hard's moves in Hard's time there.
+ * The engine's positions a second, as measured in a Chromium worker: the
+ * budget of positions that plays its moves in its time there.
  */
-const HARD_RATE = 1_000_000;
+const ENGINE_RATE = 1_000_000;
 
 /**
- * Easy sees its own move and the reply, misjudges freely and misses half of
- * what comes at it from another level: it hangs pieces, and takes them. Medium
- * looks a move further, judges better and misses a little. Hard thinks for
- * up to two seconds as deep as that goes, sees everything, and varies only
- * among moves as good as each other. Besides them, two players the game does
- * not offer: Hard on a budget of positions (the same strength on any device),
- * and the expert, the strongest it plays.
+ * The levels play as people do at three stages: Easy as a beginner, Medium
+ * as an advanced player, Hard as an expert, each knowing as much of the game
+ * (`knows`), looking as far ahead and seeing as much of what is hard to see
+ * on five levels (`sight`) as one would, and choosing more loosely in a
+ * fight than in a quiet position; each game in a style of its own. Their
+ * strengths, measured by self-play (research/levels/): Easy about 500 Elo
+ * below Medium, Hard about 500 above. Each plays the same on any device: to
+ * a depth, or on a budget of positions. Besides them, two players the game
+ * does not offer: the engine at full stretch (`hardFixed`, the old Hard on a
+ * budget of positions) and the expert, the strongest it plays.
  */
 export const LEVELS: Record<Player, Level> = {
   easy: {
-    maxDepth: 2,
+    knows: 'beginner',
+    maxDepth: 1,
     timeMs: 400,
-    quiescence: 2,
-    margin: 260,
-    temperature: 70,
-    noise: 45,
-    blindness: 0.5,
+    quiescence: 4,
+    margin: 60,
+    temperature: 20,
+    noise: 10,
+    sight: { ease: 0.05, miss: 0.95 },
+    style: 0.3,
   },
   medium: {
+    knows: 'advanced',
     maxDepth: 3,
     timeMs: 800,
     quiescence: 8,
-    margin: 90,
-    temperature: 22,
-    noise: 18,
-    blindness: 0.18,
+    margin: 53,
+    temperature: 19,
+    noise: 11,
+    sight: { ease: 0.05, miss: 1 },
+    style: 0.25,
   },
-  hard: HARD,
-  // Hard on a budget of positions: its moves at a million positions a second,
-  // the same strength on any device
-  hardFixed: { ...HARD, nodes: (HARD.timeMs / 1000) * HARD_RATE },
-  // The strongest it plays: Hard's search and choice, on the same budget, by
-  // the expert's numbers
-  expert: { ...HARD, nodes: (HARD.timeMs / 1000) * HARD_RATE, expert: true },
+  // The expert's judgement on a small budget of positions: it wins by knowing
+  // more, not by looking further, and overlooks only the hardest moves
+  hard: {
+    knows: 'expert',
+    maxDepth: 40,
+    timeMs: 1800,
+    nodes: 30_000,
+    quiescence: 16,
+    margin: 40,
+    temperature: 14,
+    noise: 0,
+    sight: { ease: 0.45, miss: 0.5 },
+    style: 0.2,
+  },
+  // The engine on a budget of positions: its moves at a million positions a
+  // second, the same strength on any device
+  hardFixed: { ...ENGINE, nodes: (ENGINE.timeMs / 1000) * ENGINE_RATE },
+  // The strongest it plays: the engine's search and choice, on the same
+  // budget, by the expert's numbers
+  expert: { ...ENGINE, nodes: (ENGINE.timeMs / 1000) * ENGINE_RATE, knows: 'expert' },
 };
 
 /** The first plies of a game, played a little more freely (and faster) by every level, for variety. */

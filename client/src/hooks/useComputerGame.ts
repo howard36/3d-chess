@@ -155,7 +155,7 @@ export function useComputerGame(
         console.error('The computer’s search found no move; it plays its first legal move.');
       play(move);
     };
-    computerRef.current.think(game.moves, game.difficulty).then(thought, (cause) => {
+    computerRef.current.think(game.moves, game.difficulty, game.id).then(thought, (cause) => {
       settled = true;
       // The game goes on, with a move of no thought at all: say why
       console.error('The computer could not think; it plays its first legal move.', cause);

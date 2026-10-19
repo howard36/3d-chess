@@ -1008,6 +1008,7 @@ body {
    better move where a marked move was played, in the amber of its line on
    the board */
 .hud-history {
+  --grade-brilliant: #5ee6c8;
   --grade-inaccuracy: #8fd0f7;
   --grade-mistake: #ffa04d;
   --grade-blunder: #ff6157;
@@ -1024,6 +1025,9 @@ body {
 .hud-ply[data-grade] .hud-ply-word {
   padding-right: 6px;
 }
+.hud-mark[data-grade='brilliant'] {
+  color: var(--grade-brilliant);
+}
 .hud-mark[data-grade='inaccuracy'] {
   color: var(--grade-inaccuracy);
 }
@@ -1034,6 +1038,9 @@ body {
   color: var(--grade-blunder);
 }
 /* On the lit move shown, the same hues deep enough to read on its light */
+.hud-ply[aria-current] .hud-mark[data-grade='brilliant'] {
+  color: #0b7660;
+}
 .hud-ply[aria-current] .hud-mark[data-grade='inaccuracy'] {
   color: #17689c;
 }
