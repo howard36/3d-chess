@@ -1,0 +1,1 @@
+medium{"temperature":28} vs medium{"temperature":38}: 52.9% ± 2.4% (20 Elo) over 400 games, +199 =25 -176 {"fifty":23,"mate":55,"resigned":320,"repetition":1,"length":1}; medium{"temperature":28}: 79 ms, 53216 positions a move; medium{"temperature":38}: 77 ms, 51808 positions a move

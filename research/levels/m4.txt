@@ -1,0 +1,1 @@
+medium{"maxDepth":2} vs medium: 23.4% ± 2.0% (-206 Elo) over 400 games, +84 =19 -297 {"resigned":314,"fifty":18,"mate":67,"length":1}; medium{"maxDepth":2}: 12 ms, 8364 positions a move; medium: 75 ms, 52877 positions a move
