@@ -4,7 +4,7 @@ Bradley-Terry on the games' scores (a draw counts half), the anchor at 0,
 by Newton's method; standard errors from the curvature, scaled by how much
 the scores varied about the fit (draws make a game's score vary less than a
 win or a loss would). Prints each pairing's score against the fit's, then the
-scale. usage: python3 fit.py [anchor]   (default medium)
+scale. usage: python3 fit.py [anchor [results ...]]   (default medium0, the old Medium; results.txt)
 """
 
 import math
@@ -15,13 +15,16 @@ import sys
 import numpy as np
 
 here = os.path.dirname(os.path.abspath(__file__))
-anchor = sys.argv[1] if len(sys.argv) > 1 else 'medium'
+anchor = sys.argv[1] if len(sys.argv) > 1 else 'medium0'
+files = sys.argv[2:] or [os.path.join(here, 'results.txt')]
 line = re.compile(r'^\w+: (\S+) vs (\S+): .* \+(\d+) =(\d+) -(\d+) ')
 
 # (A, B) -> [wins, draws, losses] for A
 pairs: dict[tuple[str, str], list[int]] = {}
-with open(os.path.join(here, 'results.txt')) as f:
-    lines = f.readlines()
+lines = []
+for path in files:
+    with open(path) as f:
+        lines += f.readlines()
 for text in lines:
     m = line.match(text)
     if not m:
