@@ -1,0 +1,40 @@
+diff --git a/client/src/screens/GameCanvas.tsx b/client/src/screens/GameCanvas.tsx
+index 258d3db..0f449f0 100644
+--- a/client/src/screens/GameCanvas.tsx
++++ b/client/src/screens/GameCanvas.tsx
+@@ -113,7 +113,7 @@ const GameCanvas = ({
+         // A pixel budget rather than r3f's fixed cap: the screen's own
+         // ratio up to 2x, a large high-density window a little under it
+         dpr={pixelRatio}
+-        gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
++        gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
+         // A chess position is static: render only when something changes.
+         // React commits and OrbitControls invalidate on their own; the
+         // animations (the move glide, the lift, the scene's effects, the
+diff --git a/client/src/three/framePacer.tsx b/client/src/three/framePacer.tsx
+index 2116949..3ecdd22 100644
+--- a/client/src/three/framePacer.tsx
++++ b/client/src/three/framePacer.tsx
+@@ -1,5 +1,6 @@
+ import { useEffect, useRef } from 'react';
+ import { useFrame, useThree } from '@react-three/fiber';
++import { Vector2 } from 'three';
+ 
+ /**
+  * A stepped clock (window.__vclock: the showcase's recordings, orbit.spec)
+@@ -56,7 +57,14 @@ export const PaceOnGpu = () => {
+       if (!lost) context.deleteSync(last.sync);
+       fence.current = null;
+     }
+-    gl.render(scene, camera);
++    {
++      // PROBE (damage-rect ceiling): every frame scissored to a central 20% x 20% rect
++      const size = gl.getSize(new Vector2());
++      gl.setScissor(size.x * 0.4, size.y * 0.4, size.x * 0.2, size.y * 0.2);
++      gl.setScissorTest(true);
++      gl.render(scene, camera);
++      gl.setScissorTest(false);
++    }
+     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
+     const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
+     if (!sync) return;

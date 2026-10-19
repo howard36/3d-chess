@@ -55,9 +55,8 @@ const BISHOP_END = ROOK_END + BISHOP_VECTORS.length;
 const SLIDER_OF = new Int8Array(DIRS).map((_, d) =>
   d < ROOK_END ? ROOK : d < BISHOP_END ? BISHOP : UNICORN,
 );
-/** RAY[(cell * 26 + d) * 4 + n]: the n-th cell along direction d; RAY_LEN its length. */
-const RAY = new Int8Array(CELLS * DIRS * 4);
-const RAY_LEN = new Uint8Array(CELLS * DIRS);
+/** LINE[king * 125 + cell]: the direction from `king` along which `cell` lies (-1 if none). */
+const LINE = new Int8Array(CELLS * CELLS).fill(-1);
 /** KNIGHT_TO[cell * 24 + i]: the knight's squares, KNIGHT_LEN[cell] of them. */
 const KNIGHT_TO = new Int8Array(CELLS * 24);
 const KNIGHT_LEN = new Uint8Array(CELLS);
@@ -79,12 +78,8 @@ for (let c = 0; c < CELLS; c++) {
   const y = CY[c];
   const z = CZ[c];
   QUEEN_VECTORS.forEach(([dz, dx, dy], d) => {
-    let n = 0;
-    while (n < 4 && inBoard(x + dx * (n + 1), y + dy * (n + 1), z + dz * (n + 1))) {
-      RAY[(c * DIRS + d) * 4 + n] = cellOf(x + dx * (n + 1), y + dy * (n + 1), z + dz * (n + 1));
-      n++;
-    }
-    RAY_LEN[c * DIRS + d] = n;
+    for (let n = 1; n <= 4 && inBoard(x + dx * n, y + dy * n, z + dz * n); n++)
+      LINE[c * CELLS + cellOf(x + dx * n, y + dy * n, z + dz * n)] = d;
   });
   for (const [dx, dy, dz] of KNIGHT_DELTAS) {
     if (inBoard(x + dx, y + dy, z + dz))
@@ -110,14 +105,44 @@ for (let c = 0; c < CELLS; c++) {
   }
 }
 
-/** LINE[king * 125 + cell]: the direction from `king` along which `cell` lies (-1 if none). */
-const LINE = new Int8Array(CELLS * CELLS).fill(-1);
+// --- The bordered board the ray walks read ----------------------------------
+//
+// Position.pad mirrors the board on a 7x7x7 grid with a one-cell border of
+// OFF, so a slider steps by one number per direction until it meets anything
+// that isn't empty, the border included, with no table of rays to read. A
+// piece is kept with a colour bit each side (White's pieces get WHITE_BIT,
+// Black's already carry BLACK), so one AND tells an enemy from a friend and
+// from the border.
+
+const PAD = 7;
+const PAD_CELLS = PAD * PAD * PAD;
+const WHITE_BIT = 16;
+const OFF = 32;
+/** PAD_OF[cell]: the cell's place on the bordered board; CELL_OF[place] back again. */
+const PAD_OF = new Int16Array(CELLS);
+const CELL_OF = new Int8Array(PAD_CELLS).fill(-1);
 for (let c = 0; c < CELLS; c++) {
-  for (let d = 0; d < DIRS; d++) {
-    for (let n = 0; n < RAY_LEN[c * DIRS + d]; n++)
-      LINE[c * CELLS + RAY[(c * DIRS + d) * 4 + n]] = d;
-  }
+  const t = (CZ[c] + 1) * PAD * PAD + (CX[c] + 1) * PAD + CY[c] + 1;
+  PAD_OF[c] = t;
+  CELL_OF[t] = c;
 }
+/** The empty bordered board. */
+const PAD_EMPTY = new Uint8Array(PAD_CELLS).fill(OFF);
+for (let c = 0; c < CELLS; c++) PAD_EMPTY[PAD_OF[c]] = 0;
+/** STEP[d]: one step along direction d on the bordered board. */
+const STEP = new Int16Array(DIRS).map((_, d) => {
+  const [dz, dx, dy] = QUEEN_VECTORS[d];
+  return dz * PAD * PAD + dx * PAD + dy;
+});
+/** A piece code as the bordered board keeps it. */
+const padded = (p: number) => (p === 0 ? 0 : p & BLACK ? p : p | WHITE_BIT);
+/** The bit an enemy of `side`'s pieces carries on the bordered board. */
+const enemyBit = (side: number) => (side === BLACK_SIDE ? WHITE_BIT : BLACK);
+
+/** KNIGHT_REACH[a * 125 + b]: 1 where a knight on `a` attacks `b`. */
+const KNIGHT_REACH = new Uint8Array(CELLS * CELLS);
+for (let c = 0; c < CELLS; c++)
+  for (let i = 0; i < KNIGHT_LEN[c]; i++) KNIGHT_REACH[c * CELLS + KNIGHT_TO[c * 24 + i]] = 1;
 
 /** Where `side`'s pawns promote: rank 5 of level E for White, rank 1 of level A for Black. */
 export const promotes = (cell: number, side: number) =>
@@ -310,8 +335,9 @@ for (let i = 0; i < 16 * CELLS; i++) {
   ZOBRIST_LO[i] = nextZ();
   ZOBRIST_HI[i] = nextZ();
 }
-const SIDE_LO = nextZ();
-const SIDE_HI = nextZ();
+/** What the side to move adds to a position's hash (Position.hashLo, hashHi). */
+export const SIDE_LO = nextZ();
+export const SIDE_HI = nextZ();
 
 /**
  * What evaluate() adds up over the pieces, kept per ply as moves are played
@@ -343,6 +369,8 @@ export class Position {
   readonly w: Weights;
   /** The piece code on each cell (0 for empty). */
   readonly board = new Uint8Array(CELLS);
+  /** The board again on its bordered grid, for the ray walks (see PAD). */
+  readonly pad = new Uint8Array(PAD_EMPTY);
   /** WHITE_SIDE or BLACK_SIDE: the side to move. */
   side = WHITE_SIDE;
   /** Each side's king's cell (-1 without one). */
@@ -415,9 +443,11 @@ export class Position {
     let lo = side === BLACK_SIDE ? SIDE_LO : 0;
     let hi = side === BLACK_SIDE ? SIDE_HI : 0;
     this.occ.fill(0);
+    this.pad.set(PAD_EMPTY);
     for (let c = 0; c < CELLS; c++) {
       const p = this.board[c];
       if (!p) continue;
+      this.pad[PAD_OF[c]] = padded(p);
       this.occ[((p >> 3) << 2) | (c >> 5)] |= 1 << (c & 31);
       lo ^= ZOBRIST_LO[p * CELLS + c];
       hi ^= ZOBRIST_HI[p * CELLS + c];
@@ -462,11 +492,11 @@ export class Position {
   private shield(side: number): number {
     const king = this.king[side];
     if (king < 0) return 0;
-    const pawn = side === WHITE_SIDE ? PAWN : PAWN | BLACK;
+    // The cells beside it on the bordered board (the border is never a pawn)
+    const pawn = padded(side === WHITE_SIDE ? PAWN : PAWN | BLACK);
+    const at = PAD_OF[king];
     let n = 0;
-    for (let d = 0; d < DIRS; d++) {
-      if (RAY_LEN[king * DIRS + d] > 0 && this.board[RAY[(king * DIRS + d) * 4]] === pawn) n++;
-    }
+    for (let d = 0; d < DIRS; d++) if (this.pad[at + STEP[d]] === pawn) n++;
     return n;
   }
 
@@ -579,29 +609,85 @@ export class Position {
   attacked(target: number, by: number): boolean {
     const board = this.board;
     const colour = by === BLACK_SIDE ? BLACK : 0;
-    const rays = target * DIRS;
+    const pad = this.pad;
+    const bit = by === BLACK_SIDE ? BLACK : WHITE_BIT;
+    const from = PAD_OF[target];
     for (let d = 0; d < DIRS; d++) {
-      const len = RAY_LEN[rays + d];
-      const base = (rays + d) * 4;
-      for (let n = 0; n < len; n++) {
-        const p = board[RAY[base + n]];
-        if (!p) continue;
-        if ((p & BLACK) === colour) {
-          const t = p & 7;
-          if (t === QUEEN || t === SLIDER_OF[d] || (n === 0 && t === KING)) return true;
+      const step = STEP[d];
+      let t = from + step;
+      let p = pad[t];
+      if (p !== 0) {
+        if (p & bit) {
+          const type = p & 7;
+          if (type === QUEEN || type === SLIDER_OF[d] || type === KING) return true;
         }
-        break;
+        continue;
+      }
+      while ((p = pad[(t += step)]) === 0);
+      if (p & bit) {
+        const type = p & 7;
+        if (type === QUEEN || type === SLIDER_OF[d]) return true;
       }
     }
     const kn = target * 24;
     for (let i = 0, len = KNIGHT_LEN[target]; i < len; i++) {
       if (board[KNIGHT_TO[kn + i]] === (KNIGHT | colour)) return true;
     }
-    const from = PAWN_FROM[by];
+    const pawns = PAWN_FROM[by];
     for (let i = 0, len = PAWN_FROM_LEN[by][target]; i < len; i++) {
-      if (board[from[target * 5 + i]] === (PAWN | colour)) return true;
+      if (board[pawns[target * 5 + i]] === (PAWN | colour)) return true;
     }
     return false;
+  }
+
+  /**
+   * Whether `move`, a quiet move (no capture, no promotion) of the side to
+   * move, would leave the other king attacked, as inCheck() would answer
+   * after make(move): the moved piece from its new cell, or a slider behind
+   * the cell it left. Only for a position where that king isn't attacked
+   * already (every position the search reaches by legal moves).
+   */
+  givesCheck(move: number): boolean {
+    const side = this.side;
+    const k = this.king[side ^ 1];
+    if (k < 0) return false;
+    const from = moveFrom(move);
+    const to = moveTo(move);
+    const type = movePiece(move) & 7;
+    const pad = this.pad;
+    const pk = PAD_OF[k];
+    const pf = PAD_OF[from];
+    const pt = PAD_OF[to];
+    if (type === KNIGHT) {
+      if (KNIGHT_REACH[to * CELLS + k]) return true;
+    } else if (type === PAWN) {
+      const pawns = PAWN_FROM[side];
+      for (let i = 0, len = PAWN_FROM_LEN[side][k]; i < len; i++)
+        if (pawns[k * 5 + i] === to) return true;
+    } else {
+      const d = LINE[k * CELLS + to];
+      if (d >= 0 && (type === QUEEN || type === SLIDER_OF[d] || type === KING)) {
+        const step = STEP[d];
+        let t = pk + step;
+        if (t === pt) return true;
+        // A king reaches one step only; others along an open line (the cell left counts as open)
+        if (type !== KING) {
+          while (t !== pt && (pad[t] === 0 || t === pf)) t += step;
+          if (t === pt) return true;
+        }
+      }
+    }
+    // A slider behind the cell left
+    const d = LINE[k * CELLS + from];
+    if (d < 0) return false;
+    const step = STEP[d];
+    const first = pk + step;
+    let t = first;
+    let q: number;
+    while ((q = t === pt ? 1 : t === pf ? 0 : pad[t]) === 0) t += step;
+    if (t === pt || !(q & (side === BLACK_SIDE ? BLACK : WHITE_BIT))) return false;
+    const p = q & 7;
+    return p === QUEEN || p === SLIDER_OF[d] || (t === first && p === KING);
   }
 
   /** Whether `side`'s king is attacked. */
@@ -626,17 +712,15 @@ export class Position {
   private exposed(king: number, from: number, side: number): boolean {
     const d = LINE[king * CELLS + from];
     if (d < 0) return false;
-    const board = this.board;
-    const colour = side === BLACK_SIDE ? 0 : BLACK;
-    const base = (king * DIRS + d) * 4;
-    for (let n = 0, len = RAY_LEN[king * DIRS + d]; n < len; n++) {
-      const p = board[RAY[base + n]];
-      if (!p) continue;
-      if ((p & BLACK) !== colour) return false;
-      const t = p & 7;
-      return t === QUEEN || t === SLIDER_OF[d] || (n === 0 && t === KING);
-    }
-    return false;
+    const pad = this.pad;
+    const step = STEP[d];
+    const first = PAD_OF[king] + step;
+    let t = first;
+    let p: number;
+    while ((p = pad[t]) === 0) t += step;
+    if (!(p & enemyBit(side))) return false;
+    const type = p & 7;
+    return type === QUEEN || type === SLIDER_OF[d] || (t === first && type === KING);
   }
 
   /**
@@ -648,6 +732,8 @@ export class Position {
     const board = this.board;
     const side = this.side;
     const own = side === BLACK_SIDE ? BLACK : 0;
+    const pad = this.pad;
+    const enemy = enemyBit(side);
     let n = start;
     const occ = this.occ;
     for (let w = side << 2; w < (side << 2) + 4; w++) {
@@ -683,20 +769,28 @@ export class Position {
         }
         const d0 = type === BISHOP ? ROOK_END : type === UNICORN ? BISHOP_END : 0;
         const d1 = type === ROOK ? ROOK_END : type === BISHOP ? BISHOP_END : DIRS;
-        const reach = type === KING ? 1 : 4;
-        for (let d = d0; d < d1; d++) {
-          const len = Math.min(reach, RAY_LEN[c * DIRS + d]);
-          const base = (c * DIRS + d) * 4;
-          for (let i = 0; i < len; i++) {
-            const to = RAY[base + i];
-            const q = board[to];
-            if (!q) {
-              if (!noisy) out[n++] = encode(c, to, 0, 0, p);
-              continue;
-            }
-            if ((q & BLACK) !== own) out[n++] = encode(c, to, 0, q, p);
-            break;
+        const at = PAD_OF[c];
+        if (type === KING) {
+          for (let d = d0; d < d1; d++) {
+            const t = at + STEP[d];
+            const q = pad[t];
+            if (q === 0) {
+              if (!noisy) out[n++] = encode(c, CELL_OF[t], 0, 0, p);
+            } else if (q & enemy) out[n++] = encode(c, CELL_OF[t], 0, q & 15, p);
           }
+          continue;
+        }
+        for (let d = d0; d < d1; d++) {
+          const step = STEP[d];
+          let t = at + step;
+          let q: number;
+          if (noisy) while ((q = pad[t]) === 0) t += step;
+          else
+            while ((q = pad[t]) === 0) {
+              out[n++] = encode(c, CELL_OF[t], 0, 0, p);
+              t += step;
+            }
+          if (q & enemy) out[n++] = encode(c, CELL_OF[t], 0, q & 15, p);
         }
       }
     }
@@ -755,6 +849,8 @@ export class Position {
     }
     board[from] = 0;
     board[to] = placed;
+    this.pad[PAD_OF[from]] = 0;
+    this.pad[PAD_OF[to]] = padded(placed);
     const occ = this.occ;
     occ[(side << 2) | (from >> 5)] ^= 1 << (from & 31);
     occ[(side << 2) | (to >> 5)] ^= 1 << (to & 31);
@@ -834,6 +930,8 @@ export class Position {
     const side = (this.side ^= 1);
     board[from] = piece;
     board[to] = captured;
+    this.pad[PAD_OF[from]] = padded(piece);
+    this.pad[PAD_OF[to]] = padded(captured);
     const occ = this.occ;
     occ[(side << 2) | (from >> 5)] ^= 1 << (from & 31);
     occ[(side << 2) | (to >> 5)] ^= 1 << (to & 31);
@@ -889,6 +987,7 @@ export class Position {
    */
   mobility(weights: readonly number[]): number {
     const board = this.board;
+    const pad = this.pad;
     let score = 0;
     const occ = this.occ;
     for (let word = 0; word < 8; word++) {
@@ -911,18 +1010,17 @@ export class Position {
         } else {
           const d0 = type === BISHOP ? ROOK_END : type === UNICORN ? BISHOP_END : 0;
           const d1 = type === ROOK ? ROOK_END : type === BISHOP ? BISHOP_END : DIRS;
+          const at = PAD_OF[c];
+          const enemy = own ? WHITE_BIT : BLACK;
           for (let d = d0; d < d1; d++) {
-            const len = RAY_LEN[c * DIRS + d];
-            const base = (c * DIRS + d) * 4;
-            for (let i = 0; i < len; i++) {
-              const q = board[RAY[base + i]];
-              if (!q) {
-                count++;
-                continue;
-              }
-              if ((q & BLACK) !== own) count++;
-              break;
+            const step = STEP[d];
+            let t = at + step;
+            let q: number;
+            while ((q = pad[t]) === 0) {
+              count++;
+              t += step;
             }
+            if (q & enemy) count++;
           }
         }
         score += own ? -w * count : w * count;
