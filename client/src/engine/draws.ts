@@ -1,14 +1,25 @@
-// The two draws besides stalemate, as in chess: the same position (the same
-// pieces on the same squares, the same side to move) for the third time, and
-// fifty moves by each side with no capture and no pawn move. This board has
-// no castling and no en passant, so a position is only its pieces and the
-// side to move. Decided in game/history.ts for the game, and by the computer
-// player's search on its own board (ai/position.ts).
+// The draws besides stalemate, as in chess: the two kings alone on the board,
+// the same position (the same pieces on the same squares, the same side to
+// move) for the third time, and fifty moves by each side with no capture and
+// no pawn move. This board has no castling and no en passant, so a position
+// is only its pieces and the side to move. Decided in game/history.ts for the
+// game, and by the computer player's search on its own board (ai/position.ts).
 
 import type { Board, Move } from './board';
 import { PieceType } from './pieces';
 import type { Piece } from './pieces';
 import type { Coord } from './coords';
+
+/** Whether the kings are the only pieces left: neither side can ever mate. */
+export function onlyKings(board: Board): boolean {
+  for (let z = 0; z < 5; z++)
+    for (let x = 0; x < 5; x++)
+      for (let y = 0; y < 5; y++) {
+        const piece = board.getPiece({ x, y, z });
+        if (piece && piece.type !== PieceType.King) return false;
+      }
+  return true;
+}
 
 /** A position standing for the third time draws. */
 export const REPETITIONS = 3;

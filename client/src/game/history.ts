@@ -8,7 +8,7 @@
 
 import { Board, PieceType } from '../engine';
 import type { Move, Piece } from '../engine';
-import { FIFTY_MOVE_PLIES, REPETITIONS, hashAfter, positionHash } from '../engine/draws';
+import { FIFTY_MOVE_PLIES, REPETITIONS, hashAfter, onlyKings, positionHash } from '../engine/draws';
 import { moveFromMessage } from '../engine/protocol';
 import { notateMove } from './notation';
 import type { MoveNotation } from './notation';
@@ -20,12 +20,19 @@ export type Turn = 'white' | 'black';
 export interface GameOver {
   /**
    * Mate, or one of the draws: no legal move without being in check, the
-   * same position for the third time, or fifty moves each with no capture
-   * and no pawn move (engine/draws.ts). The replay finds only these; the
+   * two kings alone on the board, the same position for the third time, or
+   * fifty moves each with no capture and no pawn move (engine/draws.ts). The replay finds only these; the
    * players' own ending, a resignation or an agreed draw, comes from the log
    * beside it (ending.ts).
    */
-  result: 'checkmate' | 'stalemate' | 'repetition' | 'fifty-moves' | 'resignation' | 'agreement';
+  result:
+    | 'checkmate'
+    | 'stalemate'
+    | 'insufficient-material'
+    | 'repetition'
+    | 'fifty-moves'
+    | 'resignation'
+    | 'agreement';
   /** The side that delivered mate, or whose opponent resigned; absent for a draw. */
   winner?: Turn;
 }
@@ -120,6 +127,8 @@ const gameOverAt = (board: Board, turn: Turn, positions: readonly number[]): Gam
     return { result: 'checkmate', winner: otherSide(turn) };
   }
   if (board.isStalemate(turn)) return { result: 'stalemate' };
+  // Only a capture can leave the kings alone
+  if (positions.length === 1 && onlyKings(board)) return { result: 'insufficient-material' };
   const now = positions[positions.length - 1];
   if (positions.filter((p) => p === now).length >= REPETITIONS) return { result: 'repetition' };
   if (positions.length - 1 >= FIFTY_MOVE_PLIES) return { result: 'fifty-moves' };

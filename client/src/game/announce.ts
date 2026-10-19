@@ -13,6 +13,7 @@ import type { GameHistory, GameOver, Turn } from './history';
 const RESULT_NAME: Record<GameOver['result'], string> = {
   checkmate: 'Checkmate',
   stalemate: 'Stalemate',
+  'insufficient-material': 'Insufficient material',
   repetition: 'Repetition',
   'fifty-moves': '50-move rule',
   resignation: 'Resignation',
@@ -27,6 +28,7 @@ export const isDecisive = (result: GameOver['result']): result is DecisiveResult
 /** How a draw came about, under the result card's "Draw". */
 export const DRAW_BY: Record<Exclude<GameOver['result'], DecisiveResult>, string> = {
   stalemate: 'by stalemate',
+  'insufficient-material': 'by insufficient material',
   repetition: 'by repetition',
   'fifty-moves': 'by the 50-move rule',
   agreement: 'by agreement',
