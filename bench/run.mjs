@@ -79,7 +79,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PRIMARY, PRIMARY_BROWSER_SECTIONS, PRIMARY_CLIENT_FILES, keyOf } from './primary.mjs';
-import { median, verdict } from './verdict.mjs';
+import { chanceOfCall, median, verdict } from './verdict.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
@@ -1053,6 +1053,12 @@ function abMain() {
   const byKey = new Map(rows.map((r) => [keyOf(r), r]));
   const primary = PRIMARY.map((p) => ({ p, r: byKey.get(keyOf(p)) }));
   const measured = primary.filter(({ r }) => r?.v?.ratios.length);
+  // A primary row is a time or a rate: one judged 'none' (a choice, not a
+  // cost) would be counted below as a time, lower taken for better
+  for (const { p, r } of measured) {
+    if (r.better !== 'lower' && r.better !== 'higher')
+      throw new Error(`primary row "${p.moment}": better is '${r.better}', not lower or higher`);
+  }
   const unmeasured = primary.filter(({ r }) => !r?.v?.ratios.length);
   md.push('## Primary rows');
   if (unmeasured.length) {
@@ -1092,6 +1098,10 @@ function abMain() {
     };
     return [geo('base'), geo('head')];
   };
+  // The sides' order moved the row: its pairs with the base first and with the
+  // head first lean opposite ways, by more than 15% each
+  const orderGap = ([baseFirst, headFirst]) =>
+    Math.min(baseFirst, headFirst) < 1 / 1.15 && Math.max(baseFirst, headFirst) > 1.15;
   md.push(
     table({
       columns: [
@@ -1099,16 +1109,22 @@ function abMain() {
         'Base',
         'Head',
         'Change',
+        'Median pair',
         'Pairs (head/base)',
         'Base first',
         'Head first',
         'Verdict',
       ],
-      align: ['l', 'r', 'r', 'r', 'r', 'r', 'r', 'l'],
+      align: ['l', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'l'],
       rows: primary.map(({ p, r }) => {
-        if (!r) return [p.moment, '', '', '', '', '', '', 'not measured'];
+        if (!r) return [p.moment, '', '', '', '', '', '', '', 'not measured'];
         const cells = line(r).slice(3);
-        return [p.moment, ...cells.slice(0, 4), ...byOrder(r), cells[4]];
+        const order = byOrder(r);
+        // (the Change column is the pairs' geometric mean; the speed rule and
+        // the overall figure read the median pair)
+        const mid = r.v?.ratios.length ? `×${median(r.v.ratios).toFixed(3)}` : '';
+        const verdict = orderGap(order.map(Number)) ? `${cells[4]}, order gap` : cells[4];
+        return [p.moment, ...cells.slice(0, 3), mid, cells[3], ...order, verdict];
       }),
     }),
   );
@@ -1134,14 +1150,20 @@ function abMain() {
   const others = rows.filter((r) => !PRIMARY.some((p) => keyOf(p) === keyOf(r)));
   const real = others.filter((r) => r.v?.real);
   const better = real.filter((r) => r.v.improved);
+  const chance = others.reduce(
+    (t, r) => t + (r.v?.ratios.length ? chanceOfCall(r.v.ratios) : 0),
+    0,
+  );
   md.push('## Diagnostics');
   md.push(
     `${others.length} other measurements compared: **${better.length} better, ` +
       `${real.length - better.length} worse**, ${others.length - real.length} unchanged within ` +
-      `their noise. These show where the time goes, not whether a player waits less. When ` +
-      `identical code was compared with itself, 1–5% of measurements were called by chance, so ` +
-      `about ${Math.round(others.length * 0.01)}–${Math.round(others.length * 0.05)} of the calls ` +
-      `here may be chance.`,
+      `their noise. These show where the time goes, not whether a player waits less. Were each ` +
+      `pair as likely to go either way, about ${chance.toFixed(chance < 0.1 ? 3 : 1)} of these ` +
+      `calls would be chance (the sign flips of each row's own pairs: \`chanceOfCall\`, ` +
+      `bench/verdict.mjs). That leaves out the VM's drift between the sides' runs, which the ` +
+      `committed A/As of identical code include: 1 of 366 rows called, at 4–12 pairs ` +
+      `(bench/loop/ab-*-aa*.md, to run 20261018-1719).`,
   );
   if (real.length) {
     md.push(

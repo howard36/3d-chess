@@ -51,3 +51,21 @@ export function verdict(pairs, better, unit) {
   const improved = better === 'higher' ? change > 0 : change < 0;
   return { ratios, change, spread, real, improved };
 }
+
+/**
+ * The chance the rule calls a row of these pairs' sizes when nothing changed:
+ * were each pair as likely to go either way (the null of sign flips), it is
+ * called only when every pair lands on one side, 2^(1-n) of the flips, and
+ * the sizes clear the rule. It leaves out a drift of the VM's between the two
+ * sides' runs, which only an A/A of identical code shows.
+ */
+export function chanceOfCall(ratios) {
+  const sizes = ratios.map((r) => Math.exp(Math.abs(Math.log(r))));
+  if (sizes.length < 2 || !sizes.every((r) => r > 1)) return 0;
+  const v = verdict(
+    sizes.map((r) => [100, 100 * r]),
+    'lower',
+    'ms',
+  );
+  return v?.real ? 2 ** (1 - sizes.length) : 0;
+}

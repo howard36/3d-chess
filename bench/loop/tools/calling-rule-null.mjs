@@ -13,7 +13,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verdict } from '../../verdict.mjs';
+import { chanceOfCall, verdict } from '../../verdict.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (name) => process.argv.indexOf(name);
@@ -44,9 +44,7 @@ for (const file of readdirSync(dir).filter((f) => /^ab-.*\.md$/.test(f))) {
     const n = ratios.length;
     const s = byPairs.get(n) ?? { rows: 0, expected: 0, called: 0 };
     s.rows++;
-    // Every pair the same way, by the sizes it has: the only flips that can call
-    const sizes = ratios.map((r) => Math.exp(Math.abs(Math.log(r))));
-    if (sizes.every((r) => r > 1) && calls(sizes)) s.expected += 2 ** (1 - n);
+    s.expected += chanceOfCall(ratios);
     if (calls(ratios)) s.called++;
     byPairs.set(n, s);
   }
