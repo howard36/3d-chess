@@ -1289,7 +1289,16 @@ searched (`ANALYSIS_NODES`, about a third of a second in the browser) rather tha
 clock, so a game reviewed anywhere gets the same marks (1.5 s is a backstop for a slow
 machine), and looking past a forced move (`deepenForced`; a move needs no choosing, but its
 grade needs what it leads to). Each answer is the best move and its score for the side to
-move, a forced mate as the plies to it. `game/analysis.ts` grades each move as lichess
+move, a forced mate as the plies to it. A mate lies a ply nearer the position after a move
+than the one before it, so the search can see it on one side of the move only: a move then
+seems to walk into a mate that every move allowed (Black's king, a queen and king against
+it, mated in 4 whatever it does, seen only after its move), or, a slower mate played, to let
+the mate go. Where a move's positions disagree like that (`recheckOf` in `game/analysis.ts`),
+the side without the mate is searched again in the same worker, as soon as both are in and
+before the move is marked: as deep as the mate seen plus two plies, at most 1,000,000
+positions (`recheckPosition`, `RECHECK_NODES`; 10 s the backstop). A walk into a mate in 1
+needs only 3 plies; that king's move, a mate in 4, about 206,000 positions. Each recheck
+belongs to its move, not its position, so the marks stay the same however the work is split. `game/analysis.ts` grades each move as lichess
 does: what it cost the mover in winning chances (from -1 to 1, a logistic of the score:
 `2 / (1 + e^(-0.00368 cp)) - 1`) between the best score before it and the negated score
 after it, so a pawn thrown away a queen ahead counts for little; 0.1 an inaccuracy, 0.2 a

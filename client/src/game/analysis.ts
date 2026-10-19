@@ -104,19 +104,75 @@ export function gradeMove(
 }
 
 /**
+ * Plies a recheck searches past the mate seen on the move's other side: one
+ * for the position before the move, a ply farther from the mate, and one for
+ * the search's own pruning.
+ */
+const RECHECK_PAST = 2;
+
+/** Which of a move's two positions to search again, and how many plies deep. */
+export interface Recheck {
+  side: 'before' | 'after';
+  depth: number;
+}
+
+/**
+ * A move whose two positions disagree on a forced mate, seen on one side of
+ * it only: the other side searched again, deep enough to see the mate too if
+ * it is there (ai/choose.ts, recheckPosition). A mate lies a ply nearer the
+ * position after a move than the one before it, so the search can find it
+ * after and not before (a move judged to walk into a mate when every move
+ * did), or, after the mover played a slower mate than the best, before and
+ * not after (judged to let the mate go). Null where they agree, or where the
+ * position after needs no search (the game ended in it).
+ */
+export function recheckOf(before: PositionAnalysis, after: PositionAnalysis): Recheck | null {
+  // The opponent mates after the move, and the mover was mated or not before
+  if (before.mate === undefined && after.mate !== undefined && after.mate > 0) {
+    return { side: 'before', depth: after.mate + RECHECK_PAST };
+  }
+  // The mover mated before the move, and after it nothing is seen either way
+  if (before.mate !== undefined && before.mate > 0 && after.mate === undefined && after.best) {
+    return { side: 'after', depth: before.mate + RECHECK_PAST };
+  }
+  return null;
+}
+
+/**
+ * The positions move `n` (0 on) is graded between: `analyses[n]` and
+ * `analyses[n + 1]`, the one recheckOf names replaced by its recheck,
+ * `rechecks[n]`; undefined while any of them is still to come.
+ */
+function gradedBetween(
+  analyses: readonly (PositionAnalysis | undefined)[],
+  rechecks: readonly (PositionAnalysis | undefined)[],
+  n: number,
+): [PositionAnalysis, PositionAnalysis] | undefined {
+  const before = analyses[n];
+  const after = analyses[n + 1];
+  if (!before || !after) return undefined;
+  const recheck = recheckOf(before, after);
+  if (!recheck) return [before, after];
+  const again = rechecks[n];
+  if (!again) return undefined;
+  return recheck.side === 'before' ? [again, after] : [before, again];
+}
+
+/**
  * Every move's grade, as far as the positions analysed reach: `analyses[n]`
  * is the position after `n` moves (missing while it is still to come), and
  * the grade of move `n` (1 on) is at index `n - 1`, undefined until both its
- * positions are in.
+ * positions are in, and its recheck where it needs one (`rechecks[n - 1]`,
+ * see recheckOf).
  */
 export function gradeMoves(
   records: readonly Pick<MoveRecord, 'from' | 'to' | 'promotion'>[],
   analyses: readonly (PositionAnalysis | undefined)[],
+  rechecks: readonly (PositionAnalysis | undefined)[] = [],
 ): (Grade | null | undefined)[] {
   return records.map((played, i) => {
-    const before = analyses[i];
-    const after = analyses[i + 1];
-    return before && after ? gradeMove(before, played, after) : undefined;
+    const between = gradedBetween(analyses, rechecks, i);
+    return between ? gradeMove(between[0], played, between[1]) : undefined;
   });
 }
 
@@ -137,14 +193,15 @@ export function countGrades(grades: readonly (Grade | null | undefined)[]): Grad
 
 /**
  * The better move where move `ply` was played (1 on), when that move is
- * marked: the best move in the position before it. Null for an unmarked
- * move, or the start.
+ * marked: the best move in the position before it (as rechecked, where it
+ * was). Null for an unmarked move, or the start.
  */
 export function betterMove(
   grades: readonly (Grade | null | undefined)[],
   analyses: readonly (PositionAnalysis | undefined)[],
   ply: number,
+  rechecks: readonly (PositionAnalysis | undefined)[] = [],
 ): PositionAnalysis['best'] {
   if (ply < 1 || !grades[ply - 1]) return null;
-  return analyses[ply - 1]?.best ?? null;
+  return gradedBetween(analyses, rechecks, ply - 1)?.[0].best ?? null;
 }

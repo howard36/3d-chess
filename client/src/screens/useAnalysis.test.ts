@@ -11,6 +11,7 @@ import { useAnalysis } from './useAnalysis';
 // here by a computer whose answers the test hands out one at a time
 const worker = vi.hoisted(() => ({
   asked: [] as number[],
+  depths: [] as (number | undefined)[],
   answers: [] as ((a: PositionAnalysis | Error) => void)[],
   made: 0,
   disposed: 0,
@@ -23,8 +24,9 @@ vi.mock('../ai/computer', () => ({
     return {
       think: () => Promise.resolve(null),
       assess: () => Promise.resolve(0),
-      analyse: (records: readonly WireMove[]) => {
+      analyse: (records: readonly WireMove[], depth?: number) => {
         worker.asked.push(records.length);
+        worker.depths.push(depth);
         return new Promise((resolve, reject) =>
           worker.answers.push((a) => (a instanceof Error ? reject(a) : resolve(a))),
         );
@@ -38,6 +40,7 @@ vi.mock('../ai/computer', () => ({
 
 beforeEach(() => {
   worker.asked.length = 0;
+  worker.depths.length = 0;
   worker.answers.length = 0;
   worker.made = 0;
   worker.disposed = 0;
@@ -99,11 +102,18 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
   await answer(at(1050, 'Bc1', 'Cc2'));
   expect(result.current.grades[1]).toBe('blunder');
   await answer({ best: { from: 'Cc2', to: 'Bb1' }, score: 30999, mate: 1 });
+  // White's move walked into a mate the position before it was not seen to
+  // hold: that position searched again, deep enough to see it, before the mark
+  expect(worker.asked).toEqual([0, 1, 2, 3, 2]);
+  expect(worker.depths).toEqual([undefined, undefined, undefined, undefined, 3]);
+  expect(result.current.grades[2]).toBeUndefined();
+  expect([result.current.done, result.current.total]).toEqual([5, 6]);
+  expect(result.current.state).toBe('running');
+  await answer(at(1050, 'Bc1', 'Cc2'));
   expect(result.current.grades[2]).toBe('blunder');
   // The mate the game ended in needs no search
-  expect(worker.asked).toEqual([0, 1, 2, 3]);
   expect(result.current.state).toBe('done');
-  expect(result.current.done).toBe(5);
+  expect(result.current.done).toBe(6);
   expect(result.current.grades[3]).toBeNull();
   expect(result.current.counts.white.blunder).toBe(1);
   expect(result.current.counts.black.blunder).toBe(1);
@@ -112,9 +122,9 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
   act(() => result.current.start());
   await act(async () => {});
   expect(worker.made).toBe(1);
-  expect(worker.asked).toEqual([0, 1, 2, 3]);
+  expect(worker.asked).toEqual([0, 1, 2, 3, 2]);
   expect(result.current.state).toBe('done');
-  expect(result.current.done).toBe(5);
+  expect(result.current.done).toBe(6);
 });
 
 it('searches in several workers at once, the marks the same whatever order they finish in', async () => {
@@ -133,11 +143,15 @@ it('searches in several workers at once, the marks the same whatever order they 
   await act(async () =>
     worker.answers.shift()!({ best: { from: 'Cc2', to: 'Bb1' }, score: 30999, mate: 1 }),
   );
-  expect(result.current.state).toBe('running');
-  expect(result.current.grades).toEqual([undefined, undefined, 'blunder']);
+  // The third move's recheck (see above), taken by the worker that found it needed
+  expect(worker.asked).toEqual([0, 1, 2, 3, 2]);
+  expect(result.current.grades).toEqual([undefined, undefined, undefined]);
   await act(async () => second(at(11, 'Ed5', 'Cc5')));
+  expect(result.current.state).toBe('running');
+  expect(result.current.grades).toEqual([null, 'blunder', undefined]);
+  await answer(at(1050, 'Bc1', 'Cc2'));
   expect(result.current.state).toBe('done');
-  expect(result.current.done).toBe(4);
+  expect(result.current.done).toBe(5);
   expect(result.current.grades).toEqual([null, 'blunder', 'blunder']);
   expect(worker.disposed).toBe(3);
 });
@@ -173,8 +187,63 @@ it('says where a search fails, and asked again goes on from the positions it has
   await answer(at(11, 'Ed5', 'Cc5'));
   await answer(at(1050, 'Bc1', 'Cc2'));
   await answer({ best: { from: 'Cc2', to: 'Bb1' }, score: 30999, mate: 1 });
+  await answer(at(1050, 'Bc1', 'Cc2'));
   expect(result.current.state).toBe('done');
   expect(result.current.grades).toEqual([null, 'blunder', 'blunder', null]);
+});
+
+const mate = (plies: number, from: string, to: string): PositionAnalysis => ({
+  best: { from, to },
+  score: plies > 0 ? 31000 - plies : -31000 - plies,
+  mate: plies,
+});
+
+it('searches a position again deeper where a move’s positions disagree on a mate', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const { result } = renderHook(() => useAnalysis(historyOf(MATE)));
+  act(() => result.current.start());
+  await act(async () => {});
+  await answer(at(40, 'Ad1', 'Cc1'));
+  // Black mates in 3 after White's first move: the position before it
+  // searched again, past where that mate would be, and found level still
+  await answer(mate(3, 'Ec4', 'Cb2'));
+  expect(worker.asked).toEqual([0, 1, 0]);
+  expect(worker.depths[2]).toBe(5);
+  expect(result.current.grades[0]).toBeUndefined();
+  await answer(at(40, 'Ad1', 'Cc1'));
+  expect(result.current.grades[0]).toBe('blunder');
+  // After Black's move nothing is seen: the position after searched again
+  await answer(at(-1100, 'Ac2', 'Ad1'));
+  expect(worker.asked).toEqual([0, 1, 0, 2, 2]);
+  expect(worker.depths[4]).toBe(5);
+  expect(result.current.grades).toEqual(['blunder', undefined, undefined, undefined]);
+  // A slower mate, not one let go
+  await answer(mate(-4, 'Ac2', 'Ad1'));
+  expect(result.current.grades[1]).toBeNull();
+  // White then walks into Black's mate in 1: the position before it searched
+  // again for that move too
+  await answer(mate(1, 'Cc2', 'Bb1'));
+  expect(worker.asked).toEqual([0, 1, 0, 2, 2, 3, 2]);
+  expect(worker.depths[6]).toBe(3);
+  await answer(new Error('no'));
+  expect(result.current.state).toBe('stopped');
+  expect([result.current.done, result.current.total]).toEqual([7, 8]);
+
+  // Asked again, it goes on from the recheck still to do
+  act(() => result.current.start());
+  await act(async () => {});
+  expect(worker.asked).toEqual([0, 1, 0, 2, 2, 3, 2, 2]);
+  expect(worker.depths[7]).toBe(3);
+  await answer(mate(-2, 'Ac2', 'Ad1'));
+  expect(result.current.state).toBe('done');
+  expect(result.current.done).toBe(8);
+  // Mated whatever White played: no mark
+  expect(result.current.grades).toEqual(['blunder', null, null, null]);
+  expect(result.current.rechecks).toEqual([
+    at(40, 'Ad1', 'Cc1'),
+    mate(-4, 'Ac2', 'Ad1'),
+    mate(-2, 'Ac2', 'Ad1'),
+  ]);
 });
 
 it('stays stopped when a search still under way finishes after another failed', async () => {
