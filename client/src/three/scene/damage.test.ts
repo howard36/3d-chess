@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   BoxGeometry,
@@ -5,6 +7,8 @@ import {
   BufferAttribute,
   BufferGeometry,
   Group,
+  Line,
+  LineBasicMaterial,
   Mesh,
   PerspectiveCamera,
   Points,
@@ -214,6 +218,27 @@ describe('damage', () => {
     // gl_PointSize = size * (H / 2) / depth, half of it each side
     expect(r.y).toBeLessThanOrEqual(y - (0.5 * H * 0.5) / 10 / 2);
     expect(r.y + r.h).toBeGreaterThanOrEqual(y + (0.5 * H * 0.5) / 10 / 2);
+  });
+
+  it('walks every kind of object three.js draws', () => {
+    // The kinds three.js's projectObject lists for drawing, at the installed
+    // version: a new kind there would be drawn but never looked at here
+    const source = readFileSync(
+      join(process.cwd(), 'node_modules/three/src/renderers/WebGLRenderer.js'),
+      'utf8',
+    );
+    const start = source.indexOf('function projectObject(');
+    const body = source.slice(start, source.indexOf('function renderScene(', start));
+    // (the sprites' branch, and the meshes', lines' and points', its groups' push among them)
+    expect(body).toContain('} else if ( object.isSprite ) {');
+    expect(body).toContain('} else if ( object.isMesh || object.isLine || object.isPoints ) {');
+    expect(body.match(/currentRenderList\.push\(/g)).toHaveLength(3);
+    // ...and a line is walked like the rest
+    const { root, frame } = setUp();
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array([0, 2, 0, 1, 2, 0]), 3));
+    root.add(new Line(geometry, new LineBasicMaterial()));
+    expect(frame()).not.toBeNull();
   });
 
   it('hides for one frame the objects wholly outside its rect, and shows them again', () => {
