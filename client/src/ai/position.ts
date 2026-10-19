@@ -9,8 +9,9 @@ import { fromZXY, toZXY } from '../engine/coords';
 import { BISHOP_VECTORS, KNIGHT_VECTORS, QUEEN_VECTORS, ROOK_VECTORS } from '../engine/pieces';
 import { REPETITIONS } from '../engine/draws';
 import type { MoveRecord, Promotion } from '../types/messages';
-import { EXPERT_NUMBERS, LEVEL_NUMBERS } from './numbers';
+import { NUMBERS } from './numbers';
 import type { EvalNumbers, PieceNumbers } from './numbers';
+import type { Knowledge } from './levels';
 
 /** A move as the wire writes it, without its side. */
 export type WireMove = Pick<MoveRecord, 'from' | 'to' | 'promotion'>;
@@ -247,7 +248,7 @@ export function weigh(n: EvalNumbers): Weights {
   const tropism = new Int8Array(8);
   const mobility = [0, 0, 0, 0, 0, 0, 0, 0];
   [KNIGHT, BISHOP, ROOK, UNICORN, QUEEN].forEach((type, i) => {
-    tropism[type] = n.tropism[i];
+    tropism[type] = Math.round(n.tropism[i]);
     mobility[type] = n.mobility[i];
   });
   const extended =
@@ -255,10 +256,17 @@ export function weigh(n: EvalNumbers): Weights {
   return { value, mg, eg, tropism, mobility, numbers: n, extended };
 }
 
-/** The levels' evaluation (Easy, Medium, Hard). */
-export const LEVEL_WEIGHTS = weigh(LEVEL_NUMBERS);
+/** The tables for each set of numbers (numbers.ts), by what the player knows. */
+export const WEIGHTS: Record<Knowledge, Weights> = {
+  handset: weigh(NUMBERS.handset),
+  beginner: weigh(NUMBERS.beginner),
+  advanced: weigh(NUMBERS.advanced),
+  expert: weigh(NUMBERS.expert),
+};
+/** The hand-set evaluation. */
+export const LEVEL_WEIGHTS = WEIGHTS.handset;
 /** The expert's. */
-export const EXPERT_WEIGHTS = weigh(EXPERT_NUMBERS);
+export const EXPERT_WEIGHTS = WEIGHTS.expert;
 
 // --- Moves -------------------------------------------------------------------
 
@@ -545,6 +553,28 @@ export class Position {
   onlyKings(): boolean {
     const o = this.ply * TERMS;
     return this.terms[o + T_MATERIAL] === 0 && this.terms[o + T_MATERIAL + 1] === 0;
+  }
+
+  /** In king and pawn against king, the pawn's cell; otherwise -1. */
+  lonePawn(): number {
+    const o = this.ply * TERMS;
+    const t = this.terms;
+    if (t[o + T_PIECES] !== 0 || t[o + T_PIECES + 1] !== 0) return -1;
+    const pawn = this.w.value[PAWN];
+    const white = t[o + T_MATERIAL];
+    const black = t[o + T_MATERIAL + 1];
+    if (!(white === pawn && black === 0) && !(white === 0 && black === pawn)) return -1;
+    const side = white ? WHITE_SIDE : BLACK_SIDE;
+    for (let w = side << 2; w < (side << 2) + 4; w++) {
+      let bits = this.occ[w];
+      while (bits !== 0) {
+        const low = bits & -bits;
+        bits ^= low;
+        const c = ((w & 3) << 5) | (31 - Math.clz32(low));
+        if ((this.board[c] & 7) === PAWN) return c;
+      }
+    }
+    return -1;
   }
 
   /** The plies played since the last capture or pawn move (a hundred draw). */

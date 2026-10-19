@@ -418,8 +418,8 @@ describe('in a narrow window', () => {
 
 describe('the review', () => {
   const counts = (white: number[], black: number[]) => ({
-    white: { inaccuracy: white[0], mistake: white[1], blunder: white[2] },
-    black: { inaccuracy: black[0], mistake: black[1], blunder: black[2] },
+    white: { brilliant: white[3] ?? 0, inaccuracy: white[0], mistake: white[1], blunder: white[2] },
+    black: { brilliant: black[3] ?? 0, inaccuracy: black[0], mistake: black[1], blunder: black[2] },
   });
   const analysis = (over: Partial<HistoryAnalysis> = {}): HistoryAnalysis => ({
     state: 'idle',

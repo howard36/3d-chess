@@ -9,26 +9,15 @@
 // usage: node match.mjs <A> <B> <games> <worker> <workers> <seed>
 //   games i = worker, worker + workers, ...; A has White in even games.
 import { chooseMove } from '../../client/src/ai/choose';
-import { LEVELS } from '../../client/src/ai/levels';
-import type { Player } from '../../client/src/ai/levels';
 import { FIFTY_MOVE_PLIES, REPETITIONS } from '../../client/src/engine/draws';
 import { Position } from '../../client/src/ai/position';
 import type { WireMove } from '../../client/src/ai/position';
 import { MATE_BOUND } from '../../client/src/ai/search';
+import { parsePlayer } from './players';
 
 const [a, b, games, worker, workers, seed] = process.argv.slice(2);
 
-const parse = (spec: string) => {
-  const [name, budget] = spec.split(/[@:]/);
-  if (!(name in LEVELS)) throw new Error(`no player ${name}`);
-  const level = !budget
-    ? {}
-    : budget.startsWith('d')
-      ? { maxDepth: Number(budget.slice(1)), timeMs: 1e9, nodes: undefined }
-      : { nodes: Number(budget) };
-  return { name: name as Player, level };
-};
-const players = [parse(a), parse(b)];
+const players = [parsePlayer(a), parsePlayer(b)];
 
 /** Resigned: both sides have scored the game this lopsided for this many moves running. */
 const RESIGN = 1000;
@@ -71,7 +60,10 @@ for (let g = Number(worker); g < Number(games); g += Number(workers)) {
       break;
     }
     const t = performance.now();
-    const m = chooseMove(records, p.name, gameSeed * 1000 + ply, { level: p.level })!;
+    const m = chooseMove(records, p.name, gameSeed * 1000 + ply, {
+      level: p.level,
+      game: gameSeed,
+    })!;
     stats[who].ms += performance.now() - t;
     stats[who].nodes += m.nodes;
     stats[who].moves++;

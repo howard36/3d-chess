@@ -7,14 +7,14 @@ import { analysePosition, assessPosition, chooseMove, recheckPosition } from './
 import type { ThinkReply, ThinkRequest } from './computer';
 
 self.onmessage = (event: MessageEvent<ThinkRequest>) => {
-  const { id, records, difficulty, seed, assess, analyse, depth } = event.data;
+  const { id, records, difficulty, seed, game, assess, analyse, depth } = event.data;
   let reply: ThinkReply;
   try {
     reply = analyse
       ? { id, analysis: depth ? recheckPosition(records, depth) : analysePosition(records) }
       : assess
         ? { id, score: assessPosition(records) }
-        : { id, move: chooseMove(records, difficulty, seed) };
+        : { id, move: chooseMove(records, difficulty, seed, { game }) };
   } catch (e) {
     reply = { id, error: String(e) };
   }

@@ -162,7 +162,7 @@ export function useComputerGame(
         console.error('The computer’s search found no move; it plays its first legal move.');
       play(move);
     };
-    computerRef.current.think(game.moves, game.difficulty).then(thought, (cause) => {
+    computerRef.current.think(game.moves, game.difficulty, game.id).then(thought, (cause) => {
       settled = true;
       // Its code is missing (an old page after a deploy, or offline): a move
       // of no thought, every turn, would pass for its play. It waits, and says why
