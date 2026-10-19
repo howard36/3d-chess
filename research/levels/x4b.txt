@@ -1,0 +1,1 @@
+expert@160000 vs hardFixed: 16.0% ± 3.0% (-287 Elo) over 134 games {"mate":1,"resigned":124,"fifty":8,"repetition":1}; expert@160000: 193 ms, 122558 positions a move; hardFixed: 2072 ms, 1342800 positions a move
