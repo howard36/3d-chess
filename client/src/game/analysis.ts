@@ -50,6 +50,55 @@ export function winningChances(e: PositionAnalysis): number {
 }
 
 /**
+ * What the engine makes of a position from White's side, as the review shows
+ * it: centipawns, or a forced mate, and White's winning chances (-1 to 1).
+ */
+export interface Evaluation {
+  score: number;
+  /** Plies to a forced mate: positive when White mates; 0 in the mate itself. */
+  mate?: number;
+  chances: number;
+}
+
+/** The position after `ply` moves, as the engine makes it (for the side to move), from White's side. */
+export function whiteEvaluation(e: PositionAnalysis, ply: number): Evaluation {
+  const sign = ply % 2 === 0 ? 1 : -1;
+  const chances = sign * winningChances(e);
+  // `|| 0`: a mate given (0) stays 0, never -0
+  return e.mate === undefined
+    ? { score: sign * e.score, chances }
+    : { score: 0, mate: sign * e.mate || 0, chances };
+}
+
+const MINUS = '−';
+
+/**
+ * An evaluation as chess sites write it, from White's side: pawns to one
+ * decimal (+1.4, −2.9, 0.0), a forced mate in moves (#3, #−3), and the mate
+ * itself as the result (1–0, 0–1).
+ */
+export function evaluationText({ score, mate, chances }: Evaluation): string {
+  if (mate !== undefined) {
+    if (mate === 0) return chances > 0 ? '1–0' : '0–1';
+    return `#${mate < 0 ? MINUS : ''}${Math.ceil(Math.abs(mate) / 2)}`;
+  }
+  const pawns = Math.round(score / 10) / 10;
+  if (pawns === 0) return '0.0';
+  return `${pawns > 0 ? '+' : MINUS}${Math.abs(pawns).toFixed(1)}`;
+}
+
+/** An evaluation in words, for a screen reader: "Black ahead by 2.9", "White mates in 3". */
+export function evaluationWords(e: Evaluation): string {
+  const side = (white: boolean) => (white ? 'White' : 'Black');
+  if (e.mate !== undefined) {
+    if (e.mate === 0) return `${side(e.chances > 0)} won`;
+    return `${side(e.mate > 0)} mates in ${Math.ceil(Math.abs(e.mate) / 2)}`;
+  }
+  const text = evaluationText(e);
+  return text === '0.0' ? 'Even' : `${side(e.score > 0)} ahead by ${text.slice(1)}`;
+}
+
+/**
  * A position the game ended in, which needs no search: the side to move
  * mated (`mate` 0) or a draw. A game ended by the players (a resignation, a
  * draw agreed) ended in a position like any other, to be searched (null).
