@@ -223,6 +223,32 @@ it('hashes a position the same however it was reached', () => {
   expect([a.hashLo, a.hashHi]).toEqual([start.hashLo, start.hashHi]);
 });
 
+it('hashes by all 64 bits, the two halves independent', () => {
+  // A position's hash is its pieces' keys XORed together, so it can take as
+  // many values as the keys span bits. Were each key's high half a fixed
+  // linear function of its low half (as a generator linear in its bits, such
+  // as xorshift, makes them), the keys would span 32 bits, and boards would
+  // share a hash once in 2^32 where it should be 2^64: the search's tables,
+  // which check the high half against a slot the low half picks, would then
+  // check only the low half's remaining bits.
+  const basis: bigint[] = [];
+  for (const piece of [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]) {
+    for (let c = 0; c < CELLS; c++) {
+      const pos = new Position();
+      pos.board[c] = piece;
+      pos.reset(WHITE_SIDE);
+      let v = (BigInt(pos.hashHi >>> 0) << 32n) | BigInt(pos.hashLo >>> 0);
+      // Reduced by the basis so far, highest bit first: what is left is new
+      for (const b of basis) if ((v ^ b) < v) v ^= b;
+      if (v) {
+        basis.push(v);
+        basis.sort((x, y) => (x < y ? 1 : -1));
+      }
+    }
+  }
+  expect(basis.length).toBe(64);
+});
+
 it('calls a position drawn the third time it stands, or the second inside a search', () => {
   // The position after the first move, standing for the second time
   const twice = Position.fromRecords([...shuffle, shuffle[0]]);

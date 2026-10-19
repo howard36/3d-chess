@@ -19,17 +19,21 @@ export const FIFTY_MOVE_PLIES = 100;
 // A position's hash (Zobrist): one random key per piece and square, and one
 // for Black to move, combined by XOR, so a move changes it by its squares
 // alone. Two halves, the high one 21 bits wide, make one safe integer of 53
-// bits: two different positions share a hash about once in 10^15 tries.
+// bits: two different positions share a hash about once in 10^15 tries. The
+// keys' generator multiplies (splitmix32) so that the halves are independent:
+// one linear in its bits (xorshift) makes each half a fixed function of the
+// other, and the hash only 32 bits deep (draws.test.ts).
 const TYPES = Object.values(PieceType);
 const SQUARES = 125;
 const KEY_HI = new Int32Array(2 * TYPES.length * SQUARES);
 const KEY_LO = new Int32Array(2 * TYPES.length * SQUARES);
 let seed = 0x2545f491;
 const next = () => {
-  seed ^= seed << 13;
-  seed ^= seed >>> 17;
-  seed ^= seed << 5;
-  return seed | 0;
+  seed = (seed + 0x9e3779b9) | 0;
+  let z = seed;
+  z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
+  z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
+  return z ^ (z >>> 16);
 };
 for (let i = 0; i < KEY_HI.length; i++) {
   KEY_HI[i] = next() & 0x1fffff;
