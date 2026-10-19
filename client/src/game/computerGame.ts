@@ -90,8 +90,8 @@ export const snapshot = (game: ComputerGame): GameState => {
 /** Whether the game has ended (mated, drawn, resigned), or cannot go on. */
 export function isOver(game: ComputerGame): boolean {
   if (game.ending) return true;
-  // By the game's own rules (history.ts): mate, stalemate, a repetition or
-  // the fifty moves, or a record that cannot be played on
+  // By the game's own rules (history.ts): mate, stalemate, the kings alone,
+  // a repetition or the fifty moves, or a record that cannot be played on
   const history = deriveHistory([
     { type: 'game_state', color: game.color, started: true, moves: game.moves },
   ]);
