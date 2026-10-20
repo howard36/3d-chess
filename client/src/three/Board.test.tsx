@@ -4,7 +4,7 @@ import Board from './Board';
 import type { BoardProps, LastMoveInfo } from './Board';
 import { FINGER_SLOP_PX } from './tap';
 import { layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
-import { contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
+import { clearsSourceAtMs, contactAtMs, glidePose, planGlide, touchdownMs } from './glide';
 import { PIECE_LIFT } from './pieceMotion';
 import { MATE_TUNING } from '../lib/mate';
 import { useThree } from '@react-three/fiber';
@@ -47,6 +47,15 @@ const drawn = vi.hoisted(() => ({
   captures: [] as CaptureFxProps[],
   selectionMounts: 0,
 }));
+// The view's scale on screen, which the test renderer's camera does not
+// model: every glide is planned as for the default view
+vi.mock('./glide', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./glide')>();
+  return { ...real, screenScale: () => real.GLIDE.defaultScale };
+});
+/** A move's glide as the board plans one that arrives unannounced (not played here). */
+const arriving = (from: Coord, to: Coord, { capture = false } = {}) =>
+  planGlide(toWorld(from, 'white'), toWorld(to, 'white'), { capture });
 vi.mock('./scene/pieces', () => ({
   PieceBody: (props: PieceBodyProps) => {
     drawn.bodies.push(props);
@@ -489,7 +498,7 @@ describe('Board', () => {
       />,
     );
     expect(highlightedCells(renderer)).toHaveLength(0);
-    const plan = planGlide(toWorld(from, 'white'), toWorld(to, 'white'));
+    const plan = arriving(from, to);
     await act(async () => renderer.advanceFrames(Math.ceil(touchdownMs(plan) / 10) + 10, 0.01));
     expect(highlightedCells(renderer)).toHaveLength(12);
   });
@@ -692,6 +701,15 @@ describe('Board', () => {
     const [, fy] = toWorld(LEVEL_B_PAWN, 'white');
     const [, ty] = toWorld(up, 'white');
     expect(glide.position.y).toBeCloseTo(fy - ty + PIECE_LIFT.selected * PIECE_SCALE);
+    // Played here: off at once
+    const plan = planGlide(toWorld(LEVEL_B_PAWN, 'white'), toWorld(up, 'white'), {
+      lift: PIECE_LIFT.selected * PIECE_SCALE,
+      played: true,
+    });
+    await act(async () => renderer.advanceFrames(5, 0.01));
+    expect(glide.position.toArray()).toEqual(
+      glidePose(plan, 50).offset.map((v) => expect.closeTo(v, 5)),
+    );
   });
 
   it('puts a played piece down again if its move is refused', async () => {
@@ -809,6 +827,32 @@ describe('Board', () => {
     expect(choices.map((m) => m.from)).toEqual(choices.map(() => from));
     // The selection is cleared either way
     expect(highlightedCells(renderer)).toHaveLength(0);
+
+    // The chosen piece comes back as the player's own move: off at once, from
+    // the floor (the pawn was put down while the player chose)
+    const after = promotionBoard();
+    after.setPiece(from, null);
+    after.setPiece(to, { type: PieceType.Rook, color: 'white' });
+    await renderer.update(
+      <Board
+        onMove={onMove}
+        onChoosePromotion={onChoosePromotion}
+        board={after}
+        currentTurn="black"
+        lastMove={{
+          move: { from, to, promotion: PieceType.Rook },
+          moveCount: 1,
+          capturedPiece: null,
+        }}
+      />,
+    );
+    const glide = root(renderer).findAll((n) => n.props.userData?.moveGlide === true)[0]
+      .instance as unknown as Object3D;
+    const plan = planGlide(toWorld(from, 'white'), toWorld(to, 'white'), { played: true });
+    await act(async () => renderer.advanceFrames(5, 0.01));
+    expect(glide.position.toArray()).toEqual(
+      glidePose(plan, 50).offset.map((v) => expect.closeTo(v, 5)),
+    );
   });
 
   it("tells the checked king's body that he is in check", async () => {
@@ -1073,10 +1117,14 @@ describe('Board', () => {
 
       // Part way: where its glide puts it then, over the line between the
       // squares. Frame deltas are clamped, so simulate several small frames.
-      const plan = planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'));
-      await act(async () => {
-        await renderer.advanceFrames(20, 0.01);
-      });
+      // Never picked up, it never leaves the floor on its way along a level
+      const plan = arriving(FROM, TO);
+      for (let i = 0; i < 20; i++) {
+        await act(async () => {
+          await renderer.advanceFrames(1, 0.01);
+        });
+        expect(group.position.y).toBe(0);
+      }
       const [px, py, pz] = glidePose(plan, 200).offset;
       expect(group.position.x).toBeCloseTo(px);
       expect(group.position.y).toBeCloseTo(py);
@@ -1084,7 +1132,7 @@ describe('Board', () => {
 
       // Once it has settled: home, resting position untouched
       await act(async () => {
-        await renderer.advanceFrames(touchdownMs(plan) + 50 / 10, 0.01);
+        await renderer.advanceFrames((touchdownMs(plan) + 50) / 10, 0.01);
       });
       expect(group.position.x).toBe(0);
       expect(group.position.y).toBe(0);
@@ -1118,9 +1166,7 @@ describe('Board', () => {
       expect(kingBody().inCheck).toBe(false);
       // (frames of 10 ms: just short of the moment it counts as landed, a
       // little before it comes to rest)
-      const down =
-        touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'))) -
-        MATE_TUNING.knockLeadMs;
+      const down = touchdownMs(arriving(FROM, TO)) - MATE_TUNING.knockLeadMs;
       await act(async () => {
         await renderer.advanceFrames(Math.floor(down / 10) - 2, 0.01);
       });
@@ -1143,7 +1189,7 @@ describe('Board', () => {
       );
       expect(last(marked)).toMatchObject({
         fresh: true,
-        glideMs: touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'))),
+        glideMs: touchdownMs(arriving(FROM, TO)),
       });
     });
 
@@ -1204,11 +1250,7 @@ describe('Board', () => {
         expect(last(captures)?.victim).toEqual(taken);
         expect(drawn.checks).toHaveLength(0);
         // ... and the check once it has landed
-        await frames(
-          renderer,
-          touchdownMs(planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'), { capture: true })) /
-            1000,
-        );
+        await frames(renderer, touchdownMs(arriving(FROM, TO, { capture: true })) / 1000);
         expect(drawn.checks.length).toBeGreaterThan(0);
       });
 
@@ -1277,7 +1319,7 @@ describe('Board', () => {
         orientation: 'white',
       });
       // The victim is hit when the rook reaches it, before it lands
-      const plan = planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'), { capture: true });
+      const plan = arriving(FROM, TO, { capture: true });
       expect(last(captures)).toMatchObject({
         hitMs: contactAtMs(plan),
         landMs: touchdownMs(plan),
@@ -1416,8 +1458,7 @@ describe('Board', () => {
         const shown = () => (reveal.instance as unknown as { visible: boolean }).visible;
         expect(shown()).toBe(false);
         // Out of sight until the rook is as far from it as it was when it took it
-        const forward = planGlide(toWorld(FROM, 'white'), toWorld(TO, 'white'), { capture: true });
-        const leftMs = touchdownMs(forward) - contactAtMs(forward)!;
+        const leftMs = clearsSourceAtMs(arriving(TO, FROM));
         await act(async () => {
           await renderer.advanceFrames(Math.floor(leftMs / 10) - 2, 0.01);
         });
