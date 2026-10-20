@@ -1309,6 +1309,14 @@ async function coldSection(browser) {
             polling: 20,
             timeout: 30000,
           });
+          // ...and the lobby's scene drawing (data-scene): under full motion
+          // the side choice's words wait for it before they come in
+          await page
+            .waitForFunction(() => window.__bench.stage.some((s) => s[3]), null, {
+              polling: 20,
+              timeout: 10000,
+            })
+            .catch(() => {});
           await page
             .waitForFunction(
               () => performance.getEntriesByName('first-contentful-paint').length > 0,
@@ -1334,6 +1342,9 @@ async function coldSection(browser) {
               ready: ready - t0,
               clickToChoice:
                 b.firsts.sideChoice -
+                b.clicks.find((c) => /^(Play a friend|Start a game)/.test(c[1]))?.[0],
+              clickToScene:
+                (b.stage.find((s) => s[3])?.[0] ?? NaN) -
                 b.clicks.find((c) => /^(Play a friend|Start a game)/.test(c[1]))?.[0],
               longest: lts.length ? Math.max(...lts.map((l) => l[1])) : 0,
               transfer: nav.transferSize + res.reduce((s, r) => s + (r.transferSize || 0), 0),
@@ -1422,6 +1433,7 @@ async function coldSection(browser) {
           ['script run time, until ready', 'script'],
           ['longest page freeze, until ready', 'longest'],
           ['first click: side choice shown', 'clickToChoice'],
+          ['first click: the lobby’s scene drawing', 'clickToScene'],
         ];
         metrics.forEach(([label, k], i) => {
           const [row, m] = stat(label, col(k));
