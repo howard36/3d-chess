@@ -46,7 +46,7 @@ describe('an evaluation', () => {
     expect(whiteEvaluation(at(140), 0)).toEqual({ score: 140, chances: winningChances(at(140)) });
     expect(whiteEvaluation(at(140), 1)).toEqual({ score: -140, chances: -winningChances(at(140)) });
     expect(show(at(140), 1)).toBe('\u22121.4');
-    expect(show(mate(3), 1)).toBe('#\u22122');
+    expect(show(mate(3), 1)).toBe('\u2212M2');
   });
 
   it('is written in pawns to a decimal, a forced mate in moves, the mate itself as the result', () => {
@@ -58,13 +58,21 @@ describe('an evaluation', () => {
       '0.0',
       '0.0',
     ]);
-    // Plies to the mate, in the mating side's moves
+    // Plies to the mate, in the mating side's moves, the mate included: the
+    // side to move mating in 7 plies moves 4 times, and so does the side that
+    // mates 8 plies away (White to move, Black mating: 1… 2… 3… 4…#)
     expect([mate(1), mate(2), mate(5), mate(-1), mate(-4)].map((e) => show(e))).toEqual([
-      '#1',
-      '#1',
-      '#3',
-      '#\u22121',
-      '#\u22122',
+      'M1',
+      'M1',
+      'M3',
+      '\u2212M1',
+      '\u2212M2',
+    ]);
+    expect([show(mate(7)), show(mate(-8)), show(mate(7), 1), show(mate(-8), 1)]).toEqual([
+      'M4',
+      '\u2212M4',
+      '\u2212M4',
+      'M4',
     ]);
     const mated = { best: null, score: 0, mate: 0 };
     expect([show(mated, 0), show(mated, 1)]).toEqual(['0–1', '1–0']);

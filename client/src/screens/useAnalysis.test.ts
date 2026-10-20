@@ -131,7 +131,7 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
     '+0.4',
     '\u22120.1',
     '+10.5',
-    '#\u22121',
+    '\u2212M1',
     '0–1',
   ]);
   expect(worker.disposed).toBe(1);
