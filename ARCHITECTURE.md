@@ -413,8 +413,22 @@ Key decisions:
   review goes. Where the move shown is marked a fault, the board
   draws the better move beside it (see The board) and the panel names it under the list
   ("Best ♙Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
-  more. In a window no wider than 13:9 the mark stands beside the move shown between the
-  steps, and the review's top and the better move's name come with the list. The review
+  more. The engine's score for each position is shown from White's side
+  (`evaluationText` in `game/analysis.ts`: pawns to a decimal, "+1.4", "−2.9", a forced
+  mate in the mating side's moves, the mating move included, "M3", "−M3" (a mate 5 or 6
+  plies away), the mate itself as the result, "0–1"; a screen reader hears
+  it in words, "Black ahead by 2.9", as the player steps). Beside the tower the review's
+  top carries the game's graph under the counts (`AdvantageGraph` in `MoveHistory.tsx`):
+  White's winning chances (the curve that grades the moves, so a +20 position does not
+  flatten the rest) as porcelain from the bottom, a dashed line at even, each mistake,
+  blunder and brilliant move a dot of its colour, and the move shown a cursor with its
+  score; a press on it shows the position under it. In a window no wider than 13:9 the
+  mark and the score stand beside the move shown between the steps, and the review's top
+  and the better move's name come with the list, the position shown as a bar under the
+  steps (White's share from the left). There the outer steps' icons stand as far from the
+  panel's rounded ends as from its top and bottom, and the bar as far below the steps as
+  the panel's edge is above them. The steps and the moves light under a pointer that
+  hovers only (`@media (hover: hover)`): a tap on a touch screen would leave one lit. The review
   lasts for the page's life; leaving the page, or another record, stops the work
   (`game/analysis.ts` grades each move: see Playing the computer).
   The earlier positions are replayed only while the player looks back (`game/review.ts`),
@@ -430,8 +444,10 @@ Key decisions:
   and `data-move-count`; `move-history` the ply the board shows as `data-viewing-ply`
   (the live ply at the live position), with `data-review` away from it and `data-hidden`
   while the game is on, `data-analysis` (`running`, `done`, `stopped`) once the review is asked for
-  (`analyse`, the button) and `data-best` the better move where the move shown is marked
-  (`Bd2-Cc2`, named in `best-move`); each move marked carries `data-grade` (`brilliant`,
+  (`analyse`, the button), `data-best` the better move where the move shown is marked
+  (`Bd2-Cc2`, named in `best-move`) and `data-evaluation` the score of the position shown
+  once searched (as written, with ASCII hyphens: `-2.9`, `-M1`, `0-1`), drawn in
+  `advantage-graph` beside the tower and `evaluation-bar` in a narrow window; each move marked carries `data-grade` (`brilliant`,
   `inaccuracy`, `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`
   and `takeback-offer` in it while they show; `rematch` holds the result's buttons (with

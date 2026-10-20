@@ -13,7 +13,7 @@ vi.mock('../game/review', async (actual) => {
 });
 const formatted = vi.mocked(review.formatMove);
 import type { HistoryAnalysis, MoveHistoryProps } from './MoveHistory';
-import type { Grade } from '../game/analysis';
+import type { Evaluation, Grade } from '../game/analysis';
 import { deriveHistory } from '../game/history';
 import { PieceType } from '../engine/pieces';
 
@@ -427,6 +427,7 @@ describe('the review', () => {
     total: 7,
     grades: [],
     counts: counts([0, 0, 0], [0, 0, 0]),
+    evaluations: [],
     best: null,
     bestNotation: null,
     onRetry: () => {},
@@ -561,6 +562,98 @@ describe('the review', () => {
     await userEvent.click(toggle);
     expect(screen.getByTestId('analysis-counts')).toBeInTheDocument();
     expect(screen.getByTestId('best-move')).toBeInTheDocument();
+  });
+
+  /** Evaluations from White's side for 6 moves: level, then White's blunder at move 3. */
+  const EVALS: Evaluation[] = [30, -20, 40, -290, -300, -310, -320].map((score) => ({
+    score,
+    chances: 2 / (1 + Math.exp(-0.00368208 * score)) - 1,
+  }));
+
+  it('draws the game’s graph beside the tower, the move shown on it with its score', () => {
+    const onShow = vi.fn();
+    render(
+      history({
+        moves: record(6),
+        shown: 3,
+        onShow,
+        analysis: analysis({
+          state: 'done',
+          grades: [null, null, 'blunder', null, 'inaccuracy', 'brilliant'],
+          evaluations: EVALS,
+        }),
+      }),
+    );
+    const graph = screen.getByTestId('advantage-graph');
+    expect(graph).toHaveAttribute('aria-hidden', 'true');
+    // The cursor at the move shown, three of six plies along, and its score
+    expect(graph.querySelector<HTMLElement>('.hud-graph-cursor')!.style.left).toBe('50%');
+    expect(graph.querySelector('.hud-graph-score')).toHaveTextContent('\u22122.9');
+    // A dot for each mark that turns a game, and for a brilliant move; none for an inaccuracy
+    expect(
+      [...graph.querySelectorAll<HTMLElement>('.hud-graph-dot')].map((d) => [
+        d.dataset.grade,
+        d.style.left,
+      ]),
+    ).toEqual([
+      ['blunder', '50%'],
+      ['brilliant', '100%'],
+    ]);
+    expect(screen.getByTestId('move-history')).toHaveAttribute('data-evaluation', '-2.9');
+    // Said, in words, as the player steps
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent(
+      'Move 3 of 6: Aa3–Ab1, blunder. Black ahead by 2.9.',
+    );
+    // A press on it shows the position under it
+    vi.spyOn(graph, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      width: 120,
+    } as DOMRect);
+    fireEvent.click(graph, { clientX: 100 + 0.8 * 120 });
+    expect(onShow).toHaveBeenLastCalledWith(5);
+    fireEvent.click(graph, { clientX: 80 });
+    expect(onShow).toHaveBeenLastCalledWith(0);
+    // No evaluation, no bar under the steps beside the tower
+    expect(screen.queryByTestId('evaluation-bar')).toBeNull();
+  });
+
+  it('draws only the positions searched so far, broken where one is still to come', () => {
+    render(
+      history({
+        moves: record(6),
+        shown: 5,
+        analysis: analysis({
+          state: 'running',
+          evaluations: [EVALS[0], EVALS[1], undefined, EVALS[3], EVALS[4]],
+        }),
+      }),
+    );
+    const graph = screen.getByTestId('advantage-graph');
+    const line = graph.querySelector('.hud-graph-line')!.getAttribute('d')!;
+    expect(line.match(/M/g)).toHaveLength(2);
+    // The move shown not yet searched: its cursor, and no score
+    expect(graph.querySelector('.hud-graph-cursor')).toBeInTheDocument();
+    expect(graph.querySelector('.hud-graph-score')).toBeNull();
+    expect(screen.getByTestId('move-history')).not.toHaveAttribute('data-evaluation');
+  });
+
+  it('carries the score beside the move shown in a narrow window, the bar under the steps once open', async () => {
+    windowNarrow(true);
+    render(
+      history({
+        moves: record(6),
+        shown: 3,
+        analysis: analysis({ state: 'done', grades: [null, null, 'blunder'], evaluations: EVALS }),
+      }),
+    );
+    const toggle = screen.getByRole('button', { name: /Move list/ });
+    expect(toggle.querySelector('.hud-score')).toHaveTextContent('\u22122.9');
+    expect(screen.queryByTestId('evaluation-bar')).toBeNull();
+    await userEvent.click(toggle);
+    const bar = screen.getByTestId('evaluation-bar');
+    expect(bar.querySelector('span')!.style.width).toBe(`${(100 * (1 + EVALS[3].chances)) / 2}%`);
+    // No graph in a narrow window
+    expect(screen.queryByTestId('advantage-graph')).toBeNull();
   });
 
   it('shows nothing of itself while the game is on', () => {

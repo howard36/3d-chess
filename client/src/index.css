@@ -974,14 +974,18 @@ body {
   line-height: 1;
   text-box: trim-both cap alphabetic;
 }
-.hud-ply:hover {
-  color: var(--hud-fg);
-}
-.hud-ply:hover .hud-ply-word {
-  background: rgba(236, 241, 255, 0.08);
+/* Lit under a pointer that hovers only: a tap on a touch screen leaves its
+   button in :hover, lit as though pressed, until the next tap elsewhere */
+@media (hover: hover) {
+  .hud-ply:hover {
+    color: var(--hud-fg);
+  }
+  .hud-ply:hover .hud-ply-word {
+    background: rgba(236, 241, 255, 0.08);
+  }
 }
 .hud-ply:focus-visible:not([data-quiet-focus]) .hud-ply-word,
-.hud-step:focus-visible:not([data-quiet-focus]),
+.hud-step:focus-visible:not([data-quiet-focus])::before,
 .hud-now:focus-visible:not([data-quiet-focus]) {
   outline: 1.5px solid rgba(230, 238, 255, 0.7);
   outline-offset: -1.5px;
@@ -1142,6 +1146,123 @@ body {
   background: var(--hud-light);
   transition: width 200ms ease;
 }
+/* The game's graph (MoveHistory, AdvantageGraph): White's share of the
+   winning chances from the bottom, porcelain on the glass; the marks that
+   turn a game a dot of their colour; the move shown a cursor, light on the
+   dark and dark on the porcelain, with its score */
+.hud-graph {
+  position: relative;
+  flex: none;
+  height: 56px;
+  margin: 8px 0 7px;
+  border-radius: 2px;
+  background: rgba(236, 241, 255, 0.04);
+  cursor: pointer;
+}
+.hud-graph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.hud-graph-area {
+  fill: rgba(238, 241, 247, 0.78);
+}
+.hud-graph-line {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1;
+}
+.hud-graph-even {
+  stroke: rgba(120, 124, 136, 0.9);
+  stroke-dasharray: 2 3;
+}
+.hud-graph-dot,
+.hud-graph-now {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.hud-graph-dot {
+  width: 7px;
+  height: 7px;
+  box-shadow: 0 0 0 1.2px #0b0d12;
+}
+.hud-graph-dot[data-grade='brilliant'] {
+  background: var(--grade-brilliant);
+}
+.hud-graph-dot[data-grade='mistake'] {
+  background: var(--grade-mistake);
+}
+.hud-graph-dot[data-grade='blunder'] {
+  background: var(--grade-blunder);
+}
+.hud-graph-now {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #0b0d12;
+  background: #fff;
+}
+.hud-graph-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: #fff;
+  transform: translateX(-50%);
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+.hud-graph-score {
+  position: absolute;
+  bottom: 3px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--hud-light);
+  color: var(--hud-accent-fg);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.hud-graph-score[data-low] {
+  top: 3px;
+  bottom: auto;
+}
+/* The position shown as a bar under the steps at the top (a narrow window):
+   White's share from the left, porcelain on charcoal, a hairline at even */
+.hud-eval-bar {
+  position: relative;
+  flex: none;
+  height: 8px;
+  margin: 0 10px 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2a2d35, #15171c);
+  box-shadow: inset 0 0 0 1px rgba(236, 241, 255, 0.16);
+}
+.hud-eval-bar > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(180deg, #fff, #f4f1eb 50%, #ddd7cd);
+  transition: width 200ms ease;
+}
+.hud-eval-bar::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: rgba(120, 124, 136, 0.8);
+  content: '';
+}
 .hud-best {
   display: flex;
   flex: none;
@@ -1170,6 +1291,8 @@ body {
   margin-top: 4px;
 }
 .hud-step {
+  position: relative;
+  z-index: 0;
   display: flex;
   flex: none;
   align-items: center;
@@ -1178,18 +1301,35 @@ body {
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
   background: none;
   color: var(--hud-fg);
   cursor: pointer;
 }
-.hud-step:hover {
-  background: rgba(236, 241, 255, 0.08);
+.hud-step:focus-visible {
+  outline: none;
+}
+/* A step's light, under a pointer or as its focus ring, a circle as tall as
+   the step on its icon, whatever the step's width (wider than tall beside the
+   tower and on a touch screen, narrower in the steps at the top) */
+.hud-step::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 50%;
+  height: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  content: '';
+}
+@media (hover: hover) {
+  .hud-step:not([aria-disabled]):hover::before {
+    background: rgba(236, 241, 255, 0.08);
+  }
 }
 .hud-step[aria-disabled] {
   color: var(--hud-muted);
   opacity: 0.45;
-  background: none;
   cursor: default;
 }
 /* The move shown, which opens the list: only where the list is closed (below) */
@@ -1210,8 +1350,21 @@ body {
   text-overflow: ellipsis;
   cursor: pointer;
 }
-.hud-now:hover {
-  background: rgba(236, 241, 255, 0.08);
+@media (hover: hover) {
+  .hud-now:hover {
+    background: rgba(236, 241, 255, 0.08);
+  }
+}
+/* The score of the position shown, beside its move (game/analysis.ts, evaluationText) */
+.hud-score {
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 9px;
+  background: rgba(236, 241, 255, 0.1);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 /* Beside the tower, where the move shown is lit in the list, the four steps
    share the panel's width */
@@ -1302,13 +1455,26 @@ body {
   .hud-history[data-ended][data-open] {
     border-radius: 16px;
   }
-  .hud-history[data-ended] .hud-step,
+  .hud-history[data-ended] .hud-step {
+    height: 34px;
+  }
   .hud-history[data-ended] .hud-now {
     height: 34px;
     border-radius: 17px;
   }
+  /* The outer steps' icons as far from the panel's ends as from its top and
+     bottom, centred in its rounded ends: a step as wide as it is tall at
+     each end, (34 - 30) / 2 px more, the steps between as they are */
+  .hud-history[data-ended] .hud-steps {
+    margin-inline: 2px;
+  }
   .hud-history[data-ended][data-open] .hud-steps {
-    margin: 0 0 6px;
+    margin-block: 0 6px;
+  }
+  /* The bar under them as far below the steps as the panel's edge is above
+     them, its ends under the outer icons' */
+  .hud-history[data-ended][data-open] .hud-steps:has(+ .hud-eval-bar) {
+    margin-bottom: 3px;
   }
   /* Each side's marks on one line: close together after its stone, and
      the two sides far apart, so the space alone says which are whose */
@@ -1372,6 +1538,9 @@ body {
     padding-right: 4px;
     padding-left: 4px;
   }
+  .hud-graph {
+    height: 40px;
+  }
 }
 /* A touch screen: the steps a fingertip wide */
 @media (pointer: coarse) {
@@ -1402,6 +1571,13 @@ body {
   .hud-history[data-ended] .hud-now {
     height: 38px;
     border-radius: 19px;
+  }
+  /* (38 - 40) / 2 px: the fingertip-wide steps are wider than tall */
+  .hud-history[data-ended] .hud-steps {
+    margin-inline: -1px;
+  }
+  .hud-history[data-ended] .hud-eval-bar {
+    margin-inline: 12px;
   }
   .hud-history[data-ended] .hud-moves {
     max-height: calc(4 * 32px + 4px);

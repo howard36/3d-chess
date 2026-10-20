@@ -6,8 +6,8 @@ import type { MoveNotation } from '../game/notation';
 import type { ReviewStep } from '../game/review';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { sideName } from '../game/sides';
-import { FAULTS, GRADE_GLYPH, GRADES } from '../game/analysis';
-import type { Grade, GradeCounts } from '../game/analysis';
+import { evaluationText, evaluationWords, FAULTS, GRADE_GLYPH, GRADES } from '../game/analysis';
+import type { Evaluation, Grade, GradeCounts } from '../game/analysis';
 import type { Turn } from '../game/history';
 import { focusFromCode } from '../lib/focus';
 import { Stone } from './TurnPill';
@@ -26,6 +26,11 @@ export interface HistoryAnalysis {
   /** Each move's grade (move `n` at `n - 1`), as far as the review has come. */
   grades: readonly (Grade | null | undefined)[];
   counts: GradeCounts;
+  /**
+   * What the engine makes of each position from White's side, the position
+   * after `n` moves at `n`, as far as the review has come.
+   */
+  evaluations: readonly (Evaluation | undefined)[];
   /** The best move where the move shown was played, when the move shown is marked. */
   best: Pick<MoveRecord, 'from' | 'to' | 'promotion'> | null;
   /** How the record writes it (game/notation.ts), with `best`. */
@@ -403,6 +408,8 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   const shownWords = shown > 0 ? moveWords(moves, notation, shown - 1) : '';
   const shownNote = shown > 0 ? notation[shown - 1] : undefined;
   const shownGrade = (shown > 0 && analysis?.grades[shown - 1]) || null;
+  const shownEvaluation = analysis?.evaluations[shown];
+  const begun = !!analysis && analysis.state !== 'idle';
   const best = analysis?.best ?? null;
   const bestNotation = analysis?.bestNotation ?? null;
   const bestWords = best
@@ -447,6 +454,12 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
           </>
         )}
         {shownGrade && <Mark grade={shownGrade} />}
+        {/* Said in the status as the player steps, in words */}
+        {shownEvaluation && (
+          <span className="hud-score" aria-hidden>
+            {evaluationText(shownEvaluation)}
+          </span>
+        )}
       </button>
       {stepButton('next', !reviewing)}
       {stepButton('latest', !reviewing)}
@@ -470,10 +483,18 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       data-best={
         best ? `${best.from}-${best.to}${best.promotion ? `=${best.promotion}` : ''}` : undefined
       }
+      data-evaluation={
+        shownEvaluation ? evaluationText(shownEvaluation).replace(/[\u2212–]/g, '-') : undefined
+      }
     >
       {stepsFirst && steps}
-      {/* The review, once begun: each side's marks as they come */}
-      {open && analysis && analysis.state !== 'idle' && <ReviewHead analysis={analysis} />}
+      {/* Under the steps at the top, the position shown as a bar, White's share from the left */}
+      {stepsFirst && open && begun && <EvaluationBar evaluation={shownEvaluation} />}
+      {/* The review, once begun: each side's marks as they come, and beside
+          the tower the game's graph */}
+      {open && analysis && begun && (
+        <ReviewHead analysis={analysis} graph={stepsFirst ? null : { shown, onShow: show }} />
+      )}
       <ol
         id="move-list"
         ref={list}
@@ -503,8 +524,8 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
           : shown === 0
             ? 'Starting position.'
             : `Move ${shown} of ${applied}: ${shownWords}${shownGrade ? `, ${shownGrade}` : ''}.${
-                best ? ` Best ${bestWords}.` : ''
-              }`}
+                shownEvaluation ? ` ${evaluationWords(shownEvaluation)}.` : ''
+              }${best ? ` Best ${bestWords}.` : ''}`}
       </div>
       {/* How the review ended, said when it does (the bar and the counts are seen) */}
       <div className="sr-only" role="status" data-testid="review-said">
@@ -530,12 +551,133 @@ const GRADE_PLURAL: Record<Grade, string> = {
 const plural = (n: number, grade: Grade) =>
   n === 1 ? `1 ${grade}` : `${n === 0 ? 'no' : n} ${GRADE_PLURAL[grade]}`;
 
+/** White's share of the winning chances, 0 to 1. */
+const share = (e: Evaluation) => (1 + e.chances) / 2;
+
+/**
+ * The position shown as a bar, White's share of the winning chances from the
+ * left: empty until the position is searched.
+ */
+function EvaluationBar({ evaluation }: { evaluation: Evaluation | undefined }) {
+  return (
+    <div className="hud-eval-bar" data-testid="evaluation-bar" aria-hidden>
+      {evaluation && <span style={{ width: `${100 * share(evaluation)}%` }} />}
+    </div>
+  );
+}
+
+/** The marks a dot on the graph: the ones that turn a game, and the brilliant. */
+const DOTTED: readonly Grade[] = ['brilliant', 'mistake', 'blunder'];
+
+/**
+ * The game's graph: White's share of the winning chances in each position
+ * (porcelain from the bottom, the line across the middle even), each
+ * mistake, blunder and brilliant move a dot of its grade's colour, and the
+ * move shown a cursor with its score. A press on it shows the position under
+ * it (the steps, the list and the keys do the same for a keyboard).
+ */
+function AdvantageGraph({
+  evaluations,
+  grades,
+  shown,
+  onShow,
+}: {
+  evaluations: readonly (Evaluation | undefined)[];
+  grades: readonly (Grade | null | undefined)[];
+  shown: number;
+  onShow: (ply: number) => void;
+}) {
+  const plies = Math.max(1, evaluations.length - 1);
+  // Drawn in the graph's own units (a ply across, 100 up) and stretched to
+  // its box; the dots and the cursor are laid out in percentages over it
+  const { area, line } = React.useMemo(() => {
+    let area = '';
+    let line = '';
+    let run: string[] = [];
+    const close = (end: number) => {
+      if (run.length === 0) return;
+      const start = end - run.length;
+      area += `M${start} 100L${run.join('L')}L${end - 1} 100Z`;
+      line += `M${run.join('L')}`;
+      run = [];
+    };
+    evaluations.forEach((e, n) => {
+      if (e) run.push(`${n} ${(100 * (1 - share(e))).toFixed(1)}`);
+      else close(n);
+    });
+    close(evaluations.length);
+    return { area, line };
+  }, [evaluations]);
+  const at = (n: number) => `${(100 * n) / plies}%`;
+  const height = (e: Evaluation) => `${100 * (1 - share(e))}%`;
+  const now = evaluations[shown];
+  return (
+    <div
+      className="hud-graph"
+      data-testid="advantage-graph"
+      aria-hidden
+      onClick={(e) => {
+        const box = e.currentTarget.getBoundingClientRect();
+        const ply = Math.round(((e.clientX - box.left) / box.width) * plies);
+        onShow(Math.min(plies, Math.max(0, ply)));
+      }}
+    >
+      <svg viewBox={`0 0 ${plies} 100`} preserveAspectRatio="none">
+        <path className="hud-graph-area" d={area} />
+        <path className="hud-graph-line" d={line} vectorEffect="non-scaling-stroke" />
+        <line
+          className="hud-graph-even"
+          x1={0}
+          x2={plies}
+          y1={50}
+          y2={50}
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      {grades.map((g, i) => {
+        const e = evaluations[i + 1];
+        if (!g || !e || !DOTTED.includes(g)) return null;
+        return (
+          <span
+            key={i}
+            className="hud-graph-dot"
+            data-grade={g}
+            style={{ left: at(i + 1), top: height(e) }}
+          />
+        );
+      })}
+      <span className="hud-graph-cursor" style={{ left: at(shown) }} />
+      {now && (
+        <>
+          <span className="hud-graph-now" style={{ left: at(shown), top: height(now) }} />
+          {/* Clear of the point: above it where it stands low, under it where high */}
+          <span
+            className="hud-graph-score"
+            data-low={share(now) < 0.5 || undefined}
+            style={{ left: `clamp(20px, ${at(shown)}, calc(100% - 20px))` }}
+          >
+            {evaluationText(now)}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 /**
  * The top of the list once the review has begun: each side's marks counted
- * by grade (brilliant moves only once there is one), a thin bar under them
- * filling as the review goes, or "Retry" should it stop short.
+ * by grade (brilliant moves only once there is one), beside the tower the
+ * game's graph, a thin bar under them filling as the review goes, or "Retry"
+ * should it stop short.
  */
-function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
+function ReviewHead({
+  analysis,
+  graph,
+}: {
+  analysis: HistoryAnalysis;
+  /** The move shown and the way to show another, where the graph is drawn. */
+  graph: { shown: number; onShow: (ply: number) => void } | null;
+}) {
   const { white, black } = analysis.counts;
   const grades = white.brilliant + black.brilliant > 0 ? GRADES : FAULTS;
   return (
@@ -559,6 +701,14 @@ function ReviewHead({ analysis }: { analysis: HistoryAnalysis }) {
           </p>
         );
       })}
+      {graph && (
+        <AdvantageGraph
+          evaluations={analysis.evaluations}
+          grades={analysis.grades}
+          shown={graph.shown}
+          onShow={graph.onShow}
+        />
+      )}
       {analysis.state === 'stopped' && (
         <p className="hud-stopped">
           Review stopped{' '}

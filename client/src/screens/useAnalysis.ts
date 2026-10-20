@@ -1,7 +1,13 @@
 import React from 'react';
 import type { Computer } from '../ai/computer';
-import { countGrades, endedAnalysis, gradeMoves, recheckOf } from '../game/analysis';
-import type { Grade, GradeCounts, PositionAnalysis } from '../game/analysis';
+import {
+  countGrades,
+  endedAnalysis,
+  gradeMoves,
+  recheckOf,
+  whiteEvaluation,
+} from '../game/analysis';
+import type { Evaluation, Grade, GradeCounts, PositionAnalysis } from '../game/analysis';
 import type { GameHistory } from '../game/history';
 import type { MoveRecord } from '../types/messages';
 
@@ -20,6 +26,11 @@ export interface Analysis {
   total: number;
   /** What the engine makes of the position after `n` moves, as each is done. */
   positions: readonly (PositionAnalysis | undefined)[];
+  /**
+   * The same from White's side, as the review shows it (game/analysis.ts,
+   * whiteEvaluation): one for each position of the game, undefined while still to come.
+   */
+  evaluations: readonly (Evaluation | undefined)[];
   /**
    * Move `n`'s position searched again deeper (at `n - 1`), where its two
    * positions disagree on a forced mate (game/analysis.ts, recheckOf).
@@ -201,6 +212,14 @@ export function useAnalysis(history: GameHistory): Analysis {
     [records, current.positions, current.rechecks],
   );
   const counts = React.useMemo(() => countGrades(grades), [grades]);
+  const evaluations = React.useMemo(
+    () =>
+      Array.from({ length: records.length + 1 }, (_, n) => {
+        const position = current.positions[n];
+        return position && whiteEvaluation(position, n);
+      }),
+    [records.length, current.positions],
+  );
   const needed = React.useMemo(
     () =>
       records.filter((_, n) => {
@@ -215,6 +234,7 @@ export function useAnalysis(history: GameHistory): Analysis {
     done: current.positions.filter(Boolean).length + current.rechecks.filter(Boolean).length,
     total: records.length + 1 + needed,
     positions: current.positions,
+    evaluations,
     rechecks: current.rechecks,
     grades,
     counts,
