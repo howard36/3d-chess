@@ -14,13 +14,22 @@ import {
   Points,
   PointsMaterial,
   ShaderMaterial,
+  SphereGeometry,
   Sprite,
   SpriteMaterial,
   Texture,
   Vector3,
 } from 'three';
 import type { Object3D } from 'three';
-import { cullOutside, damage, damageState, forgetDamage, restoreCulled } from './damage';
+import {
+  cullOutside,
+  damage,
+  damageState,
+  forgetDamage,
+  MAX_PASSES,
+  passes,
+  restoreCulled,
+} from './damage';
 import type { Rect } from './damage';
 
 // A frame at rest redraws only the screen rect of what changed since the
@@ -255,5 +264,117 @@ describe('damage', () => {
     cullOutside(state, r);
     expect(boxes[0].visible).toBe(true);
     restoreCulled(state);
+  });
+});
+
+// A frame at rest is drawn in a few rects, a pass each, each pass leaving out
+// what lies wholly outside its rect: scattered changes no longer draw every
+// piece between them (the player's move and a pick, DR2).
+describe('passes', () => {
+  /** The vertices a frame drawn in `rects` hands the GPU, as the pacer draws it. */
+  const drawn = (state: ReturnType<typeof damageState>, root: Group, rects: Rect[]) => {
+    let n = 0;
+    for (const r of rects) {
+      cullOutside(state, r);
+      root.traverseVisible((o) => {
+        const g = (o as Mesh).geometry;
+        if (g) n += g.index ? g.index.count : g.attributes.position.count;
+      });
+      restoreCulled(state);
+    }
+    return n;
+  };
+  const glow = (m: Mesh) => ((m.material as ShaderMaterial).uniforms.uGlow.value += 1);
+
+  /** Boxes at `at`, and a heavy sphere (a piece's worth of vertices) at the centre. */
+  const scene = (at: [number, number][], heavy = true) => {
+    const root = new Group();
+    const boxes = at.map(([x, y]) => box(x, y));
+    root.add(...boxes);
+    if (heavy) {
+      const piece = new Mesh(new SphereGeometry(0.4, 96, 64), new ShaderMaterial());
+      root.add(piece);
+    }
+    const state = damageState();
+    const cam = camera();
+    const frame = () => {
+      root.updateMatrixWorld(true);
+      return damage(state, root, new Set(), cam, W, H, false);
+    };
+    expect(frame()).toBe('full');
+    return { root, boxes, state, frame };
+  };
+
+  it('draws two changes far apart as two rects, leaving out the heavy piece between them', () => {
+    const { root, boxes, state, frame } = scene([
+      [-3, 0],
+      [3, 0],
+    ]);
+    boxes.forEach(glow);
+    const union = frame() as Rect;
+    const rects = passes(state, union);
+    expect(rects).toHaveLength(2);
+    for (const part of state.parts) expect(rects.some((r) => contains(r, part))).toBe(true);
+    // The count that guards the win: the sphere is drawn in no pass
+    expect(drawn(state, root, rects)).toBe(2 * 36);
+    expect(drawn(state, root, [union])).toBeGreaterThan(30000);
+  });
+
+  it('keeps one rect when that draws fewer vertices, and merges what overlaps', () => {
+    // Light boxes only: a pass costs more than the boxes it would leave out
+    const light = scene(
+      [
+        [-3, 0],
+        [3, 0],
+      ],
+      false,
+    );
+    light.boxes.forEach(glow);
+    const union = light.frame() as Rect;
+    expect(passes(light.state, union)).toEqual([union]);
+    // A box moved a little: where it was and where it is, one rect
+    const near = scene([
+      [-3, 0],
+      [3, 0],
+    ]);
+    near.boxes[1].position.x = 2.9;
+    const moved = near.frame() as Rect;
+    expect(near.state.parts.length).toBeGreaterThan(1);
+    expect(passes(near.state, moved)).toEqual([moved]);
+  });
+
+  it(`merges scattered changes down to at most ${MAX_PASSES} rects that cover them all`, () => {
+    const at: [number, number][] = [
+      [-3.5, 2.5],
+      [0, 2.5],
+      [3.5, 2.5],
+      [-3.5, -2.5],
+      [0, -2.5],
+      [3.5, -2.5],
+    ];
+    const { root, boxes, state, frame } = scene(at);
+    boxes.forEach(glow);
+    const union = frame() as Rect;
+    const rects = passes(state, union);
+    expect(rects.length).toBeGreaterThan(1);
+    expect(rects.length).toBeLessThanOrEqual(MAX_PASSES);
+    for (const part of state.parts) expect(rects.some((r) => contains(r, part))).toBe(true);
+    expect(drawn(state, root, rects)).toBeLessThan(drawn(state, root, [union]));
+  });
+
+  it('draws the rects a frame before left undrawn as passes of their own', () => {
+    const { root, boxes, state, frame } = scene([
+      [-3, 0],
+      [3, 0],
+    ]);
+    expect(frame()).toBeNull();
+    expect(passes(state, null)).toEqual([]);
+    const left = state.seen.get(boxes[1])!.rect!;
+    expect(passes(state, null, [left])).toEqual([left]);
+    glow(boxes[0]);
+    const rects = passes(state, frame() as Rect, [left]);
+    expect(rects).toHaveLength(2);
+    expect(rects.some((r) => contains(r, left))).toBe(true);
+    expect(drawn(state, root, rects)).toBe(2 * 36);
   });
 });
