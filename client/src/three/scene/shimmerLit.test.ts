@@ -53,6 +53,10 @@ describe('shimmerLit', () => {
     const u = shimmerMaterial().uniforms;
     const radius = 0.0264;
     const out = new Box3();
+    const p = new Vector3();
+    // Each miss is noted and the misses checked once at the end: an expect
+    // per point (a million of them) is too slow for CI's 5 s
+    const misses: string[] = [];
     let lit = 0;
     let dark = 0;
     for (const [from, to] of cases) {
@@ -70,19 +74,19 @@ describe('shimmerLit', () => {
           for (let s = -radius; s <= total + radius; s += 0.005) {
             if (light(u, s) < SHIMMER_GLOW.cut) continue;
             lit++;
-            expect(box, `t ${t} along ${s}`).not.toBeNull();
-            const p = a.clone().addScaledVector(dir, s);
-            expect(box!.distanceToPoint(p)).toBe(0);
+            p.copy(a).addScaledVector(dir, s);
+            if (!box || box.distanceToPoint(p) !== 0) misses.push(`t ${t} along ${s}`);
           }
           for (let v = 0; v < data.along.length; v++) {
             if (light(u, data.along[v]) < SHIMMER_GLOW.cut) continue;
-            const p = new Vector3().fromArray(data.position, v * 3);
-            expect(box!.distanceToPoint(p)).toBeLessThan(1e-6);
+            p.fromArray(data.position, v * 3);
+            if (!box || box.distanceToPoint(p) >= 1e-6) misses.push(`t ${t} vertex ${v}`);
           }
           if (!box) dark++;
         }
       }
     }
+    expect(misses.slice(0, 5)).toEqual([]);
     // Both happen: frames lighting part of the line, and frames lighting none of it
     expect(lit).toBeGreaterThan(1000);
     expect(dark).toBeGreaterThan(0);
