@@ -4,22 +4,17 @@
   "heading": "No speed win found: seven ideas measured, none called, and the branch keeps no app change",
   "meta": "<p>This speed run tried seven ideas against the moments a player waits on. Four were built and measured with interleaved A/Bs, two were stopped by probes before an A/B, and one was cut down by traces. No primary row was called faster, so no app change is kept. The PR carries only the loop's records: the run record, the ledger, the scoreboard, the A/B reports, the saved patches and a JIT probe. The branch is <code>improve/20261020-1303</code> from base <code>4bdeb55</code>; main did not move during the run. Every figure is from software rendering (SwiftShader) on a 4-vCPU VM, and each names the commits it compares.</p>",
   "needs": {
-    "intro": "<p>Nothing here blocks the merge. The first item is information. The other three are owner rules or taste calls that stand in front of the biggest leads left; an answer lets a later run build them.</p>",
+    "intro": "<p>Nothing here blocks the merge. The first item is information. The other two are taste calls on what a player sees that stand in front of the biggest leads left; an answer lets a later run build them.</p>",
     "items": [
       {
         "title": "Information: the target (every primary row 1.2× faster) is not met",
-        "body": "<p>No change was kept, so the branch runs the base's app code and every primary row stays where the base left it. The step-2 A/B (<code>4bdeb55</code> against the last base <code>bd26e1c</code>, 10 pairs) called no row either way. Two rows leaned slower there without being called: a shared game's first screen ×1.063 (6 of 10 pairs worse, pairs 0.84–1.20) and a pick ×1.031 (5 of 10, pairs 0.88–1.39). The only app diff between those commits is code these paths do not run, so the run read both as noise. The remaining large waits are bound by the GPU's first draw of each shader program under software rendering, which the code ideas left on the ledger cannot remove without one of the three changes below.</p>",
+        "body": "<p>No change was kept, so the branch runs the base's app code and every primary row stays where the base left it. The step-2 A/B (<code>4bdeb55</code> against the last base <code>bd26e1c</code>, 10 pairs) called no row either way. Two rows leaned slower there without being called: a shared game's first screen ×1.063 (6 of 10 pairs worse, pairs 0.84–1.20) and a pick ×1.031 (5 of 10, pairs 0.88–1.39). The only app diff between those commits is code these paths do not run, so the run read both as noise. The remaining large waits are bound by the GPU's first draw of each shader program under software rendering, which the code ideas left on the ledger cannot remove without one of the two changes below.</p>",
         "recommend": "No decision needed."
       },
       {
         "title": "HF1: may the level focus wait for the pointer to settle (about 200 ms)?",
         "body": "<p>Today the other levels step back as soon as the pointer is over a level. That fades the whole tower in the same frames as a pick or a move. Traces from this run's A/B data show the GPU time of a frame tracks its triangles: White's level-changing moves draw 76–86k triangles in 145–161 ms, against 35–52k in 93–118 ms on one level. If the focus waited for the pointer to rest on a level for about 150–250 ms, a click's picture would not carry the fade. The emphasis would then arrive one dwell later. Estimate, not measured: the player's move ×0.70–0.80 and a pick ×0.55–0.75. It is not built.</p>",
         "recommend": "Allow a patch: the next speed run builds it with before-and-after interaction sheets and a move + pick A/B, and puts both in front of you before anything lands."
-      },
-      {
-        "title": "RW2: may a finished game warm the review's workers with a short search before Review is clicked?",
-        "body": "<p>Each review worker's first position costs about 190 ms more than the rest. RW1 made the workers early with no search and the review got no faster (×1.023, <code>ab-20261020-1303-rw1.md</code>), so the cost is not the worker's start-up. What is left is the JIT warming up, which needs a small search (about 5k nodes) to run before the click. The comment in <code>GameView.tsx</code> says the review never runs on its own, to spare a phone's battery.</p>",
-        "recommend": "Keep the rule for now. Allow one measurement patch that times a late position first, to split the 190 ms between the JIT and the start position, before deciding."
       },
       {
         "title": "PR1 road (d): may the lobby and the game share one canvas, with a cut in place of the cross-fade?",
@@ -93,7 +88,7 @@
       },
       {
         "title": "RW1: make the review's workers once a finished game is on screen",
-        "body": "<p>The review went 2.02 → 2.07 s, ×1.023 (9 of 10 pairs at 1.00 or above; <code>ab-20261020-1303-rw1.md</code>). The first position's extra 190 ms per worker is not the worker starting up. See RW2 under Needs from me.</p>"
+        "body": "<p>The review went 2.02 → 2.07 s, ×1.023 (9 of 10 pairs at 1.00 or above; <code>ab-20261020-1303-rw1.md</code>). The first position's extra 190 ms per worker is not the worker starting up. See RW2 in the ledger.</p>"
       },
       {
         "title": "DC1: draw a move's or a pick's picture in its own React commit",
@@ -114,7 +109,9 @@
     "items": [
       { "title": "No A/B on the final commit", "body": "<p>The branch's app code is byte-identical to the base's, so a final A/B would be an A/A test. <code>/check</code> passed on the final commit: lint, build, 1,583 client tests with coverage, 80 server tests and both codegen gates. e2e was not run, because no UI, socket or protocol code changed.</p>" },
       { "title": "LL2 and the search stack parked, not kept", "body": "<p>Both leaned faster in most pairs but the A/B did not call them. A speed run keeps only called wins.</p>" },
-      { "title": "The JIT probe kept and fixed rather than removed", "body": "<p>It is the only rerunnable evidence for the per-context first-draw cost that PR1's re-scoping rests on.</p>" }
+      { "title": "The JIT probe kept and fixed rather than removed", "body": "<p>It is the only rerunnable evidence for the per-context first-draw cost that PR1's re-scoping rests on.</p>" },
+      { "title": "RW2 kept in the ledger, not asked", "body": "<p>Its next step is a measurement patch that splits the review's ~190 ms first position between the JIT warming up and the start position's own size. A run can decide that itself, so it is not an owner question. Only if the warm-up is most of it would a run build a warm-up search, and that PR weighs the battery rule in <code>GameView.tsx</code>.</p>" },
+      { "title": "Four revert commits keep git's default message", "body": "<p>The three FP1 reverts and the RW1 revert on the branch end without the two attribution lines. Adding them means rewriting the branch's history and force-pushing it, which this session's permission check refused. The PR is squash-merged, so main's commit takes the PR description, which carries the attribution. Later runs commit reverts with the lines (<code>git revert --no-commit</code>, then <code>git commit</code>).</p>" }
     ]
   },
   "notConfirmed": {
@@ -131,6 +128,7 @@
       { "title": "1303:HF1: the level focus after a dwell", "body": "<p>The largest measured lead for the move and pick rows. Needs your answer above, then a patch with sheets.</p>" },
       { "title": "1303:LL2 stacked with RM1, or with more pairs", "body": "<p>The opponent's move, a steady −20% not yet called.</p>" },
       { "title": "1018-2320:FM1: the exact search stack with TT1 and KP1", "body": "<p>Aiming past 5% on search speed and the review, with the missing tests added.</p>" },
+      { "title": "1303:RW2: split the review's first position", "body": "<p>A measurement patch first: time a late position first, to tell the JIT's warm-up from the start position's own size.</p>" },
       { "title": "MS2 and BR1", "body": "<p>Passed over this run: joining at 10+ pairs with LM1's patch, and diagnostic rows that would commit PR1's trace times.</p>" }
     ]
   }
