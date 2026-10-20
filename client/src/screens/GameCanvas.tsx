@@ -33,6 +33,13 @@ const GAME_SWEEP = orbitSweep(layout.orbit);
 
 type TestWindow = Window & { __r3fState?: RootState };
 
+/**
+ * How r3f measures the canvas's box: at once, where its default holds every
+ * measure (the first, which creates the renderer, included) behind a 50 ms
+ * timer meant for scrolling. The board's page never scrolls.
+ */
+const MEASURE = { debounce: 0 };
+
 export interface GameCanvasProps {
   color: Color | null;
   board: EngineBoard;
@@ -113,6 +120,7 @@ const GameCanvas = ({
           opacity: `var(${INTRO_SCENE_VAR}, 1)`,
         }}
         camera={{ position: layout.viewDirection, fov: 36 }}
+        resize={MEASURE}
         // A pixel budget rather than r3f's fixed cap: the screen's own
         // ratio up to 2x, a large high-density window a little under it
         dpr={pixelRatio}
