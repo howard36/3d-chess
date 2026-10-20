@@ -1,0 +1,212 @@
+diff --git a/client/src/three/Board.tsx b/client/src/three/Board.tsx
+index 6a0107f..0b58bc2 100644
+--- a/client/src/three/Board.tsx
++++ b/client/src/three/Board.tsx
+@@ -42,6 +42,7 @@ import { knightFacing, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from
+ import { Selection } from './scene/selection';
+ import { pieceArrival } from './intro/timeline';
+ import { useEntranceReplay } from './replay';
++import { markAwaited } from './framePacer';
+ 
+ // The 125 cell boxes are click targets only, never drawn: every one is
+ // `visible={false}`, and three's Raycaster tests layers, not visibility, so
+@@ -235,6 +236,11 @@ const Board = (props: BoardProps) => {
+   // State for selected piece and its legal moves
+   const [selected, setSelected] = useState<null | Coord>(null);
+   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
++  // A new position or a piece picked up or put down: the player waits on its
++  // picture, which PaceOnGpu draws as soon as the GPU is free (awaitedFrame)
++  useLayoutEffect(() => {
++    markAwaited(view().scene);
++  }, [board, selected, view]);
+   // The held piece as of now, not as of the last render: a move clears it at
+   // once, so nothing later in the same event (or before the next render) can
+   // play it again
+diff --git a/client/src/three/framePacer.test.tsx b/client/src/three/framePacer.test.tsx
+index a066dca..ff5c107 100644
+--- a/client/src/three/framePacer.test.tsx
++++ b/client/src/three/framePacer.test.tsx
+@@ -1,10 +1,15 @@
+ import { render } from '@testing-library/react';
+ import { beforeEach, expect, it, vi } from 'vitest';
+-import { PACE_MAX_SKIPS, PaceOnGpu } from './framePacer';
++import { markAwaited, PACE_MAX_SKIPS, PaceOnGpu } from './framePacer';
+ import { MAX_PASSES } from './scene/damage';
+ 
+ // r3f stood in: the frame callback and its priority captured, the renderer a stand-in with fences
+-const frame = vi.hoisted(() => ({ run: null as null | ((s: object) => void), priority: 0 }));
++const frame = vi.hoisted(() => ({
++  run: null as null | ((s: object) => void),
++  priority: 0,
++  state: {} as object,
++  advanced: 0,
++}));
+ const gpu = vi.hoisted(() => {
+   const fences: { passed: boolean }[] = [];
+   const context = {
+@@ -44,7 +49,12 @@ const gpu = vi.hoisted(() => {
+   };
+ });
+ vi.mock('@react-three/fiber', () => ({
+-  useThree: (pick: (s: object) => unknown) => pick({ gl: gpu.gl }),
++  useThree: (pick: (s: object) => unknown) => pick({ gl: gpu.gl, get: () => frame.state }),
++  // r3f's advance: one step of the root's useFrames
++  advance: (_t: number, _global: boolean, s: object) => {
++    frame.advanced++;
++    frame.run!(s);
++  },
+   useFrame: (run: (s: object) => void, priority: number) => {
+     frame.run = run;
+     frame.priority = priority;
+@@ -162,3 +172,42 @@ it('draws a frame in MAX_PASSES passes at most, whatever nextPass says', () => {
+   expect(draw).toHaveBeenCalledTimes(MAX_PASSES);
+   draw.mockRestore();
+ });
++
++it('draws an awaited frame the GPU held as soon as its fence passes, not at the next display frame', () => {
++  vi.useFakeTimers();
++  try {
++    const scene = { userData: {} };
++    const at = { ...state, scene };
++    frame.state = at;
++    frame.advanced = 0;
++    const draw = vi.spyOn(gpu.gl, 'render').mockImplementation(() => {});
++    draw.mockClear();
++    render(<PaceOnGpu />);
++    frame.run!(at);
++    // A frame at rest the GPU holds waits for the next display frame
++    frame.run!(at);
++    gpu.fences[0].passed = true;
++    vi.advanceTimersByTime(10);
++    expect(draw).toHaveBeenCalledTimes(1);
++    frame.run!(at);
++    expect(draw).toHaveBeenCalledTimes(2);
++    // A new position: its frame held, then drawn when the fence passes
++    markAwaited(scene as never);
++    frame.run!(at);
++    expect(draw).toHaveBeenCalledTimes(2);
++    vi.advanceTimersByTime(5);
++    expect(draw).toHaveBeenCalledTimes(2);
++    gpu.fences[1].passed = true;
++    vi.advanceTimersByTime(2);
++    expect(frame.advanced).toBe(1);
++    expect(draw).toHaveBeenCalledTimes(3);
++    // Only its first frame: the next one keeps the display's pace
++    frame.run!(at);
++    gpu.fences[2].passed = true;
++    vi.advanceTimersByTime(10);
++    expect(draw).toHaveBeenCalledTimes(3);
++    draw.mockRestore();
++  } finally {
++    vi.useRealTimers();
++  }
++});
+diff --git a/client/src/three/framePacer.tsx b/client/src/three/framePacer.tsx
+index ad6b757..e3dfd4a 100644
+--- a/client/src/three/framePacer.tsx
++++ b/client/src/three/framePacer.tsx
+@@ -1,5 +1,6 @@
+ import { useEffect, useRef } from 'react';
+-import { useFrame, useThree } from '@react-three/fiber';
++import { advance, useFrame, useThree } from '@react-three/fiber';
++import type { Camera, Object3D, Scene } from 'three';
+ import { MAX_PASSES } from './scene/damage';
+ 
+ /**
+@@ -24,7 +25,10 @@ const stepped = () => typeof (window as { __vclock?: unknown }).__vclock === 'ob
+  */
+ export const PaceOnGpu = () => {
+   const gl = useThree((s) => s.gl);
++  const get = useThree((s) => s.get);
+   const fence = useRef<{ sync: WebGLSync; skipped: number } | null>(null);
++  // The timer that watches a held frame's fence (awaitedFrame)
++  const poll = useRef(0);
+   useEffect(() => {
+     const context = gl.getContext() as WebGL2RenderingContext;
+     const canvas = gl.domElement;
+@@ -33,10 +37,47 @@ export const PaceOnGpu = () => {
+     canvas.addEventListener('webglcontextlost', lost);
+     return () => {
+       canvas.removeEventListener('webglcontextlost', lost);
++      clearTimeout(poll.current);
++      poll.current = 0;
+       if (fence.current && !context.isContextLost()) context.deleteSync(fence.current.sync);
+       fence.current = null;
+     };
+   }, [gl]);
++  const draw = (scene: Scene, camera: Camera) => {
++    const context = gl.getContext() as WebGL2RenderingContext;
++    if (scene.userData) scene.userData.awaited = false;
++    gl.render(scene, camera);
++    // A frame at rest drawn in part may take a pass for each rect it redraws
++    // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says
++    const nextPass = scene.userData?.nextPass as (() => boolean) | undefined;
++    for (let pass = 1; pass < MAX_PASSES && nextPass?.(); pass++) gl.render(scene, camera);
++    // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
++    if (gl.getScissorTest()) gl.setScissorTest(false);
++    if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
++    const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
++    if (!sync) return;
++    fence.current = { sync, skipped: 0 };
++    context.flush();
++  };
++  // A held frame the player waits on is drawn as soon as its predecessor's
++  // fence passes, not at the next display frame: the GPU is not left idle
++  // for up to a display frame at each step of the chain before the picture
++  const watch = (scene: Scene) => {
++    if (poll.current) return;
++    const check = () => {
++      poll.current = 0;
++      const context = gl.getContext() as WebGL2RenderingContext;
++      const last = fence.current;
++      if (!last || context.isContextLost() || !awaited(scene)) return;
++      if (context.getSyncParameter(last.sync, context.SYNC_STATUS) === context.UNSIGNALED) {
++        poll.current = window.setTimeout(check, 1);
++        return;
++      }
++      // One step of every useFrame on r3f's clock, this one's draw included
++      advance(performance.now(), false, get());
++    };
++    poll.current = window.setTimeout(check, 1);
++  };
+   useFrame(({ scene, camera, invalidate }) => {
+     const context = gl.getContext() as WebGL2RenderingContext;
+     const last = fence.current;
+@@ -52,26 +93,25 @@ export const PaceOnGpu = () => {
+       if (busy) {
+         last.skipped++;
+         invalidate();
++        if (awaited(scene)) watch(scene);
+         return;
+       }
+       if (!lost) context.deleteSync(last.sync);
+       fence.current = null;
+     }
+-    gl.render(scene, camera);
+-    // A frame at rest drawn in part may take a pass for each rect it redraws
+-    // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says
+-    const nextPass = scene.userData?.nextPass as (() => boolean) | undefined;
+-    for (let pass = 1; pass < MAX_PASSES && nextPass?.(); pass++) gl.render(scene, camera);
+-    // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
+-    if (gl.getScissorTest()) gl.setScissorTest(false);
+-    if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
+-    const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
+-    if (!sync) return;
+-    fence.current = { sync, skipped: 0 };
+-    context.flush();
++    clearTimeout(poll.current);
++    poll.current = 0;
++    draw(scene, camera);
+   }, 1);
+   return null;
+ };
+ 
++/** A new position or a selection the player waits on to see (Board): its first frame is awaited. */
++export const markAwaited = (scene: Object3D) => {
++  scene.userData.awaited = true;
++};
++
++const awaited = (scene: Object3D) => scene.userData?.awaited === true;
++
+ /** The display frames a frame waits for the GPU at most (a second at 60 Hz): a fence that never passes holds nothing. */
+ export const PACE_MAX_SKIPS = 60;
