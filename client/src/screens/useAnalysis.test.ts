@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Computer, PositionAnalysis } from '../ai/computer';
 import type { WireMove } from '../ai/position';
+import { evaluationText } from '../game/analysis';
 import { deriveHistory } from '../game/history';
 import type { GameHistory } from '../game/history';
 import type { MoveRecord, WebSocketMessage } from '../types/messages';
@@ -95,6 +96,14 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
   expect(result.current.done).toBe(1);
   await answer(at(40, 'Ad1', 'Cc1'));
   expect(result.current.done).toBe(2);
+  // One for each position, those still to come undefined
+  expect(result.current.evaluations).toEqual([
+    { score: 40, chances: expect.any(Number) },
+    undefined,
+    undefined,
+    undefined,
+    { score: 0, mate: 0, chances: -1 },
+  ]);
   expect(result.current.grades).toEqual([undefined, undefined, undefined, undefined]);
   await answer(at(11, 'Ed5', 'Cc5'));
   // The first move, a little off the best: no mark
@@ -117,6 +126,14 @@ it('waits to be asked, then searches each position in turn, marks coming in as t
   expect(result.current.grades[3]).toBeNull();
   expect(result.current.counts.white.blunder).toBe(1);
   expect(result.current.counts.black.blunder).toBe(1);
+  // Each position from White's side, the mate the game ended in its result
+  expect(result.current.evaluations.map((e) => e && evaluationText(e))).toEqual([
+    '+0.4',
+    '\u22120.1',
+    '+10.5',
+    '\u2212M1',
+    '0–1',
+  ]);
   expect(worker.disposed).toBe(1);
   // Asked again, nothing more is searched
   act(() => result.current.start());

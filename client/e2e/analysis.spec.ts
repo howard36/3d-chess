@@ -53,8 +53,10 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
     ).toHaveAttribute('data-count', '1');
   }
 
-  // At the end (the mate, the best move): nothing more on the board
+  // At the end (the mate, the best move): nothing more on the board, the
+  // score the result
   await expect(history).not.toHaveAttribute('data-best');
+  await expect(history).toHaveAttribute('data-evaluation', '0-1');
   expect(await betterOnBoard(page)).toBe(false);
   // White's blunder: the queen there for the taking
   await page.locator('[data-ply="3"]').click();
@@ -62,6 +64,9 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
   await expect(history).toHaveAttribute('data-best', 'Bc1-Cc2');
   await expect(page.getByTestId('best-move')).toBeVisible();
   await expect.poll(() => betterOnBoard(page)).toBe(true);
+  // ...after which Black mates in one, on the game's graph beside the tower
+  await expect(history).toHaveAttribute('data-evaluation', '-M1');
+  await expect(page.locator('.hud-graph-score')).toHaveText('\u2212M1');
   // An unmarked move keeps the board quiet
   await page.locator('[data-ply="1"]').click();
   await expect(history).not.toHaveAttribute('data-best');
@@ -73,11 +78,16 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
   await page.keyboard.press('ArrowRight');
   await expect(history).toHaveAttribute('data-viewing-ply', '3');
   await expect(page.locator('.hud-now .hud-mark[data-grade="blunder"]')).toBeVisible();
+  // ...and the score beside it, with no graph and, the list closed, no bar
+  await expect(page.locator('.hud-now .hud-score')).toHaveText('\u2212M1');
+  await expect(page.getByTestId('advantage-graph')).toHaveCount(0);
+  await expect(page.getByTestId('evaluation-bar')).toHaveCount(0);
   await expect(page.getByTestId('best-move')).toHaveCount(0);
   await expect.poll(() => betterOnBoard(page)).toBe(true);
   // ...and the list opened above the steps carries every mark
   await page.locator('.hud-now').click();
   await expect(page.locator('[data-ply="2"] .hud-mark')).toBeVisible();
+  await expect(page.getByTestId('evaluation-bar')).toBeVisible();
   await expect(page.getByTestId('best-move')).toBeVisible();
   // Every mark as large as its move's words, its "?" and "!" as tall as their capitals
   const sizes = await page.evaluate(() =>

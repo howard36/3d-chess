@@ -1,6 +1,6 @@
 import { Board } from '../engine/board';
 import { fromZXY, toZXY } from '../engine/coords';
-import { onlyKings } from '../engine/draws';
+import { insufficientMaterial } from '../engine/draws';
 import { moveFromMessage } from '../engine/protocol';
 import { PieceType } from '../engine/pieces';
 import type { Piece } from '../engine/pieces';
@@ -85,7 +85,7 @@ it('agrees with the engine on every position of random games', () => {
       const expected = engineMoves(board, color);
       expect(positionMoves(pos)).toEqual(expected);
       expect(pos.inCheck()).toBe(board.inCheck(color));
-      expect(pos.onlyKings()).toBe(onlyKings(board));
+      expect(pos.insufficientMaterial()).toBe(insufficientMaterial(board));
       positions++;
       if (expected.length === 0) break;
       // Prefer captures now and then, so games reach thin endgames
@@ -109,35 +109,100 @@ it('agrees with the engine on every position of random games', () => {
   // with coverage on a busy runner
 }, 30_000);
 
-it('calls the kings alone a draw exactly when the engine does', () => {
-  // The search reads it from its kept material sums, the engine from the board
-  for (const type of Object.values(PieceType)) {
-    if (type === PieceType.King) continue;
+it('calls material that can never mate a draw exactly when the engine does', () => {
+  // The search reads it from its kept material sums and the side with
+  // something left, the engine from the board
+  const { Rook: R, Bishop: B, Knight: N, Unicorn: U, Queen: Q, Pawn: P } = PieceType;
+  const cases: [PieceType[], PieceType[], boolean][] = [
+    [[], [], true],
+    [[R], [], true],
+    [[B], [], true],
+    [[N], [], true],
+    [[U], [], true],
+    [[U, R], [], true],
+    [[U, B], [], true],
+    [[U, N], [], true],
+    [[U, U], [], true],
+    [[Q], [], false],
+    [[P], [], false],
+    [[R, R], [], false],
+    [[R, B], [], false],
+    [[R, N], [], false],
+    [[B, B], [], false],
+    [[B, N], [], false],
+    [[N, N], [], false],
+    [[U, Q], [], false],
+    [[U, P], [], false],
+    [[U, R, B], [], false],
+    [[U, U, N], [], false],
+    [[R], [R], false],
+    [[U], [N], false],
+  ];
+  // Squares for the pieces, clear of both kings
+  const spots: [number, number, number][] = [
+    [2, 2, 2],
+    [1, 3, 1],
+    [3, 1, 3],
+  ];
+  for (const [army, other, dead] of cases) {
     for (const color of ['white', 'black'] as const) {
-      const other = color === 'white' ? 'black' : 'white';
-      // The piece's own king far off, the other king beside it, to move
+      const enemy = color === 'white' ? 'black' : 'white';
       const pieces: [number, number, number, Piece][] = [
-        [2, 2, 2, { type, color }],
-        [0, 0, 4, { type: PieceType.King, color }],
-        [3, 3, 3, { type: PieceType.King, color: other }],
+        [0, 0, 0, { type: PieceType.King, color }],
+        [4, 4, 4, { type: PieceType.King, color: enemy }],
+        ...army.map((type, i) => [...spots[i], { type, color }] as [number, number, number, Piece]),
+        ...other.map(
+          (type) => [0, 4, 2, { type, color: enemy }] as [number, number, number, Piece],
+        ),
       ];
-      let board = new Board();
+      // A pawn stands where it can move: White's on level B, Black's on level D
+      for (const p of pieces)
+        if (p[3].type === PieceType.Pawn) p[2] = p[3].color === 'white' ? 1 : 3;
+      const board = new Board();
       const pos = new Position();
       for (const [x, y, z, piece] of pieces) {
         board.setPiece({ x, y, z }, piece);
         pos.board[cellOf(x, y, z)] = TYPE_CODE[piece.type] | (piece.color === 'black' ? BLACK : 0);
       }
-      pos.reset(other === 'white' ? WHITE_SIDE : BLACK_SIDE);
-      expect([pos.onlyKings(), onlyKings(board)], `${color} ${type}`).toEqual([false, false]);
-      const out = new Int32Array(256);
-      const n = pos.legalMoves(out);
-      const take = [...out.subarray(0, n)].find(
-        (m) => Position.record(m).from === 'Dd4' && Position.record(m).to === 'Cc3',
-      )!;
-      board = board.applyMove(moveFromMessage({ by: other, ...Position.record(take) }));
-      pos.make(take);
-      expect([pos.onlyKings(), onlyKings(board)], `${color} ${type} taken`).toEqual([true, true]);
+      pos.reset(WHITE_SIDE);
+      const label = `${color} ${army.join('+') || 'king'} against ${other.join('+') || 'king'}`;
+      expect([pos.insufficientMaterial(), insufficientMaterial(board)], label).toEqual([
+        dead,
+        dead,
+      ]);
     }
+  }
+});
+
+it('turns dead when the bare king takes a piece, as the engine does', () => {
+  // White's rook and bishop can mate; Black's king takes the bishop, leaving a lone rook
+  for (const color of ['white', 'black'] as const) {
+    const other = color === 'white' ? 'black' : 'white';
+    const pieces: [number, number, number, Piece][] = [
+      [2, 2, 2, { type: PieceType.Bishop, color }],
+      [0, 4, 0, { type: PieceType.Rook, color }],
+      [0, 0, 4, { type: PieceType.King, color }],
+      [3, 3, 3, { type: PieceType.King, color: other }],
+    ];
+    let board = new Board();
+    const pos = new Position();
+    for (const [x, y, z, piece] of pieces) {
+      board.setPiece({ x, y, z }, piece);
+      pos.board[cellOf(x, y, z)] = TYPE_CODE[piece.type] | (piece.color === 'black' ? BLACK : 0);
+    }
+    pos.reset(other === 'white' ? WHITE_SIDE : BLACK_SIDE);
+    expect([pos.insufficientMaterial(), insufficientMaterial(board)], color).toEqual([
+      false,
+      false,
+    ]);
+    const take = pos.findMove({ from: 'Dd4', to: 'Cc3' });
+    expect(take).not.toBe(0);
+    board = board.applyMove(moveFromMessage({ by: other, ...Position.record(take) }));
+    pos.make(take);
+    expect([pos.insufficientMaterial(), insufficientMaterial(board)], `${color} taken`).toEqual([
+      true,
+      true,
+    ]);
   }
 });
 
