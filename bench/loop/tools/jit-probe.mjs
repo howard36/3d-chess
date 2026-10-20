@@ -6,8 +6,10 @@
 // ms (by the shader's length): a draw-time JIT, paid again by a new program
 // object of the same source, in the same context or a second one (Chromium's
 // program cache only makes the link cheaper).
-//   PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=... node jit-probe.mjs   (from client/)
-import { chromium } from '@playwright/test';
+//   PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=... node ../bench/loop/tools/jit-probe.mjs   (from client/)
+import { createRequire } from 'node:module';
+const require = createRequire(new URL('../../../client/package.json', import.meta.url));
+const { chromium } = require('playwright');
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
   args: [

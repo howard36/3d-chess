@@ -2,11 +2,10 @@ diff --git a/client/scripts/bench-browser.mjs b/client/scripts/bench-browser.mjs
 index 39fbdf1..701a5ab 100644
 --- a/client/scripts/bench-browser.mjs
 +++ b/client/scripts/bench-browser.mjs
-@@ -1600,9 +1600,15 @@ async function joinViaUI(browser, scope) {
+@@ -1600,9 +1600,14 @@ async function joinViaUI(browser, scope) {
    const { gameId } = white.last.game_created;
    const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
    const page = await ctx.newPage();
-+  if (process.env.PROBE_NO_LINK) await page.addInitScript(() => { window.__noLinkAhead = true; });
    await page.goto(`${BASE}/game/${gameId}`);
 +  if (process.env.PROBE_JOIN_WAIT) {
 +    await page.getByRole('button', { name: /^Join game\b/i }).waitFor();
