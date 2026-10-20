@@ -1,0 +1,96 @@
+diff --git a/bench/loop/RUN-20261020-1951.md b/bench/loop/RUN-20261020-1951.md
+index 5d67e93..ca5154a 100644
+--- a/bench/loop/RUN-20261020-1951.md
++++ b/bench/loop/RUN-20261020-1951.md
+@@ -44,3 +44,7 @@ Bets, in order, each with its kill criterion (written before starting it):
+ 1. **CC1, chunk culling of partly covered pieces** (lenses 23, 30, 31 converged; BR1's sibling): each piece's index split into contiguous runs with local boxes; a pass draws only the runs of a partly covered piece whose boxes meet its rect (same pixels by construction; geometry untouched). Riskiest part first: a count-only probe in drawIn over one move-latency + select run. **Kill if** the out-of-rect share of the move and pick frames' triangles is under 20% (by ~00:10Z), or a 10–12-pair move-latency + select A/B calls no row (by ~01:45Z).
+ 2. **IE1, the entry inlined into the HTML** (lens 28): the entry (and its static imports) as `data:` modules behind an import map, its CSS as `<style>`, so the code arrives in the idle round trip after the HTML. Riskiest part first: one React across the lazy chunks, and the main thread's compile. **Kill if** a 3-pair cold-load probe does not show phone usable ≥5% faster.
+ 3. **BL1, branchless 4-step rays on a 4-cell bordered board** (lenses 26, 30; KP1 widened): exact. **Kill if** the node probe (A1 cases, interleaved) is under 5% faster.
++
++### Session log (step 4)
++
++- 22:53 Improve starts. Bet 1 (CC1): count-only probe in `cullOutside` (temporary; one move-latency + select run each, 4bdeb55's app, chunk boxes projected with damage's own projector and PAD). Share of the measured frames' triangles a pass could leave out, by how a piece is cut: 128-tri chunks, any subset: moves 19.2%, picks 13.5%; 32-tri chunks, any subset: 23.8% / 16.3%; at most 3 index ranges a piece (32-tri chunks): 21.4% / 15.0%; one contiguous range: 7.2% / 4.1%. **Killed** by its criterion (picks well under 20%; moves only clear it with ~3 draw calls a partly covered piece and ~100 chunk boxes projected each, whose CPU and draw-call costs would eat into it; and whether SwiftShader charges a triangle outside the scissor like one inside is unproven). Probe reverted, no patch (the probe is ~60 lines, described here).
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index 8a372cc..3ee3912 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -403,6 +403,71 @@ export const keepHashedFiles = (): Plugin => {
+   };
+ };
+ 
++/**
++ * (Rejected, run 20261020-1951 IE1.) The entry and the chunks it imports
++ * statically ride in the HTML as `data:` modules behind an import map, and
++ * its styles as a `<style>`, so a phone's first visit needs no round trip
++ * after the HTML for the entry.
++ */
++const INLINED_PREFIX = '@inline/';
++const inlineEntry = (): Plugin => {
++  let outDir = 'dist';
++  return {
++    name: 'inline-entry',
++    apply: 'build',
++    enforce: 'post',
++    configResolved(config) {
++      outDir = resolve(config.root, config.build.outDir);
++    },
++    writeBundle(_options, bundle) {
++      const chunks = Object.values(bundle).filter((c) => c.type === 'chunk');
++      const entry = chunks.find((c) => c.isEntry);
++      if (!entry) this.error('inline-entry: no entry chunk');
++      const inlined = [entry.fileName, ...entry.imports];
++      const base = (f: string) => f.replace(/^assets\//, '');
++      const names = chunks.map((c) => base(c.fileName));
++      const read = (f: string) => readFileSync(resolve(outDir, f), 'utf8');
++      const data = new Map<string, string>();
++      for (const f of inlined) {
++        let code = read(f);
++        for (const n of names)
++          for (const q of ['"', "'", '`']) code = code.replaceAll(`${q}./${n}${q}`, `${q}${INLINED_PREFIX}${n}${q}`);
++        code = code.replaceAll('import.meta', `({url:new URL(${JSON.stringify(`/${f}`)},location.href).href})`);
++        const left = /["'`]\.\.?\/|import\.meta/.exec(code);
++        if (left) this.error(`inline-entry: ${f} keeps ${code.slice(left.index, left.index + 40)}`);
++        const encoded = code.replace(/[%#\t\n\r]/g, (c) => encodeURIComponent(c));
++        data.set(f, `data:text/javascript;charset=utf-8,${encoded}`);
++      }
++      const imports: Record<string, string> = {};
++      for (const c of chunks) {
++        const n = base(c.fileName);
++        const d = data.get(c.fileName);
++        if (d) imports[`/${c.fileName}`] = d;
++        if (c !== entry) imports[`${INLINED_PREFIX}${n}`] = d ?? `/${c.fileName}`;
++      }
++      const map = JSON.stringify({ imports }).replace(/</g, '\\u003c');
++      const css = [...(entry.viteMetadata?.importedCss ?? [])];
++      for (const page of ['index.html', 'invite.html']) {
++        const path = resolve(outDir, page);
++        let html = readFileSync(path, 'utf8');
++        const script = new RegExp(`<script type="module" crossorigin src="/${entry.fileName}"></script>`);
++        if (!script.test(html)) this.error(`inline-entry: ${page} has no entry script`);
++        html = html.replace(
++          script,
++          () =>
++            `<script type="importmap">${map}</script>\n    <script type="module">import"/${entry.fileName}"</script>`,
++        );
++        for (const f of entry.imports) html = html.replace(`<link rel="modulepreload" crossorigin href="/${f}">`, '');
++        for (const f of css) {
++          const text = read(f).replace(/<\/style/gi, '<\\/style');
++          html = html.replace(`<link rel="stylesheet" crossorigin href="/${f}">`, () => `<style>${text}</style>`);
++        }
++        writeFileSync(path, html);
++      }
++    },
++  };
++};
++
+ // https://vite.dev/config/
+ export default defineConfig({
+   plugins: [
+@@ -417,6 +482,7 @@ export default defineConfig({
+     socialImageOnPreviews(),
+     versionLandingPictures(),
+     keepHashedFiles(),
++    inlineEntry(),
+   ],
+   resolve: {
+     // r3f pins a scheduler of its own (0.28) beside react-dom's (0.27, the
