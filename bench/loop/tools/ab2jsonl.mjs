@@ -2,13 +2,15 @@
 // scoreboard.jsonl, one JSON object per measured row:
 //   node ab2jsonl.mjs <report.md> --run <id> --change <ledger id> [--variant <text>] [--only <regex>] [--head <sha> | --patch <file>]
 // --only keeps the rows whose "where · case" matches (the rows the change is
-// about, plus the primary ones); without it every row is kept. A head measured
+// about) and every primary row (bench/primary.mjs), which a "no primary row
+// called" claim rests on; without it every row is kept. A head measured
 // with uncommitted changes must say what it was, so a later run can rebuild
 // it: --head names the commit the change became, or --patch the committed
 // patch (under bench/loop/patches/) that was applied, written <sha>+<patch>.
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PRIMARY } from '../../primary.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback = null) => {
@@ -67,6 +69,7 @@ const diffsOf = (cell) =>
 
 let tier = null;
 let rows = 0;
+let primaries = 0;
 let missing = 0;
 const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'scoreboard.jsonl');
 for (const line of text.split('\n')) {
@@ -80,7 +83,8 @@ for (const line of text.split('\n')) {
     .map((c) => c.trim());
   if (cells.length !== 7) continue;
   const [where, scenario, b, hd, , pairs, verdict] = cells;
-  if (only && !only.test(`${where} · ${scenario}`)) continue;
+  const primary = PRIMARY.some((p) => p.where === where && p.what === scenario);
+  if (only && !primary && !only.test(`${where} · ${scenario}`)) continue;
   const pb = parse(b);
   const ph = parse(hd);
   // A row one side lost is kept, with that side null, and said
@@ -112,7 +116,8 @@ for (const line of text.split('\n')) {
   };
   appendFileSync(out, `${JSON.stringify(row)}\n`);
   rows++;
+  if (primary) primaries++;
 }
 console.log(
-  `${rows} rows appended to ${out}${missing ? ` (${missing} with one side missing)` : ''}`,
+  `${rows} rows (${primaries} primary) appended to ${out}${missing ? ` (${missing} with one side missing)` : ''}`,
 );

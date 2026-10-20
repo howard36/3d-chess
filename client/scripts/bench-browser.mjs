@@ -1309,6 +1309,17 @@ async function coldSection(browser) {
             polling: 20,
             timeout: 30000,
           });
+          // ...and the lobby's scene drawing (data-scene="on"): under full
+          // motion the side choice's words wait for it before they come in.
+          // LobbyLayout's fallback stamps "late" at 1.5 s instead, and the
+          // scene's own frame is then never stamped: such a load has no time
+          // (counted below), never the timer's
+          await page
+            .waitForFunction(() => window.__bench.stage.some((s) => s[3]), null, {
+              polling: 20,
+              timeout: 10000,
+            })
+            .catch(() => log(`cold-load ${c.key}: the lobby's scene never drew (10 s)`));
           await page
             .waitForFunction(
               () => performance.getEntriesByName('first-contentful-paint').length > 0,
@@ -1335,6 +1346,10 @@ async function coldSection(browser) {
               clickToChoice:
                 b.firsts.sideChoice -
                 b.clicks.find((c) => /^(Play a friend|Start a game)/.test(c[1]))?.[0],
+              clickToScene:
+                (b.stage.find((s) => s[3] === 'on')?.[0] ?? NaN) -
+                b.clicks.find((c) => /^(Play a friend|Start a game)/.test(c[1]))?.[0],
+              sceneLate: b.stage.find((s) => s[3])?.[3] !== 'on',
               longest: lts.length ? Math.max(...lts.map((l) => l[1])) : 0,
               transfer: nav.transferSize + res.reduce((s, r) => s + (r.transferSize || 0), 0),
               jsTransfer: res
@@ -1422,6 +1437,7 @@ async function coldSection(browser) {
           ['script run time, until ready', 'script'],
           ['longest page freeze, until ready', 'longest'],
           ['first click: side choice shown', 'clickToChoice'],
+          ['first click: the lobby’s scene drawing', 'clickToScene'],
         ];
         metrics.forEach(([label, k], i) => {
           const [row, m] = stat(label, col(k));
@@ -1462,6 +1478,13 @@ async function coldSection(browser) {
         ]) {
           const [row, m] = countStat(label, [raw.coldPicture[c.key].filter(pick).length]);
           sec.add(['', ...row], m && { ...m, better }, `${c.label} · ${label}`);
+        }
+        {
+          // Loads whose lobby scene missed LobbyLayout's 1.5 s fallback
+          // (the scene row above leaves them out)
+          const label = 'first click: lobby scene later than its 1.5 s fallback';
+          const [row, m] = countStat(label, [runs.filter((r) => r.sceneLate).length]);
+          sec.add(['', ...row], m, `${c.label} · ${label}`);
         }
         {
           const label = 'requests to the server, until the side choice';

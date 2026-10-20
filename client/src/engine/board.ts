@@ -6,6 +6,7 @@ import {
   QUEEN_VECTORS,
   KING_VECTORS,
   KNIGHT_VECTORS,
+  pawnCaptureDeltas,
 } from './pieces';
 import { Coord, LEVELS, RANKS, toZXY } from './coords';
 
@@ -17,15 +18,6 @@ export const ALL_PROMOTION_TYPES = [
   PieceType.Bishop,
   PieceType.Knight,
   PieceType.Unicorn,
-];
-
-/** A pawn's five capture directions, as [dx, dy, dz] for a pawn moving in `dir`. */
-const pawnCaptureDeltas = (dir: number): [number, number, number][] => [
-  [0, dir, dir], // Forwards-Up
-  [-1, dir, 0], // Forwards-Left
-  [1, dir, 0], // Forwards-Right
-  [-1, 0, dir], // Up-Left
-  [1, 0, dir], // Up-Right
 ];
 
 // The board is one array of 125 cells, cell z * 25 + x * 5 + y, so walking

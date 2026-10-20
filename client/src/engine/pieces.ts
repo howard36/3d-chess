@@ -32,6 +32,16 @@ export const PROMOTION_TO_PIECE: Record<Promotion, PieceType> = {
   U: PieceType.Unicorn,
 };
 
+/** A pawn's five capture directions, as [dx, dy, dz] for a pawn moving in `dir`
+ * (+1 White, -1 Black; the engine's, the computer's board's and kpk.ts's). */
+export const pawnCaptureDeltas = (dir: number): [number, number, number][] => [
+  [0, dir, dir], // Forwards-Up
+  [-1, dir, 0], // Forwards-Left
+  [1, dir, 0], // Forwards-Right
+  [-1, 0, dir], // Up-Left
+  [1, 0, dir], // Up-Right
+];
+
 // Movement vectors for each piece type (3D chess, §2.4)
 // Each vector is [dz, dx, dy] (z=level, x=file, y=rank)
 

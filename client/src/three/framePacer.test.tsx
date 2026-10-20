@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { PACE_MAX_SKIPS, PaceOnGpu } from './framePacer';
+import { MAX_PASSES } from './scene/damage';
 
 // r3f stood in: the frame callback and its priority captured, the renderer a stand-in with fences
 const frame = vi.hoisted(() => ({ run: null as null | ((s: object) => void), priority: 0 }));
@@ -132,4 +133,32 @@ it('draws anyway once a fence has held it for PACE_MAX_SKIPS frames', () => {
   expect(draw).toHaveBeenCalledTimes(1);
   frame.run!(state);
   expect(draw).toHaveBeenCalledTimes(2);
+});
+
+it('draws each pass a frame has', () => {
+  // (backdropCache.tsx: a frame at rest redrawing separate rects, a pass each)
+  const scene = { userData: { nextPass: vi.fn() } };
+  scene.userData.nextPass
+    .mockReturnValueOnce(true)
+    .mockReturnValueOnce(true)
+    .mockReturnValue(false);
+  const draw = vi.spyOn(gpu.gl, 'render').mockImplementation(() => {});
+  draw.mockClear();
+  render(<PaceOnGpu />);
+  frame.run!({ ...state, scene });
+  expect(draw).toHaveBeenCalledTimes(3);
+  draw.mockRestore();
+});
+
+it('draws a frame in MAX_PASSES passes at most, whatever nextPass says', () => {
+  // (a render that never reaches the scene's onBeforeRender, which takes the
+  // pass's rect, leaves nextPass true: a lost context, a stubbed render)
+  const scene = { userData: { nextPass: vi.fn() } };
+  scene.userData.nextPass.mockImplementation(() => scene.userData.nextPass.mock.calls.length < 100);
+  const draw = vi.spyOn(gpu.gl, 'render').mockImplementation(() => {});
+  draw.mockClear();
+  render(<PaceOnGpu />);
+  frame.run!({ ...state, scene });
+  expect(draw).toHaveBeenCalledTimes(MAX_PASSES);
+  draw.mockRestore();
 });

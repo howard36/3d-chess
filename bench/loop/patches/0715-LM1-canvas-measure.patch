@@ -1,0 +1,77 @@
+diff --git a/client/src/screens/GameCanvas.tsx b/client/src/screens/GameCanvas.tsx
+index e650d9f..801759d 100644
+--- a/client/src/screens/GameCanvas.tsx
++++ b/client/src/screens/GameCanvas.tsx
+@@ -18,7 +18,7 @@ import { Stage } from '../three/scene/stage';
+ import { BackdropCache } from '../three/scene/backdropCache';
+ import { WarmPrograms } from '../three/scene/warm';
+ import { PaceOnGpu } from '../three/framePacer';
+-import { linkBeforeFirstFrame, setUpRenderer } from '../three/rendererSetup';
++import { CANVAS_MEASURE, linkBeforeFirstFrame, setUpRenderer } from '../three/rendererSetup';
+ import type { Board as EngineBoard, Move } from '../engine';
+ import type { GameOver, LastMove, Turn } from '../game/history';
+ import type { Color } from '../types/messages';
+@@ -33,13 +33,6 @@ const GAME_SWEEP = orbitSweep(layout.orbit);
+ 
+ type TestWindow = Window & { __r3fState?: RootState };
+ 
+-/**
+- * How r3f measures the canvas's box: at once, where its default holds every
+- * measure (the first, which creates the renderer, included) behind a 50 ms
+- * timer meant for scrolling. The board's page never scrolls.
+- */
+-const MEASURE = { debounce: 0 };
+-
+ export interface GameCanvasProps {
+   color: Color | null;
+   board: EngineBoard;
+@@ -120,7 +113,7 @@ const GameCanvas = ({
+           opacity: `var(${INTRO_SCENE_VAR}, 1)`,
+         }}
+         camera={{ position: layout.viewDirection, fov: 36 }}
+-        resize={MEASURE}
++        resize={CANVAS_MEASURE}
+         // A pixel budget rather than r3f's fixed cap: the screen's own
+         // ratio up to 2x, a large high-density window a little under it
+         dpr={pixelRatio}
+diff --git a/client/src/screens/lobby/LobbyCanvas.tsx b/client/src/screens/lobby/LobbyCanvas.tsx
+index a1cfe77..fb678d0 100644
+--- a/client/src/screens/lobby/LobbyCanvas.tsx
++++ b/client/src/screens/lobby/LobbyCanvas.tsx
+@@ -5,7 +5,7 @@ import { LobbyScene } from '../../three/lobby/LobbyScene';
+ import type { LobbyView } from '../../three/lobby/LobbyScene';
+ import { LOBBY_FOV } from '../../three/lobby/lobbyMotion';
+ import { PaceOnGpu } from '../../three/framePacer';
+-import { setUpRenderer } from '../../three/rendererSetup';
++import { CANVAS_MEASURE, setUpRenderer } from '../../three/rendererSetup';
+ 
+ // The lobby's canvas: three.js and the lobby's scene, in the chunk the game's
+ // board (GameCanvas) and the landing page's preview share. LobbyLayout loads it
+@@ -23,6 +23,7 @@ const LobbyCanvas = ({ view, anchors, canvasHost }: LobbyCanvasProps) => (
+     data-testid="lobby-canvas"
+     camera={{ fov: LOBBY_FOV, position: [0, 0, 8], near: 0.1, far: 900 }}
+     dpr={[1, 1.5]}
++    resize={CANVAS_MEASURE}
+     gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
+     frameloop="demand"
+     onCreated={setUpRenderer}
+diff --git a/client/src/three/rendererSetup.ts b/client/src/three/rendererSetup.ts
+index bcc2649..2242336 100644
+--- a/client/src/three/rendererSetup.ts
++++ b/client/src/three/rendererSetup.ts
+@@ -1,6 +1,15 @@
+ import type { RootState } from '@react-three/fiber';
+ import { afterGpu, linkAhead } from './scene/programs';
+ 
++/**
++ * How r3f measures a canvas's box (its `resize`): at once, where its default
++ * holds every measure (the first, which creates the renderer, included)
++ * behind a 50 ms timer meant for scrolling (react-use-measure 2.1.7 drives
++ * its ResizeObserver with the scroll handler), and without following
++ * scrolls: the board's page and the lobby never scroll.
++ */
++export const CANVAS_MEASURE = { scroll: false, debounce: 0 };
++
+ /**
+  * What every canvas asks of its renderer as it is created (pass as a
+  * Canvas's onCreated, or call from it), for the waits on the GPU it spares
