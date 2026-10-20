@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { advance, useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import type { Camera, Object3D, Scene } from 'three';
 import { MAX_PASSES } from './scene/damage';
 
@@ -25,7 +25,6 @@ const stepped = () => typeof (window as { __vclock?: unknown }).__vclock === 'ob
  */
 export const PaceOnGpu = () => {
   const gl = useThree((s) => s.gl);
-  const get = useThree((s) => s.get);
   const fence = useRef<{ sync: WebGLSync; skipped: number } | null>(null);
   // The timer that watches a held frame's fence (awaitedFrame)
   const poll = useRef(0);
@@ -62,7 +61,7 @@ export const PaceOnGpu = () => {
   // A held frame the player waits on is drawn as soon as its predecessor's
   // fence passes, not at the next display frame: the GPU is not left idle
   // for up to a display frame at each step of the chain before the picture
-  const watch = (scene: Scene) => {
+  const watch = (scene: Scene, camera: Camera) => {
     if (poll.current) return;
     const check = () => {
       poll.current = 0;
@@ -73,8 +72,9 @@ export const PaceOnGpu = () => {
         poll.current = window.setTimeout(check, 1);
         return;
       }
-      // One step of every useFrame on r3f's clock, this one's draw included
-      advance(performance.now(), false, get());
+      context.deleteSync(last.sync);
+      fence.current = null;
+      draw(scene, camera);
     };
     poll.current = window.setTimeout(check, 1);
   };
@@ -93,7 +93,7 @@ export const PaceOnGpu = () => {
       if (busy) {
         last.skipped++;
         invalidate();
-        if (awaited(scene)) watch(scene);
+        if (awaited(scene)) watch(scene, camera);
         return;
       }
       if (!lost) context.deleteSync(last.sync);
