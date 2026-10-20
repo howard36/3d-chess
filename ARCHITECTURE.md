@@ -298,8 +298,8 @@ Key decisions:
   `rematch-announcer` says an offer and a refusal. With the card put away the screen is the
   review's: the board, the record and the rematch. The pill and the captured pieces step
   out of sight (still in the page, visually hidden, for a screen reader and the hooks
-  below) and the way to the tutorial goes; the way home stays. In a window no wider than
-  13:9, where the steps take the top row, the way home stands with the rematch in one row
+  below) and the way to the tutorial goes; the way home stays. In the top layout (a window
+  without room beside the tower, below), where the steps take the top row, the way home stands with the rematch in one row
   below the tower (`.hud-end`), at its left, the rematch in its middle while there is room;
   the steps then have the top row's whole width (to 400 px), so the move shown between
   them and each side's marks fit on one line on a 360 px phone.
@@ -337,7 +337,7 @@ Key decisions:
   earlier request's. The **move card** is never shown as a panel: it stays in the page out
   of sight, its field to type a move (`Bb1-Cb1`), which is the first Tab stop on the board
   screen. The field appears while it has keyboard
-  focus, at the bottom left (across the bottom in a window no wider than 13:9, at the bottom
+  focus, at the bottom left (across the bottom in the top layout, at the bottom
   right in a short one, over the move history where they meet), and Escape puts it away; with
   no 3D board (its chunk failed, or the browser has no WebGL) it stays in sight and Escape does
   not hide it. A visually hidden live region announces
@@ -366,14 +366,20 @@ Key decisions:
   which beside a level-file-rank square reads as one. A screen reader hears the move in
   words ("Pawn Cd2 takes Cc3, check"); a record past one the replay could not play keeps
   the wire's form (`Bb1–Cb1`), and the move box takes only the wire's form (`Bb1-Cb1`).
-  Where the window leaves room beside the tower it is a
+  Where the window leaves room beside the tower (`screens/hudLayout.ts`: at least 3:2
+  and 1200 px wide, or a short window, under 481 px tall) it is a
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land),
   wider once the game is over in a window over 480 px tall (240 px, so a reviewed move that
-  names its starting square, takes, checks and is marked fits its column). A move longer
+  names its starting square, takes, checks and is marked fits its column). The room is
+  measured, not guessed: the camera's fit sizes the tower by the window's height, so the
+  width that leaves room grows with it, and the two queries let in no window where that
+  panel would stand within 50 px of the tower at its widest, labels and all, from any
+  elevation the view reaches (`hudLayout.test.ts` holds them to the fit); every other
+  window over 480 px tall takes the top layout. A move longer
   than its column takes the room it needs and Black's goes under it, never cut off
-  (`e2e/hudFit.spec.ts` checks every move whole); in a window no wider than 13:9 only the steps show,
+  (`e2e/hudFit.spec.ts` checks every move whole); in the top layout only the steps show,
   in a row: under the tower behind the result card, and once it is put away in the pill's
   place at the top (the HUD's band, which the fitted board stays below, so the steps never
   cover the tower and never stand over the rematch), the move shown between them
@@ -410,7 +416,7 @@ Key decisions:
   review goes. Where the move shown is marked a fault, the board
   draws the better move beside it (see The board) and the panel names it under the list
   ("Best ♙Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
-  more. In a window no wider than 13:9 the mark stands beside the move shown between the
+  more. In the top layout the mark stands beside the move shown between the
   steps, and the review's top and the better move's name come with the list. The review
   lasts for the page's life; leaving the page, or another record, stops the work
   (`game/analysis.ts` grades each move: see Playing the computer).

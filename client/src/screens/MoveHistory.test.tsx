@@ -43,7 +43,7 @@ const history = (props: Partial<MoveHistoryProps> & { moves: MoveRecord[] }) => 
 const rows = () =>
   [...screen.getByTestId('move-list').querySelectorAll('li')].map((li) => li.textContent);
 
-/** A window `narrow` (no wider than 13:9) or not, as matchMedia reports it. */
+/** A window `narrow` (the top layout: no room beside the tower) or not, as matchMedia reports it. */
 const windowNarrow = (narrow: boolean) => {
   const listeners = new Set<() => void>();
   const query = {

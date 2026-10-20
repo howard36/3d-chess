@@ -44,6 +44,10 @@ const SIZES = [
   [844, 390],
   [932, 430],
   [1280, 720],
+  // Either side of where the side panel's room begins (screens/hudLayout.ts):
+  // the narrowest window with the panel beside the tower, and one just short of it
+  [1200, 800],
+  [1180, 820],
   [1920, 1080],
 ];
 
