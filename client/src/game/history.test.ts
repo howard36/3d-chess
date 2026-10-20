@@ -443,6 +443,60 @@ describe('deriveHistory: the draws', () => {
     expect(landed.gameOver).toEqual({ result: 'insufficient-material' });
   });
 
+  // Hard against itself (research/levels/selfplay.ts, game 221): on the last
+  // move White's rook takes Black's last piece, leaving a rook and a unicorn
+  // against the bare king
+  const toDeadRookUnicorn = [
+    ...['Bb1-Cb1', 'De5-Ce5', 'Ba1-Ca1', 'Ce5-Be5', 'Ad1-Cc1', 'Ed5-Dd3', 'Aa2-Ab3', 'Eb5-Cc5'],
+    ...['Be2-Ce2', 'Da5-Ca5', 'Ad2-Aa5', 'Ca5-Ca4', 'Aa5-Cc5', 'Dd5-Cc5', 'Bd2-Cd2', 'Dd3-Cd5'],
+    ...['Ca1-Ca2', 'Eb4-Ed2', 'Cb1-Cb2', 'Cd5-Bb5', 'Aa1-Ea1', 'Ec4-Eb4', 'Ae2-Bd3', 'Dd4-Dd3'],
+    ...['Cd2-Dd3', 'Ed2-Dd3', 'Ea1-Da1', 'Bb5-Ab3', 'Ac2-Ab3', 'Ec5-Eb5', 'Ae1-Ae5', 'Db4-Db3'],
+    ...['Da1-Dd1', 'Dd3-Ce3', 'Ab3-Ac3', 'Db3-Cb2', 'Bc2-Cb2', 'Ce3-Cc1', 'Ab1-Cc1', 'Ed4-Cb2'],
+    ...['Bb2-Bb3', 'Ea4-Bd1', 'Dd1-Bd1', 'Cb2-Bc1', 'Bd1-Bc1', 'Eb5-Ec4', 'Ac3-Bb2', 'Eb4-Db3'],
+    ...['Bd3-Cc2', 'Db3-Bd5', 'Ae5-Be5', 'Bd5-Be5', 'Bb2-Be5', 'Ee5-Be5', 'Cc2-Ee4', 'Dc4-Dc3'],
+    ...['Ac1-Bc2', 'Ec4-Ec3', 'Ca2-Ca3', 'Ea5-Ea2', 'Bc2-Bb2', 'Da4-Ca3', 'Bb3-Ca3', 'Be5-Be2'],
+    ...['Bb2-Cc3', 'Dc5-Dc4', 'Cc3-Cc4', 'Be2-Ba2', 'Ab2-Bc3', 'Dc3-Dc2', 'Cc1-De1', 'Ea2-Ee2'],
+    ...['De1-Ec1', 'Ee2-Ea2', 'Cc4-Db5', 'Ec3-Dd4', 'Ee4-Cc2', 'Ca4-Ba4', 'Cc2-Bd3', 'Ba4-Ba3'],
+    ...['Bd3-Cc4', 'Ea2-Ca2', 'Ec1-Eb3', 'Ba3-Aa3', 'Db5-Cb5', 'Dc2-Cc2', 'Bc1-Dc1', 'Dd4-Ec3'],
+    ...['Ca3-Da3', 'Ba2-Ba3', 'Dc1-Dc4', 'Ca2-Ca5', 'Cb5-Db5', 'Ba3-Da3', 'Eb3-Cc3', 'Da3-Ca3'],
+    ...['Cc3-Dc5', 'Ec3-Db2', 'Dc5-Ca5', 'Ca3-Ca5', 'Db5-Ca5', 'Db2-Cb3', 'Ca5-Cb5', 'Cc2-Bc2'],
+    ...['Bc3-Cd2', 'Cc5-Bc5', 'Dc4-Ec4', 'Cb3-Cc3', 'Ec4-Ec2', 'Cc3-Cd2', 'Cb5-Bc5', 'Bc2-Bc1'],
+    ...['Ec2-Ec1', 'Cd2-Be1', 'Ec1-Bc1', 'Be1-Cd1', 'Bc1-Ba1', 'Cd1-Bc2', 'Bc5-Bb4', 'Bc2-Cd2'],
+    ...['Ba1-Ba3', 'De4-Ce4', 'Bb4-Cb3', 'Ce4-Be4', 'Ba3-Ca3', 'Be4-Be3', 'Ca3-Ca2', 'Cd2-Ce3'],
+    ...['Cb3-Bb4', 'Be3-Be2', 'Ca2-Ca3', 'Ce3-Ce2', 'Ca3-Aa3', 'Ce2-Bd2', 'Bb4-Cb3', 'Be2-Be1'],
+    ...['Aa3-Aa1', 'Be1-Ae1=B', 'Aa1-Ae1'],
+  ].map((m, i) => {
+    const [from, to, promotion] = m.split(/[-=]/);
+    return {
+      by: i % 2 ? 'black' : 'white',
+      from,
+      to,
+      ...(promotion && { promotion }),
+    } as MoveRecord;
+  });
+
+  it('draws when a bare king faces only material that can never mate', () => {
+    const before = deriveHistory([snapshot(toDeadRookUnicorn.slice(0, -1))]);
+    expect(before.replayFailedAt).toBeNull();
+    expect(before.gameOver).toBeNull();
+    const h = deriveHistory([snapshot(toDeadRookUnicorn)]);
+    expect(h.replayFailedAt).toBeNull();
+    expect(h.gameOver).toEqual({ result: 'insufficient-material' });
+    // Black has only its king; White its king, a rook and a unicorn
+    const left = (color: 'white' | 'black') => {
+      const types: PieceType[] = [];
+      for (let z = 0; z < 5; z++)
+        for (let x = 0; x < 5; x++)
+          for (let y = 0; y < 5; y++) {
+            const p = h.board.getPiece({ x, y, z });
+            if (p?.color === color) types.push(p.type);
+          }
+      return types.sort();
+    };
+    expect(left('black')).toEqual([PieceType.King]);
+    expect(left('white')).toEqual([PieceType.King, PieceType.Rook, PieceType.Unicorn].sort());
+  });
+
   /**
    * A hundred plies with no capture and no pawn move, no position three
    * times: each side moves its pieces about, the first move in the engine's

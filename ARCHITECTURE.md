@@ -29,8 +29,11 @@ pieces):
   rank 1 on level A), to Q/R/B/N/U (the player picks from a prompt).
 
 No castling. Check, checkmate, and stalemate work as in standard chess and are detected
-by the client engine, and so are the automatic draws: the two kings left alone on the
-board (insufficient material; only bare kings, `onlyKings`), the same position (the
+by the client engine, and so are the automatic draws: insufficient material
+(`insufficientMaterial`: the two kings left alone, or a bare king against a king with
+one rook, bishop, knight or unicorn, or with a unicorn and one of those, none of which
+has a single checkmate position on this board, `research/endgames/deadmates.ts`; it can
+only arise from a capture or a promotion, and the game ends as it does), the same position (the
 same pieces on the same squares, the same side to move) standing for the third time, and
 fifty moves by each side (a hundred plies) with no capture and no pawn move
 (`engine/draws.ts`). A mate stands even on the move that would also complete a repetition
@@ -1274,7 +1277,7 @@ mobility by the position's hash. It plays by the draws too: a position standing 
 third time scores as a draw, and so does one repeated inside the line searched (it can
 always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
-without either draw unless the position is mate; the kings left alone draw at once. A lead counts for up to a quarter less as
+without either draw unless the position is mate; material that can never mate (`insufficientMaterial`, read from the material sums the board keeps) draws at once. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
 side behind takes a repetition when it is offered. The review, a draw offered to the computer
 and Hard also know one ending exactly (`endgames`, `kpk.ts`): king and pawn against king, which
