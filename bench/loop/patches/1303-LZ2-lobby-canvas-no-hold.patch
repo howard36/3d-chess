@@ -1,0 +1,130 @@
+commit 48f9b32b7efadc9a687f8be5102a2c8ba561c7d7
+Author: Claude <noreply@anthropic.com>
+Date:   Tue Oct 20 16:09:25 2026 +0000
+
+    perf(client): the lobby's canvas mounts as soon as its chunk is in, not after React's 300 ms hold
+    
+    WIP: measured below.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+
+diff --git a/client/src/lib/cachedImport.test.ts b/client/src/lib/cachedImport.test.ts
+index fb90d72..6cc3c3c 100644
+--- a/client/src/lib/cachedImport.test.ts
++++ b/client/src/lib/cachedImport.test.ts
+@@ -1,5 +1,6 @@
+ import { describe, expect, it, vi } from 'vitest';
+-import { ChunkLoadError, cachedImport } from './cachedImport';
++import { act, renderHook } from '@testing-library/react';
++import { ChunkLoadError, cachedImport, lazyChunk } from './cachedImport';
+ 
+ describe('cachedImport', () => {
+   it('loads once for every caller', async () => {
+@@ -23,3 +24,25 @@ describe('cachedImport', () => {
+     expect(load).toHaveBeenCalledTimes(2);
+   });
+ });
++
++describe('lazyChunk', () => {
++  it('says when its chunk has arrived, asking for it itself', async () => {
++    let arrive: (m: { default: () => null }) => void = () => {};
++    const load = vi.fn(() => new Promise<{ default: () => null }>((r) => (arrive = r)));
++    const chunk = lazyChunk(load);
++    const { result } = renderHook(() => chunk.useSettled());
++    expect(result.current).toBe(false);
++    expect(load).toHaveBeenCalledTimes(1);
++    await act(async () => arrive({ default: () => null }));
++    expect(result.current).toBe(true);
++  });
++
++  it('says so when its chunk failed, for the boundary to show it', async () => {
++    let fail: (e: Error) => void = () => {};
++    const chunk = lazyChunk(() => new Promise<{ default: () => null }>((_, r) => (fail = r)));
++    const { result } = renderHook(() => chunk.useSettled());
++    expect(result.current).toBe(false);
++    await act(async () => fail(new Error('offline')));
++    expect(result.current).toBe(true);
++  });
++});
+diff --git a/client/src/lib/cachedImport.ts b/client/src/lib/cachedImport.ts
+index 0d33fc6..f5c4963 100644
+--- a/client/src/lib/cachedImport.ts
++++ b/client/src/lib/cachedImport.ts
+@@ -1,4 +1,4 @@
+-import { lazy } from 'react';
++import { lazy, useSyncExternalStore } from 'react';
+ import type { ComponentType } from 'react';
+ 
+ /**
+@@ -48,7 +48,31 @@ export const cachedImport = <T>(load: () => Promise<T>): (() => Promise<T>) => {
+ export const lazyChunk = <C extends ComponentType<any>>(load: () => Promise<{ default: C }>) => {
+   const get = cachedImport(load);
+   let loaded: { default: C } | null = null;
+-  const track = () => get().then((module) => (loaded = module));
++  // Whether a load has ended (arrived or failed), for useSettled
++  let settled = false;
++  const listeners = new Set<() => void>();
++  const settle = () => {
++    settled = true;
++    for (const listener of listeners) listener();
++  };
++  const track = () =>
++    get().then(
++      (module) => {
++        loaded = module;
++        settle();
++        return module;
++      },
++      (error: unknown) => {
++        settle();
++        throw error;
++      },
++    );
++  const subscribe = (listener: () => void) => {
++    listeners.add(listener);
++    void track().catch(() => {});
++    return () => void listeners.delete(listener);
++  };
++  const isSettled = () => settled;
+   const make = () =>
+     lazy(() => {
+       const module = loaded;
+@@ -63,6 +87,13 @@ export const lazyChunk = <C extends ComponentType<any>>(load: () => Promise<{ de
+       return component;
+     },
+     preload: () => void track().catch(() => {}),
++    /**
++     * Whether the chunk has arrived (or failed: rendering the part then
++     * throws its error, for the ChunkBoundary): a part rendered only from
++     * then on never suspends, so it mounts as soon as its chunk arrives,
++     * not when React's 300 ms hold on a suspended part's reveal ends.
++     */
++    useSettled: () => useSyncExternalStore(subscribe, isSettled),
+     retry: () => {
+       component = make();
+     },
+diff --git a/client/src/screens/lobby/LobbyLayout.tsx b/client/src/screens/lobby/LobbyLayout.tsx
+index 1e4e6d8..6800846 100644
+--- a/client/src/screens/lobby/LobbyLayout.tsx
++++ b/client/src/screens/lobby/LobbyLayout.tsx
+@@ -45,6 +45,8 @@ const LobbyLayout = () => {
+   const anchors = React.useRef<HTMLDivElement>(null);
+   const canvasHost = React.useRef<HTMLDivElement>(null);
+   const [noScene, setNoScene] = React.useState(false);
++  // Mounted once its chunk is in, never suspending (lazyChunk's useSettled)
++  const canvasReady = lobbyCanvas.useSettled();
+   // The page's entrance waits for the scene's first frame (data-scene); should
+   // the scene never draw, the page comes in anyway
+   React.useEffect(() => {
+@@ -112,7 +114,9 @@ const LobbyLayout = () => {
+           <div ref={canvasHost} className="lobby-stage" aria-hidden>
+             <ChunkBoundary canvas onFail={() => setNoScene(true)}>
+               <React.Suspense fallback={null}>
+-                <LobbyCanvas view={view} anchors={anchors} canvasHost={canvasHost} />
++                {canvasReady && (
++                  <LobbyCanvas view={view} anchors={anchors} canvasHost={canvasHost} />
++                )}
+               </React.Suspense>
+             </ChunkBoundary>
+           </div>
