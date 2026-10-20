@@ -5,9 +5,7 @@ import { chosenGame } from './demoChoice';
 const GAMES = [
   '900 · White · 89',
   '952 · Black · 110',
-  '107 · White · 129',
   '303 · Black · 124',
-  '961 · White · 147',
   '416 · Black · 158',
   '284 · White · 161',
 ];
