@@ -4,11 +4,16 @@
   "heading": "A game's first board picture comes up about a quarter sooner",
   "meta": "<p>This speed run kept two speed changes and one fix to the benchmark, plus three tests that the review asked for. They are on branch <code>improve/20261020-0008</code>, from base <code>2f25230</code>, with main merged in at <code>4b47d81</code>. Every figure below is from software rendering (SwiftShader) on a 4-vCPU VM, and each names the commits it compares.</p>",
   "needs": {
-    "intro": "<p>Nothing here blocks the merge. Both items are information the skill asks for, not questions.</p>",
+    "intro": "<p>Nothing here blocks the merge. The first item is a trade-off between player moments, decided and named; the other two are information.</p>",
     "items": [
       {
-        "title": "Information: three primary rows lean slower, none called",
-        "body": "<p>In the final A/B (<code>026ac73</code> against <code>4b47d81</code>, 8 pairs), three rows were worse in most pairs or more than 3% worse at the median pair. None is called worse.</p><ul><li>Start page answers its first click, desktop: ×1.131 at the median pair, 6 of 8 pairs worse (pairs 0.93 1.06 1.57 0.89 1.07 1.44 1.19 1.53).</li><li>A shared game's page, first screen: ×1.061, 6 of 8 pairs worse (1.26 1.08 1.14 0.93 1.01 0.83 1.08 1.05).</li><li>A finished game's review, every mark in: ×1.031, 5 of 8 pairs worse (0.97 1.13 0.93 1.07 1.05 1.09 1.01 0.92).</li></ul><p>This run changed no code on these paths except RT1's 25 bytes in the entry. The first two rows leaned the same way in earlier A/Bs of unrelated code (ledger 1009-1606:Q1 and 1016-0821:RG6), and an A/A of identical code leaned up to ±6% on about a third of the rows.</p>",
+        "title": "Trade-off: RT1 brings the board's first picture ~250 ms sooner and the start page's first click ~1.7 ms later",
+        "body": "<p>RT1 (<code>5ba8ed6</code>) changes <code>lazyChunk</code>, which also loads the lobby's canvas (<code>LobbyLayout.tsx</code>). The lobby serves /new, the side choice that the start page's first click shows, and /game/:id, the Join screen. With RT1, a loaded lobby canvas mounts in the same commit as those pages instead of suspending first.</p><p>RT1 alone against <code>2f25230</code>, cold load, 10 pairs (<code>ab-20261020-0008-rt1-coldload.md</code>): the desktop first click went from 11.5 to 13.2 ms, ×1.103, 8 of 10 pairs worse, not called. On the final commit it is ×1.131, 6 of 8. A shared game's first screen against RT1 alone is ×0.967 at 10 pairs (<code>ab-20261020-0008-rt1.md</code>), so it does not lean. Against that, joining's and the computer's first board picture are ×0.766 and ×0.772, both called.</p>",
+        "recommend": "RT1 stays in the PR, and the PR does not wait on this item: about 1.7 ms on a 12 ms moment (less than a frame) against about 250 ms on two moments. Ledger 0008:LC1 (mount the lobby canvas a frame after the page) aims to win the click back in the next run. To overturn this, revert 5ba8ed6."
+      },
+      {
+        "title": "Information: two other primary rows lean slower in the final A/B, neither called",
+        "body": "<p>On <code>026ac73</code> against <code>4b47d81</code>, 8 pairs: a shared game's first screen ×1.061 (6 of 8 pairs worse), and the review ×1.031 (5 of 8). RT1 reaches the shared game's page, but against RT1 alone that row is ×0.967 at 10 pairs. This run changed nothing on the review's path. An A/A of identical code leans up to ±6% on about a third of the rows.</p>",
         "recommend": "No decision needed. The next run's regression check reads these rows again."
       },
       {
@@ -42,7 +47,7 @@
     "items": [
       {
         "title": "A game's board comes up without React's reveal hold (RT1, 5ba8ed6)",
-        "body": "<p>When a canvas's code had already loaded, React still suspended it once and then held the page for up to 300 ms before showing it. <code>lazyChunk</code> now hands React the loaded code at once, so the canvas renders in the page's first commit. The game's canvas also measures its size without r3f's 50 ms delay. The change reaches every canvas and screen loaded through <code>lazyChunk</code>: the game, the lobby, the tutorial and the computer game.</p><p>Against <code>2f25230</code>, 10 pairs (<code>ab-20261020-0008-rt1.md</code>): joining's first board picture ×0.781 and the computer's ×0.766, both called better. On the final commit: ×0.766 and ×0.772, both called better. The test <code>lazyChunk.test.tsx</code> fails on the base's code.</p>",
+        "body": "<p>When a canvas's code had already loaded, React still suspended it once and then held the page for up to 300 ms before showing it. <code>lazyChunk</code> now hands React the loaded code at once, so the canvas renders in the page's first commit. The game's canvas also measures its size without r3f's 50 ms delay. The change reaches every canvas and screen loaded through <code>lazyChunk</code>: the game, the lobby, the tutorial and the computer game.</p><p>Against <code>2f25230</code>, 10 pairs (<code>ab-20261020-0008-rt1.md</code>): joining's first board picture ×0.781 and the computer's ×0.766, both called better. On the final commit: ×0.766 and ×0.772, both called better. The test <code>lazyChunk.test.tsx</code> fails on the base's code.</p><p>Trade-off: the lobby's canvas loads through <code>lazyChunk</code> too, so it now mounts in the side choice's commit. The start page's first click leans 11.5 to 13.2 ms against RT1 alone (×1.103, not called; <code>ab-20261020-0008-rt1-coldload.md</code>). See Needs from me.</p>",
         "charts": [
           {
             "rows": {
@@ -50,7 +55,7 @@
               "change": "1018-0317:RT1",
               "only": "PRIMARY"
             },
-            "caption": "2f25230 against RT1's code, setup and computer sections, 10 pairs (ab-20261020-0008-rt1.md).",
+            "caption": "2f25230 against RT1's code, 10 pairs each: the setup and computer sections (ab-20261020-0008-rt1.md) and, in step 8, the cold-load section (ab-20261020-0008-rt1-coldload.md).",
             "target": 1.2
           }
         ]
