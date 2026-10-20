@@ -6,13 +6,13 @@
 import type { MoveMade, Promotion, WebSocketMessage } from '../types/messages';
 
 /**
- * Six games the computer played against itself on Hard, chosen from a
+ * Five games the computer played against itself on Hard, chosen from a
  * thousand (research/levels/selfplay.ts, games 0–999) for something happening
  * all the way through: after the opening, never more than 10 plies without a
  * capture, a check or a promotion (once 14, in the bishop's game), and a mate
  * soon after the game is decided rather than a long chase. Between them: both
- * sides winning, short games and long ones, queens traded early, late and
- * never, no promotion and two, a lead thrown away, and a bishop's mate beside
+ * sides winning, short games and long ones, queens traded and kept to the
+ * end, a new queen and none, a lead thrown away, and a bishop's mate beside
  * the queens'. Moves as the wire has them (`=Q` on a promotion), White first.
  */
 const GAMES: readonly (readonly string[])[] = [
@@ -57,22 +57,6 @@ const GAMES: readonly (readonly string[])[] = [
     'Bb2-Bb3 Ce4-Be4 Bb3-Bc4 Cb5-Bc4 Ad3-Ac3 Ec1-Ac1 Ac2-Ac1 Bc4-Ac3 Bc3-Cc3 Dc5-Ba3',
     'Cc3-Cc4 Be4-Be3 Cc4-Dc4 Dc3-Cc3 Dc4-Ec4 Cc3-Bc2 Ac1-Bc1 Ba3-Ab2 Bc1-Cc2 Bc2-Bc1',
     'Ec4-Ec5=Q Ac3-Bd4 Ec5-Cc3 Bd4-Ad5 Cc2-Bd3 De3-Ce3 Be2-Ce3 Ad5-Bc5 Cc3-Bc4',
-  ],
-  // 303: Black mates, 124 plies
-  [
-    'Ab1-Ca1 Ed5-Ec3 Bd1-Cd1 De5-Ce5 Aa2-Ac4 Dd4-Cd4 Ad2-Ac3 Eb5-Cb4 Ac2-Bb3 Dc4-Cc4',
-    'Be2-Be3 Cc4-Cc3 Bc2-Cc3 Cb4-Ac4 Ac3-Bc2 Ec5-Ed5 Ae2-Bd3 Cd4-Bd3 Ad1-Bd3 Ed4-Dc3',
-    'Bc1-Cc1 Db4-Cb4 Bb3-Ac3 Ec4-Cc4 Cd1-Cd2 Dd5-Dd4 Cd2-Cd3 Cc4-Bc4 Cd3-Dc3 Bc4-Ac3',
-    'Bc2-Ac3 Cb4-Cc3 Bd3-Cb3 Ec3-Cb3 Ca1-Cb3 Eb4-Dc4 Dc3-Ec3 Da4-Ca4 Aa1-Aa4 Ac4-Be4',
-    'Ac3-Ca3 Ca4-Cb3 Ca3-Ea5 Cc3-Cc2 Ac1-Ac2 Ed5-Dd5 Ea5-Eb4 Cc2-Bd2 Be1-Bd2 Dd4-Dd3',
-    'Eb4-Dc4 Dd5-Dc4 Aa4-Ba4 Ee4-Cc4 Ac2-Ad3 Be4-De3 Ae1-De1 De3-Cc3 Ad3-Bc2 Cb3-Bb2',
-    'Ba1-Bb2 Dc4-Ec3 De1-De4 Db5-Cb5 Ba4-Bc4 Ee5-Ee3 De4-De5 Ee3-Ce3 Bc4-Cc4 Cb5-Cc4',
-    'Ab2-Ba3 Ec3-Ec4 De5-Dc5 Cc3-Dc5 Ba3-Dc5 Ec4-Dc5 Cc1-Dc1 Da5-Da4 Dc1-Ec1 Dc5-Db4',
-    'Ba2-Ca2 Ce3-Ce1 Ca2-Da2 Ce1-Ee1 Bc2-Cb2 Ee1-Ec1 Da2-Da3 Db4-Ea3 Cb2-Db1 Ec1-Ec3',
-    'Da3-Ea4 Ea3-Ea4 Db1-Cc2 Ea4-Db4 Cc2-Dd3 Cc4-Bc4 Dd3-Dd4 Bc4-Ac4 Dd4-Ce5 Db4-Cc3',
-    'Bb2-Cb2 Cc3-Bd2 Bb1-Cb1 Ac4-Ac3 Ce5-Dd4 Ac3-Ac2 Be3-Be4 Ec3-Bc3 Dd4-Cc4 Ac2-Ac1=Q',
-    'Be4-Be5 Ac1-Bb2 Be5-Ce5 Bb2-Bb3 Cc4-Cd5 Bb3-Cb2 Ce5-De5 Bd2-Cd3 Cd5-Dc5 Cb2-Cb4',
-    'Dc5-Eb5 Cd3-Cc4 De5-Ee5=Q Cb4-Db4',
   ],
   // 416: Black mates, 158 plies
   [

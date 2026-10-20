@@ -447,11 +447,11 @@ Key decisions:
   it unmounts, which e2e reads to project clicks (the lobby's canvas never does).
 - **Landing page.** The start screen at `/` (`screens/StartScreen.tsx`) fills the window
   with a live preview (`screens/LandingPreview.tsx`): the real `Board`, drawn without its
-  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays six
+  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays five
   games the computer played against itself on Hard, each to mate (`game/demo.ts`: chosen
   from a thousand for something happening all the way through and a mate rather than a
   long chase, and for being unlike each other), in an order drawn afresh for each visit
-  and then round again (about 24 minutes), a move every 1.8 s, each as a log of `move_made` messages through
+  and then round again (about 20 minutes), a move every 1.8 s, each as a log of `move_made` messages through
   `deriveHistory`, like a live game, fading under a veil into the next, while
   `three/AutoOrbit.tsx` turns the camera round the tower at a fixed elevation, a full turn
   every 150 s (`three/landingView.ts`). The demo's clock is r3f's. (`showcase.mjs` records
