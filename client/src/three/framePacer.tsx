@@ -57,6 +57,10 @@ export const PaceOnGpu = () => {
       fence.current = null;
     }
     gl.render(scene, camera);
+    // A frame at rest drawn in part may take a pass for each rect it redraws
+    // (backdropCache.tsx)
+    const nextPass = scene.userData?.nextPass as (() => boolean) | undefined;
+    while (nextPass?.()) gl.render(scene, camera);
     // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
     if (gl.getScissorTest()) gl.setScissorTest(false);
     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
