@@ -32,17 +32,14 @@ test('two players each play a move by clicking the board', async ({ browser }) =
   await game.close();
 });
 
-// The keyboard's way to play: Tab reaches the move field (hidden until then),
-// Enter sends the move, and it lands on both boards.
+// The keyboard's way to play: the first Tab reaches the move field (hidden
+// until then), Enter sends the move, and it lands on both boards.
 test('a player can play from the keyboard', async ({ browser }) => {
   const game = await startGame(browser);
   const white = game.white;
   const field = white.getByRole('textbox', { name: 'Type a move, like Bb1-Cb1' });
   await expect(white.getByTestId('move-card')).toHaveAttribute('data-hidden', '');
-  for (let i = 0; i < 5; i++) {
-    if (await field.evaluate((el) => el === document.activeElement)) break;
-    await white.keyboard.press('Tab');
-  }
+  await white.keyboard.press('Tab');
   await expect(field).toBeFocused();
   await expect(white.getByTestId('move-card')).not.toHaveAttribute('data-hidden');
   await white.keyboard.type('Bb1-Cb1');
@@ -51,6 +48,14 @@ test('a player can play from the keyboard', async ({ browser }) => {
     await expect(page.getByTestId('turn-indicator')).toHaveAttribute('data-turn', 'black');
     await expect(page.getByTestId('move-announcer')).toHaveAttribute('data-last-move', 'Bb1-Cb1');
   }
+  // How a screen reader follows the game: hidden from the eye, never from it
+  for (const id of ['move-announcer', 'move-history', 'move-list'])
+    expect(
+      await white
+        .getByTestId(id)
+        .evaluate((el) => el.checkVisibility({ visibilityProperty: true })),
+      id,
+    ).toBe(true);
 
   await game.close();
 });

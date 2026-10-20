@@ -50,9 +50,11 @@ export interface DamageState {
   seen: Map<Object3D, Seen>;
   /** The objects of this frame, filled as the tower is walked. */
   next: Map<Object3D, Seen>;
+  /** Objects hidden for the frame being drawn in part, to be shown again after it. */
+  culled: Object3D[];
 }
 
-export const damageState = (): DamageState => ({ seen: new Map(), next: new Map() });
+export const damageState = (): DamageState => ({ seen: new Map(), next: new Map(), culled: [] });
 
 /** Forget the last frame (the next one is drawn whole). */
 export const forgetDamage = (state: DamageState) => state.seen.clear();
@@ -351,9 +353,6 @@ export const damage = (
   return whole ? 'full' : rect;
 };
 
-/** Objects hidden for the frame being drawn in part, to be shown again after it. */
-const culled: Object3D[] = [];
-
 const meets = (a: Rect, b: Rect) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
@@ -368,12 +367,12 @@ export const cullOutside = (state: DamageState, rect: Rect) => {
   for (const [o, seen] of state.seen)
     if (seen.rect && !meets(seen.rect, rect) && o.children.length === 0) {
       o.visible = false;
-      culled.push(o);
+      state.culled.push(o);
     }
 };
 
 /** Shows again what cullOutside() hid. */
-export const restoreCulled = () => {
-  for (const o of culled) o.visible = true;
-  culled.length = 0;
+export const restoreCulled = (state: DamageState) => {
+  for (const o of state.culled) o.visible = true;
+  state.culled.length = 0;
 };

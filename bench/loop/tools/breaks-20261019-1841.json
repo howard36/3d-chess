@@ -1,0 +1,114 @@
+[
+  {
+    "name": "signature: the draw order left out",
+    "file": "client/src/three/scene/damage.ts",
+    "find": "  out.push(o.renderOrder);\n",
+    "replace": "",
+    "tests": ["src/three/scene/damage.test.ts"]
+  },
+  {
+    "name": "signature: a vector's z left out",
+    "file": "client/src/three/scene/damage.ts",
+    "find": "      if ('z' in o) out.push(o.z as number);\n",
+    "replace": "",
+    "tests": ["src/three/scene/damage.test.ts"]
+  },
+  {
+    "name": "signature: a colour read as no value",
+    "file": "client/src/three/scene/damage.ts",
+    "find": "    else if (o.isColor) out.push(o.r as number, o.g as number, o.b as number);\n",
+    "replace": "",
+    "tests": ["src/three/scene/damage.test.ts"]
+  },
+  {
+    "name": "unite: the taller rect's height, wherever it starts",
+    "file": "client/src/three/scene/damage.ts",
+    "find": "    h: Math.max(a.y + a.h, b.y + b.h) - y,",
+    "replace": "    h: Math.max(a.h, b.h),",
+    "tests": ["src/three/scene/damage.test.ts"]
+  },
+  {
+    "name": "rects kept after a frame drawn whole",
+    "file": "client/src/three/scene/damage.ts",
+    "find": "if (!changed && !full && last) entry = last;",
+    "replace": "if (!changed && last) entry = last;",
+    "tests": ["src/three/scene/damage.test.ts"]
+  },
+  {
+    "name": "a sprite's reach ignores its centre",
+    "file": "client/src/three/scene/damage.ts",
+    "find": "Math.hypot((0.5 + Math.abs(s.center.x - 0.5)) * sx, (0.5 + Math.abs(s.center.y - 0.5)) * sy)",
+    "replace": "Math.hypot(0.5 * sx, 0.5 * sy)",
+    "tests": ["src/three/scene/damage.test.ts"]
+  },
+  {
+    "name": "lines not walked (isDrawable)",
+    "file": "client/src/three/scene/damage.ts",
+    "find": " || 'isLine' in o;",
+    "replace": ";",
+    "tests": ["src/three/scene/damage.test.ts"]
+  },
+  {
+    "name": "scissor not divided by the pixel ratio",
+    "file": "client/src/three/scene/backdropCache.tsx",
+    "find": "renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);",
+    "replace": "renderer.setScissor(r.x, r.y, r.w, r.h);",
+    "tests": ["src/three/scene/backdropCache.test.tsx"]
+  },
+  {
+    "name": "nothing culled",
+    "file": "client/src/three/scene/backdropCache.tsx",
+    "find": "      cullOutside(state.damage, r);\n",
+    "replace": "",
+    "tests": ["src/three/scene/backdropCache.test.tsx"]
+  },
+  {
+    "name": "the copy shows nothing again (DR11)",
+    "file": "client/src/three/scene/backdropCache.tsx",
+    "find": "copy.onAfterRender = () => restoreCulled(state.damage);",
+    "replace": "",
+    "tests": ["src/three/scene/backdropCache.test.tsx"]
+  },
+  {
+    "name": "a frame's start shows nothing again",
+    "file": "client/src/three/scene/backdropCache.tsx",
+    "find": "    const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {\n      restoreCulled(state.damage);\n",
+    "replace": "    const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {\n",
+    "tests": ["src/three/scene/backdropCache.test.tsx"]
+  },
+  {
+    "name": "the pacer leaves the scissor on",
+    "file": "client/src/three/framePacer.tsx",
+    "find": "    if (gl.getScissorTest()) gl.setScissorTest(false);\n",
+    "replace": "",
+    "tests": ["src/three/framePacer.test.tsx"]
+  },
+  {
+    "name": "quiesce misses the bare-kings draw",
+    "file": "client/src/ai/search.ts",
+    "find": "    if (pos.onlyKings()) return 0;\n",
+    "replace": "",
+    "tests": ["src/ai/search.test.ts"]
+  },
+  {
+    "name": "onlyKings reads one side's material",
+    "file": "client/src/ai/position.ts",
+    "find": "return this.terms[o + T_MATERIAL] === 0 && this.terms[o + T_MATERIAL + 1] === 0;",
+    "replace": "return this.terms[o + T_MATERIAL] === 0;",
+    "tests": ["src/ai/position.test.ts"]
+  },
+  {
+    "name": "a failed search's reply without its stack (WS1)",
+    "file": "client/src/ai/worker.ts",
+    "find": "stack.startsWith(String(e)) ? stack : `${String(e)}\\n${stack}`.trim()",
+    "replace": "String(e)",
+    "tests": ["src/ai/worker.test.ts"]
+  },
+  {
+    "name": "the reply is the stack alone (Firefox, Safari lose the message)",
+    "file": "client/src/ai/worker.ts",
+    "find": "stack.startsWith(String(e)) ? stack : `${String(e)}\\n${stack}`.trim()",
+    "replace": "stack || String(e)",
+    "tests": ["src/ai/worker.test.ts"]
+  }
+]

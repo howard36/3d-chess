@@ -1,11 +1,14 @@
 import type { Vec3 } from './types';
 
 // A move glides: the piece, rigid, slides along the straight line between
-// the squares, easing out of its square and into the next, and takes longer
-// the farther it goes. A piece the player held up sets off from that height
-// and settles onto its square on the way. Everything about it is a pure
-// function of the time since the move arrived (glidePose), driven on r3f's
-// clock by MoveGlide.
+// the squares like a critically damped spring let go from its square: it
+// sets off at once, at its fastest early on, and settles onto the next
+// square without passing it, never sitting still and then darting. It
+// takes longer the farther it goes, by the square root of the distance, so
+// a one-square move is quick and a long one not much slower. A piece the player held up sets off from that
+// height and settles onto its square on the way. Everything about it is a
+// pure function of the time since the move arrived (glidePose), driven on
+// r3f's clock by MoveGlide.
 
 /** Everything a move's glide does, fixed when it arrives (planGlide). */
 export interface GlidePlan {
@@ -23,23 +26,42 @@ export interface GlidePlan {
 
 /** The glide's tunings: change them here, the tests read them. */
 export const GLIDE = {
-  /** Travel time: base, per world unit of the journey, and its bounds. */
-  baseMs: 300,
-  perUnitMs: 45,
-  minMs: 360,
-  maxMs: 560,
+  /** Travel time: base, per square root of the journey's world units, and its bounds. */
+  baseMs: 200,
+  perRootUnitMs: 110,
+  minMs: 280,
+  maxMs: 500,
+  /**
+   * The spring's stiffness over the travel (ω × travel time): higher sets
+   * off harder and leaves a longer settle. At 6 it is at its fastest a sixth
+   * of the way through the time; it would still have 2% of the way to go at
+   * the end, so it is scaled to arrive exactly on time.
+   */
+  stiffness: 6,
   /** A capture reaches its victim this far short of the square. */
   contactReach: 0.5,
 } as const;
 
 const length = ([x, y, z]: Vec3) => Math.hypot(x, y, z);
 
-/** The glide's ease, 0 to 1: slow out of the square, fastest midway, slow into the next. */
-const easeGlide = (u: number) => (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
+/** A critically damped spring from rest, 0 to 1 over its time `u`. */
+const spring = (u: number) => 1 - (1 + GLIDE.stiffness * u) * Math.exp(-GLIDE.stiffness * u);
+const springEnd = spring(1);
 
-/** Where along the time the ease reaches `s` (its inverse). */
-const easeGlideInverse = (s: number) =>
-  s < 0.5 ? Math.cbrt(s / 4) : 1 - Math.cbrt(2 * (1 - s)) / 2;
+/** The glide's ease, 0 to 1: off at once, fastest early, settling into the square. */
+const easeGlide = (u: number) => (u >= 1 ? 1 : spring(u) / springEnd);
+
+/** Where along the time the ease reaches `s` (its inverse; it only rises). */
+const easeGlideInverse = (s: number) => {
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (easeGlide(mid) < s) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+};
 
 /**
  * The glide of a move from `from` to `to` (world positions of the cells).
@@ -52,7 +74,7 @@ export const planGlide = (from: Vec3, to: Vec3, { lift = 0, capture = false } = 
   const across = Math.hypot(offset[0], offset[2]);
   const travelMs = Math.min(
     GLIDE.maxMs,
-    Math.max(GLIDE.minMs, GLIDE.baseMs + GLIDE.perUnitMs * distance),
+    Math.max(GLIDE.minMs, GLIDE.baseMs + GLIDE.perRootUnitMs * Math.sqrt(distance)),
   );
   // Where along the way it reaches the victim: contactReach short of the
   // square, and no sooner than a third of the way
