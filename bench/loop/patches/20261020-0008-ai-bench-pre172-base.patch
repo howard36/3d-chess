@@ -1,0 +1,32 @@
+diff --git a/client/bench/ai.bench.ts b/client/bench/ai.bench.ts
+index dcf8a52..3a75cb5 100644
+--- a/client/bench/ai.bench.ts
++++ b/client/bench/ai.bench.ts
+@@ -8,6 +8,9 @@
+ 
+ import { bench, describe } from 'vitest';
+ import { chooseMove } from '../src/ai/choose';
++import { LEVELS } from '../src/ai/levels';
++// TEMP (run 20261020-0008 step 2): bases before #172 call the engine's search 'hard'
++const PLAYER = ('hardFixed' in LEVELS ? 'hardFixed' : 'hard') as 'hardFixed';
+ import type { ComputerMove } from '../src/ai/choose';
+ import type { MoveRecord } from '../src/types/messages';
+ import { QUICK, inRounds, sharedGames } from './fixtures';
+@@ -56,7 +59,7 @@ const cases: { name: string; about: string; records: MoveRecord[] }[] = [
+ 
+ /** The engine's search, stopped after NODES positions. */
+ const think = (records: MoveRecord[]): ComputerMove | null =>
+-  chooseMove(records, 'hardFixed', SEED, {
++  chooseMove(records, PLAYER, SEED, {
+     maxNodes: NODES,
+     level: { timeMs: 1e9, nodes: undefined },
+   });
+@@ -70,7 +73,7 @@ const reached = cases.map((c) => {
+   if (!r) throw new Error(`the ${c.name} position has no legal move`);
+   const want = EXPECTED_SEARCH[c.name];
+   const move = `${r.move.from}-${r.move.to}${r.move.promotion ?? ''}`;
+-  const toDepth = chooseMove(c.records, 'hardFixed', SEED, {
++  const toDepth = chooseMove(c.records, PLAYER, SEED, {
+     level: { timeMs: 1e9, maxDepth: r.depth, nodes: undefined },
+   });
+   const got = { depth: r.depth, move, nodes: toDepth?.nodes };
