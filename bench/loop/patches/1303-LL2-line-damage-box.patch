@@ -1,0 +1,159 @@
+commit aaaae67ec1c7e6509947f52140047c9e48eb268c
+Author: Claude <noreply@anthropic.com>
+Date:   Tue Oct 20 16:25:55 2026 +0000
+
+    perf(client): a fresh last-move line asks for no redraw before it draws in
+    
+    WIP: evidence below.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+
+diff --git a/client/src/three/scene/line.test.tsx b/client/src/three/scene/line.test.tsx
+index 8e32d71..655543d 100644
+--- a/client/src/three/scene/line.test.tsx
++++ b/client/src/three/scene/line.test.tsx
+@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
+ import { act } from 'react';
+ import ReactThreeTestRenderer from '@react-three/test-renderer';
+ import type { ReactThreeTestInstance } from '@react-three/test-renderer/dist/declarations/src/types/public.js';
+-import { LessEqualDepth } from 'three';
++import { Box3, LessEqualDepth, Vector3 } from 'three';
+ import type { BufferGeometry, Mesh, ShaderMaterial } from 'three';
+-import { LastMoveLine } from './line';
++import { LastMoveLine, revealedBox } from './line';
++import type { DamageBox } from './damage';
+ import { LAYER } from './layers';
+ import type { Vec3 } from '../types';
+ 
+@@ -75,4 +76,41 @@ describe('LastMoveLine', () => {
+     await act(async () => r.advanceFrames(20, 1 / 30));
+     expect(u.uReveal.value).toBeGreaterThan(100);
+   });
++
++  it('tells the damage tracking only the part drawn so far, and nothing before it starts', async () => {
++    const radius = 0.02;
++    const r = await ReactThreeTestRenderer.create(
++      <LastMoveLine
++        from={FROM}
++        to={TO}
++        radius={radius}
++        drawInMs={400}
++        drawInDelayMs={100}
++        {...LOOK}
++      />,
++    );
++    const [tube] = meshes(r.scene as ReactThreeTestInstance);
++    const box = tube.userData.damageBox as DamageBox;
++    const u = (tube.material as ShaderMaterial).uniforms;
++    // Waiting to draw in: nothing drawn
++    expect(box(new Box3())).toBeNull();
++    // Every vertex the shader keeps at a reveal lies in the box for it
++    const g = tube.geometry as BufferGeometry;
++    const along = g.getAttribute('aAlong');
++    const position = g.getAttribute('position');
++    const v = new Vector3();
++    const length = Math.hypot(2, 1.35, -1);
++    for (const reveal of [-radius, 0, 0.3, length / 2, length, length + radius, 1e6]) {
++      u.uReveal.value = reveal;
++      const b = box(new Box3())!;
++      expect(b).not.toBeNull();
++      for (let i = 0; i < along.count; i++) {
++        if (along.getX(i) > reveal) continue;
++        v.fromBufferAttribute(position, i);
++        expect(b.distanceToPoint(v)).toBeLessThan(1e-6);
++      }
++    }
++    // Part of the way, it stops short of the destination
++    expect(revealedBox(FROM, [2, 0, 0], radius, 1, new Box3())!.max.x).toBeCloseTo(1 + radius);
++  });
+ });
+diff --git a/client/src/three/scene/line.tsx b/client/src/three/scene/line.tsx
+index 8dd7b5c..18f629b 100644
+--- a/client/src/three/scene/line.tsx
++++ b/client/src/three/scene/line.tsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useMemo, useRef } from 'react';
+ import { useFrame, useThree } from '@react-three/fiber';
+-import { BufferAttribute, BufferGeometry, Color } from 'three';
++import { BufferAttribute, BufferGeometry, Color, Vector3 } from 'three';
++import type { Box3 } from 'three';
+ import { LAYER } from './layers';
+ import { pathDistances, tracePath, tubeData } from './markerGeometry';
+ import type { TracePathOptions, TubeOptions } from './markerGeometry';
+@@ -9,6 +10,7 @@ import { overlayMaterial } from './overlay';
+ import { noRaycast } from '../noRaycast';
+ import type { Vec3 } from '../types';
+ import { useRetireOnUnmount } from './programs';
++import type { DamageBox } from './damage';
+ 
+ // The last move's line: a thin tube of real geometry from the centre of the
+ // source square's floor to the centre of the destination's, drawn in from the
+@@ -49,6 +51,33 @@ export const tubeGeometry = (points: Vec3[], options: TubeOptions) => {
+   return g;
+ };
+ 
++const start = new Vector3();
++const end = new Vector3();
++
++/**
++ * The part of a straight line from `from` to `to` drawn at reveal `reveal`
++ * (local space, in `out`), or null while none is: its fragments run from
++ * one radius before the source to one past the destination (the caps), and
++ * those past `reveal` are discarded.
++ */
++export const revealedBox = (
++  from: Vec3,
++  to: Vec3,
++  radius: number,
++  reveal: number,
++  out: Box3,
++): Box3 | null => {
++  if (reveal < -radius) return null;
++  start.fromArray(from);
++  end.fromArray(to);
++  const length = start.distanceTo(end);
++  const k = length > 0 ? Math.min(Math.max(reveal, 0), length) / length : 0;
++  out.makeEmpty();
++  out.expandByPoint(start);
++  out.expandByPoint(end.sub(start).multiplyScalar(k).add(start));
++  return out.expandByScalar(radius);
++};
++
+ /** Shared with the shimmer travelling along the line (markers.tsx). */
+ export const tubeVertex = /* glsl */ `
+   attribute float aAlong;
+@@ -108,17 +137,22 @@ export const LastMoveLine = ({
+   const invalidate = useThree((s) => s.invalidate);
+ 
+   const key = JSON.stringify([from, to, lift, radius]);
+-  const { geometry, length } = useMemo(() => {
++  const material = useMemo(lineMaterial, []);
++  const { geometry, length, damage } = useMemo(() => {
+     const points = tracePath(from, to, { lift });
+     const distances = pathDistances(points);
+     const length = distances[distances.length - 1];
+     const geometry = tubeGeometry(points, { radius });
+-    return { geometry, length };
++    // Only what is drawn so far needs drawing again (damage.ts): nothing
++    // while it waits to draw in, as a fresh move's first picture finds it
++    const [a, b] = points;
++    const drawn: DamageBox = (out) =>
++      revealedBox(a, b, radius, material.uniforms.uReveal.value as number, out);
++    return { geometry, length, damage: { damageBox: drawn } };
+     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
+   }, [key]);
+   useEffect(() => () => geometry.dispose(), [geometry]);
+ 
+-  const material = useMemo(lineMaterial, []);
+   useRetireOnUnmount(material);
+   const u = material.uniforms;
+   (u.uColor.value as Color).set(color);
+@@ -146,6 +180,7 @@ export const LastMoveLine = ({
+     <mesh
+       geometry={geometry}
+       material={material}
++      userData={damage}
+       renderOrder={LAYER.trace + 0.1}
+       raycast={noRaycast}
+       frustumCulled={false}

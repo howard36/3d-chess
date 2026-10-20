@@ -1,0 +1,129 @@
+commit 150587a1a54d1df54bf7542b8aa0fe1c91185200
+Author: Claude <noreply@anthropic.com>
+Date:   Tue Oct 20 16:25:55 2026 +0000
+
+    perf(client): the computer's search picks and replays with less work, its moves unchanged
+    
+    WIP: evidence below.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+
+diff --git a/client/src/ai/position.ts b/client/src/ai/position.ts
+index 4f3bdc3..b2df8f3 100644
+--- a/client/src/ai/position.ts
++++ b/client/src/ai/position.ts
+@@ -113,6 +113,9 @@ for (let c = 0; c < CELLS; c++) {
+ // Black's already carry BLACK), so one AND tells an enemy from a friend and
+ // from the border.
+ 
++/** findMove's moves, generated afresh each call (as many as legalMoves takes). */
++const FIND_SCRATCH = new Int32Array(512);
++
+ const PAD = 7;
+ const PAD_CELLS = PAD * PAD * PAD;
+ const WHITE_BIT = 16;
+@@ -618,8 +621,9 @@ export class Position {
+     this.history[ply * 2 + 1] = this.hashHi;
+     this.clocks[ply] = clock;
+     this.checks[ply] = -1;
++    // (a plain loop: copyWithin is a call into the runtime, at every make)
+     const t = this.terms;
+-    t.copyWithin(ply * TERMS, (ply - 1) * TERMS, ply * TERMS);
++    for (let i = ply * TERMS, j = i - TERMS; j < ply * TERMS; i++, j++) t[i] = t[j];
+   }
+ 
+   /** The legal move matching a wire move, or 0. */
+@@ -629,11 +633,15 @@ export class Position {
+     const f = cellOf(from.x, from.y, from.z);
+     const t = cellOf(to.x, to.y, to.z);
+     const promo = record.promotion ? LETTER_PROMO[record.promotion] : 0;
+-    const moves = new Int32Array(256);
+-    const n = this.legalMoves(moves);
+-    for (let i = 0; i < n; i++) {
+-      const m = moves[i];
+-      if (moveFrom(m) === f && moveTo(m) === t && movePromotion(m) === promo) return m;
++    // The one move among those generated that matches, played to see that
++    // it is legal (not the whole legal list: a replay finds a move a ply)
++    const end = this.generate(FIND_SCRATCH, 0);
++    for (let i = 0; i < end; i++) {
++      const m = FIND_SCRATCH[i];
++      if (moveFrom(m) !== f || moveTo(m) !== t || movePromotion(m) !== promo) continue;
++      const legal = this.make(m);
++      this.unmake(m);
++      return legal ? m : 0;
+     }
+     return 0;
+   }
+diff --git a/client/src/ai/search.ts b/client/src/ai/search.ts
+index bd3d645..c0a593d 100644
+--- a/client/src/ai/search.ts
++++ b/client/src/ai/search.ts
+@@ -351,21 +351,25 @@ export class Searcher {
+ 
+     const base = ply * MOVES_PER_PLY;
+     const end = pos.generate(this.moves, base);
+-    this.scoreMoves(base, end, ttMove, ply);
++    // How many moves left to pick have an order score above 0 (none below)
++    let ranked = this.scoreMoves(base, end, ttMove, ply);
+     let best = -INF;
+     let bestMove = 0;
+     let legal = 0;
+     let seen = 0;
+     const startAlpha = alpha;
+     const futile = !pv && !inCheck && depth === 1 && staticEval + 220 <= alpha;
+-    // Pruned quiet moves are told apart without playing them (see below)
+-    const quick = futile && !pos.inCheck(pos.side ^ 1);
+     for (let i = base; i < end; i++) {
+-      const m = this.pickNext(i, end);
++      // Once every move left scores 0, the next is the first of them, as
++      // pickNext's scan would find it
++      const m = ranked > 0 ? this.pickNext(i, end) : this.moves[i];
++      if (this.order[i] > 0) ranked--;
+       const quiet = !moveCaptured(m) && !movePromotion(m);
+-      // As the test after make() below finds it, sooner: once a move has been
+-      // searched, a quiet move that gives no check is pruned here, legal or not
+-      if (quick && quiet && seen > 0 && !pos.givesCheck(m)) continue;
++      // Hopeless with one ply left: once a move has been searched, a quiet
++      // move that gives no check is pruned without playing it, legal or not
++      // (the side that just moved is never in check, so a check after the
++      // move is the move's own)
++      if (futile && quiet && seen > 0 && !pos.givesCheck(m)) continue;
+       if (!pos.make(m)) {
+         pos.unmake(m);
+         continue;
+@@ -375,10 +379,6 @@ export class Searcher {
+         pos.unmake(m);
+         continue;
+       }
+-      if (futile && quiet && seen > 0 && !pos.inCheck()) {
+-        pos.unmake(m);
+-        continue;
+-      }
+       seen++;
+       this.line[ply] = m;
+       let s: number;
+@@ -533,10 +533,12 @@ export class Searcher {
+     return false;
+   }
+ 
+-  private scoreMoves(base: number, end: number, ttMove: number, ply: number): void {
++  /** Scores [base, end) for move ordering (none below 0); returns how many score above 0. */
++  private scoreMoves(base: number, end: number, ttMove: number, ply: number): number {
+     const k0 = this.killers[ply * 2];
+     const k1 = this.killers[ply * 2 + 1];
+     const value = this.pos.w.value;
++    let ranked = 0;
+     for (let i = base; i < end; i++) {
+       const m = this.moves[i];
+       let s: number;
+@@ -554,7 +556,9 @@ export class Searcher {
+         else s = this.history[movePiece(m) * 125 + moveTo(m)];
+       }
+       this.order[i] = s;
++      if (s > 0) ranked++;
+     }
++    return ranked;
+   }
+ 
+   /** Swaps the best-ordered move left in [i, end) into place i and returns it. */
