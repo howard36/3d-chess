@@ -791,7 +791,7 @@ body {
    upright, a squarish or small window; screens/hudLayout.ts): the board
    reaches the window's bottom corners, so the card, while it shows, spans
    the bottom instead */
-@media (min-height: 481px) and (not ((min-aspect-ratio: 3/2) and (min-width: 1200px))) {
+@media (min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px)))) {
   .hud-card {
     right: 12px;
     width: auto;
@@ -1216,7 +1216,7 @@ body {
 }
 /* Beside the tower, where the move shown is lit in the list, the four steps
    share the panel's width */
-@media not ((min-height: 481px) and (not ((min-aspect-ratio: 3/2) and (min-width: 1200px)))) {
+@media not ((min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px))))) {
   .hud-step {
     flex: 1 1 0;
     width: auto;
@@ -1232,7 +1232,7 @@ body {
 .hud-side {
   display: contents;
 }
-@media not ((min-height: 481px) and (not ((min-aspect-ratio: 3/2) and (min-width: 1200px)))) {
+@media not ((min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px))))) {
   .hud-side {
     position: absolute;
     top: 60px;
@@ -1269,7 +1269,7 @@ body {
 /* Beside the tower in a window of some height, a reviewed game's record
    wider than a game's, so that its columns hold a move that names its whole
    starting square, takes, checks and is marked (♜Ea5xEb5+ ??) */
-@media (min-height: 481px) and (min-aspect-ratio: 3/2) and (min-width: 1200px) {
+@media (min-height: 481px) and (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px))) {
   .hud-history[data-ended] {
     width: 240px;
   }
@@ -1280,7 +1280,7 @@ body {
    tower (.hud-end), and the
    list opens under them on asking, a few moves tall, so it covers little of
    the tower */
-@media (min-height: 481px) and (not ((min-aspect-ratio: 3/2) and (min-width: 1200px))) {
+@media (min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px)))) {
   .hud-history {
     top: auto;
     right: auto;
@@ -1395,7 +1395,7 @@ body {
   }
 }
 /* ...in the pill's place, as tall as the pill */
-@media (min-height: 481px) and (not ((min-aspect-ratio: 3/2) and (min-width: 1200px))) and (pointer: coarse) {
+@media (min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px)))) and (pointer: coarse) {
   .hud-history[data-ended] {
     border-radius: 22px;
   }
@@ -2302,7 +2302,7 @@ body {
 .hud-end {
   display: contents;
 }
-@media (min-height: 481px) and (not ((min-aspect-ratio: 3/2) and (min-width: 1200px))) {
+@media (min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px)))) {
   .hud-end {
     position: fixed;
     right: max(12px, env(safe-area-inset-right));

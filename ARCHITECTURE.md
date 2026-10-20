@@ -367,14 +367,15 @@ Key decisions:
   words ("Pawn Cd2 takes Cc3, check"); a record past one the replay could not play keeps
   the wire's form (`Bb1–Cb1`), and the move box takes only the wire's form (`Bb1-Cb1`).
   Where the window leaves room beside the tower (`screens/hudLayout.ts`: at least 3:2
-  and 1200 px wide, or a short window, under 481 px tall) it is a
+  and 1200 px wide, or 4:3 and 1460 px, or a short window, under 481 px tall) it is a
   narrow glass panel at the right under "How to play" and the flag, in one column with them
   (`.hud-side`), so an offer hanging under the flag pushes the list down and the list gives up
   height to fit (the list scrolls, the move shown kept in view, the latest as moves land),
   wider once the game is over in a window over 480 px tall (240 px, so a reviewed move that
   names its starting square, takes, checks and is marked fits its column). The room is
   measured, not guessed: the camera's fit sizes the tower by the window's height, so the
-  width that leaves room grows with it, and the two queries let in no window where that
+  width that leaves room grows with it, and the queries (pairs of an aspect and a width)
+  let in no window where that
   panel would stand within 50 px of the tower at its widest, labels and all, from any
   elevation the view reaches (`hudLayout.test.ts` holds them to the fit); every other
   window over 480 px tall takes the top layout. A move longer

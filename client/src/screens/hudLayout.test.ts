@@ -12,7 +12,7 @@ import {
   ringBounds,
 } from '../three/cameraFit';
 import { layout } from '../three/scene/palette';
-import { ROOM_BESIDE, SIDE_ASPECT, SIDE_GAP, SIDE_WIDTH, TOP_LAYOUT } from './hudLayout';
+import { ROOM_BESIDE, SIDE_GAP, SIDE_ROOM, TOP_LAYOUT } from './hudLayout';
 
 // The game's view, as GameCanvas fits it: its field of view, the HUD's band
 // and the balance under the pill, and the elevations the orbit reaches
@@ -51,22 +51,27 @@ const gap = (width: number, height: number) => width / 2 - towerHalfWidth(width,
 
 describe('room beside the tower', () => {
   it('is written as its numbers say', () => {
-    expect(ROOM_BESIDE).toBe(`(min-aspect-ratio: 3/2) and (min-width: ${SIDE_WIDTH}px)`);
-    expect(SIDE_ASPECT).toBe(3 / 2);
+    const query = ([aspect, width]: readonly [number, number]) =>
+      `((min-aspect-ratio: ${aspect === 1.5 ? '3/2' : aspect === 4 / 3 ? '4/3' : aspect}) and (min-width: ${width}px))`;
+    expect(ROOM_BESIDE).toBe(SIDE_ROOM.map(query).join(' or '));
   });
 
   it('leaves the move history well clear of the tower in every window it lets in', () => {
-    // The narrowest windows let in at each height (a wider one has more room):
-    // the width's floor up to where the aspect takes over, then the aspect
-    const corner = SIDE_WIDTH / SIDE_ASPECT;
-    const heights = [481, corner];
+    // The narrowest window let in at each height (a wider one has more
+    // room): whichever pair lets in the narrowest, each its width's floor up
+    // to where its aspect takes over
+    const narrowest = (h: number) =>
+      Math.ceil(Math.min(...SIDE_ROOM.map(([aspect, width]) => Math.max(aspect * h, width))));
+    const corners = SIDE_ROOM.map(([aspect, width]) => width / aspect);
+    const heights = [481, ...corners];
     for (let h = 481; h <= 2200; h += 8) heights.push(h);
-    const least = Math.min(
-      ...heights.map((h) => gap(Math.ceil(Math.max(SIDE_ASPECT * h, SIDE_WIDTH)), h)),
-    );
+    const least = Math.min(...heights.map((h) => gap(narrowest(h), h)));
     expect(least).toBeGreaterThanOrEqual(SIDE_GAP);
-    // ...and not much more where the two meet: the cutoff is as loose as the gap allows
-    expect(gap(SIDE_WIDTH, corner)).toBeLessThan(SIDE_GAP + 10);
+    // ...and not much more where each pair's two cutoffs meet: they are as
+    // loose as the gap allows
+    for (const [aspect, width] of SIDE_ROOM) {
+      expect(gap(width, width / aspect)).toBeLessThan(SIDE_GAP + 10);
+    }
   });
 
   it('is what index.css switches the layout on, in every one of its queries', () => {
