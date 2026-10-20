@@ -36,6 +36,11 @@ the player every other rating is measured from.
   `fit.py medium0=0`).
 - `knowledge.py`: the beginner's and the advanced player's numbers, fitted to the expert's
   evaluation (below).
+- `selfplay.ts` (bundled as `match.ts` is): games of a level against itself as the game plays
+  them, each side with a style and blind spots of its own, to the game's own end (no
+  resignation), each game's moves, scores and depths a JSON line; game `g` is played again
+  exactly from `g` alone. The start page's demo games are Hard's games 0–999 from it
+  (`node selfplay.mjs hard 0 1000`, at the commit that added it).
 - `marks.ts` and `variety.ts` (bundled as `match.ts` is): how a player errs, as the game's review
   marks its games against itself, quiet positions and tense ones apart; and how often it plays the
   same move in the same position from one game to the next.
