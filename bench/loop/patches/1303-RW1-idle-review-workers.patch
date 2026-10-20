@@ -1,0 +1,73 @@
+commit 9c447bdadace6021f1799ff02ac967f7993dafb0
+Author: Claude <noreply@anthropic.com>
+Date:   Tue Oct 20 18:00:41 2026 +0000
+
+    perf(client): the review's workers made, idle, once a finished game is on screen
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+
+diff --git a/client/src/screens/useAnalysis.ts b/client/src/screens/useAnalysis.ts
+index deefce9..bcf310a 100644
+--- a/client/src/screens/useAnalysis.ts
++++ b/client/src/screens/useAnalysis.ts
+@@ -91,6 +91,7 @@ export function useAnalysis(history: GameHistory): Analysis {
+     [over, history.moveRecords, history.appliedMoveCount],
+   );
+   const key = React.useMemo(() => recordKey(records), [records]);
++  const positionCount = records.length + 1;
+   const [run, setRun] = React.useState<Run>({ key, state: 'idle', positions: [], rechecks: [] });
+   const current: Run =
+     run.key === key ? run : { key, state: 'idle', positions: NONE, rechecks: NONE };
+@@ -109,6 +110,34 @@ export function useAnalysis(history: GameHistory): Analysis {
+     [key],
+   );
+ 
++  // The workers made ahead, idle, once a finished game is on screen (no
++  // search: that waits for the player's asking), so a review starts in
++  // workers whose code has loaded
++  React.useEffect(() => {
++    if (!over || typeof requestIdleCallback !== 'function') return;
++    const run = runs.current;
++    let gone = false;
++    const ready = () => !gone && runs.current === run && !workers.current.length;
++    requestIdleCallback(
++      () => {
++        if (!ready()) return;
++        import('../ai/computer').then(
++          ({ createComputer }) => {
++            if (!ready()) return;
++            workers.current = Array.from({ length: Math.min(reviewWorkers(), positionCount) }, () =>
++              createComputer(),
++            );
++          },
++          () => {},
++        );
++      },
++      { timeout: 2000 },
++    );
++    return () => {
++      gone = true;
++    };
++  }, [over, key, positionCount]);
++
+   const latest = React.useRef({ records, key, gameOver: history.gameOver, run: current });
+   latest.current = { records, key, gameOver: history.gameOver, run: current };
+   const start = React.useCallback(() => {
+@@ -170,10 +199,12 @@ export function useAnalysis(history: GameHistory): Analysis {
+       try {
+         const { createComputer } = await import('../ai/computer');
+         if (!live()) return;
+-        computers = Array.from(
+-          { length: Math.min(reviewWorkers(), todo.length + recheckTodo.length) },
+-          () => createComputer(),
+-        );
++        computers = workers.current.length
++          ? workers.current
++          : Array.from(
++              { length: Math.min(reviewWorkers(), todo.length + recheckTodo.length) },
++              () => createComputer(),
++            );
+       } catch (e) {
+         stopped(e);
+         return;
