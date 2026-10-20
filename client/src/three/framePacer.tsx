@@ -44,6 +44,7 @@ export const PaceOnGpu = () => {
   }, [gl]);
   const draw = (scene: Scene, camera: Camera) => {
     const context = gl.getContext() as WebGL2RenderingContext;
+    if (scene.userData) scene.userData.awaited = false;
     gl.render(scene, camera);
     // A frame at rest drawn in part may take a pass for each rect it redraws
     // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says
@@ -105,18 +106,12 @@ export const PaceOnGpu = () => {
   return null;
 };
 
-/** How long after a new position or a selection its frames count as awaited (awaitedFrame). */
-export const AWAITED_MS = 400;
-
-/** A new position or a selection the player waits on to see (Board). */
+/** A new position or a selection the player waits on to see (Board): its first frame is awaited. */
 export const markAwaited = (scene: Object3D) => {
-  scene.userData.awaited = performance.now();
+  scene.userData.awaited = true;
 };
 
-const awaited = (scene: Object3D) => {
-  const at = scene.userData?.awaited as number | undefined;
-  return at !== undefined && performance.now() - at < AWAITED_MS;
-};
+const awaited = (scene: Object3D) => scene.userData?.awaited === true;
 
 /** The display frames a frame waits for the GPU at most (a second at 60 Hz): a fence that never passes holds nothing. */
 export const PACE_MAX_SKIPS = 60;
