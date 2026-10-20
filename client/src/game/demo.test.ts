@@ -32,8 +32,8 @@ describe('the demo games', () => {
   });
 
   it('promote as the record says', () => {
-    // The fourth game's black pawn becomes a queen on ply 108
-    const history = deriveHistory(demoLog(3, 108));
+    // The third game's black pawn becomes a queen on ply 110
+    const history = deriveHistory(demoLog(2, 110));
     expect(history.lastMove?.move.promotion).toBe('Queen');
   });
 
