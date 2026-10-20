@@ -65,8 +65,8 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
   await expect(page.getByTestId('best-move')).toBeVisible();
   await expect.poll(() => betterOnBoard(page)).toBe(true);
   // ...after which Black mates in one, on the game's graph beside the tower
-  await expect(history).toHaveAttribute('data-evaluation', '#-1');
-  await expect(page.locator('.hud-graph-score')).toHaveText('#\u22121');
+  await expect(history).toHaveAttribute('data-evaluation', '-M1');
+  await expect(page.locator('.hud-graph-score')).toHaveText('\u2212M1');
   // An unmarked move keeps the board quiet
   await page.locator('[data-ply="1"]').click();
   await expect(history).not.toHaveAttribute('data-best');
@@ -79,7 +79,7 @@ test('a finished game is reviewed on asking: its blunders marked, the better mov
   await expect(history).toHaveAttribute('data-viewing-ply', '3');
   await expect(page.locator('.hud-now .hud-mark[data-grade="blunder"]')).toBeVisible();
   // ...and the score beside it, with no graph and, the list closed, no bar
-  await expect(page.locator('.hud-now .hud-score')).toHaveText('#\u22121');
+  await expect(page.locator('.hud-now .hud-score')).toHaveText('\u2212M1');
   await expect(page.getByTestId('advantage-graph')).toHaveCount(0);
   await expect(page.getByTestId('evaluation-bar')).toHaveCount(0);
   await expect(page.getByTestId('best-move')).toHaveCount(0);

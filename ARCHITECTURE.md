@@ -412,7 +412,8 @@ Key decisions:
   ("Best ♙Cc2", beside a stroke of the line's amber); an unmarked move shows nothing
   more. The engine's score for each position is shown from White's side
   (`evaluationText` in `game/analysis.ts`: pawns to a decimal, "+1.4", "−2.9", a forced
-  mate in moves, "#3", "#−3", the mate itself as the result, "0–1"; a screen reader hears
+  mate in the mating side's moves, the mating move included, "M3", "−M3" (a mate 5 or 6
+  plies away), the mate itself as the result, "0–1"; a screen reader hears
   it in words, "Black ahead by 2.9", as the player steps). Beside the tower the review's
   top carries the game's graph under the counts (`AdvantageGraph` in `MoveHistory.tsx`):
   White's winning chances (the curve that grades the moves, so a +20 position does not
@@ -442,7 +443,7 @@ Key decisions:
   while the game is on, `data-analysis` (`running`, `done`, `stopped`) once the review is asked for
   (`analyse`, the button), `data-best` the better move where the move shown is marked
   (`Bd2-Cc2`, named in `best-move`) and `data-evaluation` the score of the position shown
-  once searched (as written, with ASCII hyphens: `-2.9`, `#-1`, `0-1`), drawn in
+  once searched (as written, with ASCII hyphens: `-2.9`, `-M1`, `0-1`), drawn in
   `advantage-graph` beside the tower and `evaluation-bar` in a narrow window; each move marked carries `data-grade` (`brilliant`,
   `inaccuracy`, `mistake`, `blunder`), and `.hud-counts` each side's counts as `data-count` by grade; `game-actions` is the flag's corner, with `take-back` (the arrow),
   and `draw-pending`, `draw-declined`, `draw-offer`, `takeback-pending`, `takeback-declined`

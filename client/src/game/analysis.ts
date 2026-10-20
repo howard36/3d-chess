@@ -74,13 +74,17 @@ const MINUS = '−';
 
 /**
  * An evaluation as chess sites write it, from White's side: pawns to one
- * decimal (+1.4, −2.9, 0.0), a forced mate in moves (#3, #−3), and the mate
+ * decimal (+1.4, −2.9, 0.0), a forced mate in the mating side's moves, the
+ * mating move included (M3, −M3: chess.com's way; # is the record's mark for
+ * the mate itself), and the mate
  * itself as the result (1–0, 0–1).
  */
 export function evaluationText({ score, mate, chances }: Evaluation): string {
   if (mate !== undefined) {
     if (mate === 0) return chances > 0 ? '1–0' : '0–1';
-    return `#${mate < 0 ? MINUS : ''}${Math.ceil(Math.abs(mate) / 2)}`;
+    // `mate` counts plies; the mating side moves on every other one, the last
+    // its mate: 1 or 2 plies away is mate in 1, 3 or 4 mate in 2
+    return `${mate < 0 ? MINUS : ''}M${Math.ceil(Math.abs(mate) / 2)}`;
   }
   const pawns = Math.round(score / 10) / 10;
   if (pawns === 0) return '0.0';
