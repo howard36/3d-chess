@@ -29,8 +29,11 @@ pieces):
   rank 1 on level A), to Q/R/B/N/U (the player picks from a prompt).
 
 No castling. Check, checkmate, and stalemate work as in standard chess and are detected
-by the client engine, and so are the automatic draws: the two kings left alone on the
-board (insufficient material; only bare kings, `onlyKings`), the same position (the
+by the client engine, and so are the automatic draws: insufficient material
+(`insufficientMaterial`: the two kings left alone, or a bare king against a king with
+one rook, bishop, knight or unicorn, or with a unicorn and one of those, none of which
+has a single checkmate position on this board, `research/endgames/deadmates.ts`; it can
+only arise from a capture or a promotion, and the game ends as it does), the same position (the
 same pieces on the same squares, the same side to move) standing for the third time, and
 fifty moves by each side (a hundred plies) with no capture and no pawn move
 (`engine/draws.ts`). A mate stands even on the move that would also complete a repetition
@@ -770,13 +773,21 @@ while the level's own pieces stand forward a little. Holding a piece
 steps nothing back: its moves to other levels count as much as those on its own. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
 a column of cool light. A move glides, the piece rigid, along the straight line
-between the squares like a critically damped spring: off its square at once, at its
-fastest early, settling onto the next without passing it, and taking longer the farther
-it goes, by the square root of the distance (a square in about 310 ms, the longest moves
-in 500; `three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
-piece the player held up stays up while its move goes to the server and settles onto its
-square on the way. What brought the shown position is decided once each time its move count
-changes (`Board.tsx`, `arrival`): a later position glides its last move in; in the game's
+between the squares and settles onto the next without passing it (`three/glide.ts`, played
+by `MoveGlide` in `three/moveAnimation.tsx`). How it sets off depends on who moved it. A
+move the player played here, by a tap on one of the held piece's destinations (a
+promotion's too, once its piece is chosen: `Board.tsx` remembers the move it `sent`),
+answers the tap at once: the piece, held up while its move goes to the server, leaves at
+its fastest early on, a critically damped spring let go. Every other move (an opponent's,
+the computer's, a step through the record, the start page's games, a move typed in the
+move box) comes unannounced, so it must not lurch: the piece, never picked up, slides
+along the board gathering speed from rest, with no lurch in its first frame (a spring one
+order smoother), at its fastest a quarter of the way in. Its time grows with the square
+root of its length on screen (the view's CSS pixels per world unit at its square,
+`screenScale`), so a long move on a large monitor is not a blink: a square in about
+300 ms on a laptop's window, up to 760 ms. What brought the shown position is decided
+once each time its move count changes (`Board.tsx`, `arrival`): a later position glides
+its last move in; in the game's
 review (`review`, the move history: see HUD) only a step of one move glides, forward as a
 move lands or back with the undone move's piece gliding home in reverse (a piece it had
 taken standing again, `Reveal`, once the glide has left its square), and a jump of
@@ -1290,7 +1301,7 @@ mobility by the position's hash. It plays by the draws too: a position standing 
 third time scores as a draw, and so does one repeated inside the line searched (it can
 always be repeated once
 more), only positions since the last capture or pawn move being compared; and a hundred plies
-without either draw unless the position is mate; the kings left alone draw at once. A lead counts for up to a quarter less as
+without either draw unless the position is mate; material that can never mate (`insufficientMaterial`, read from the material sums the board keeps) draws at once. A lead counts for up to a quarter less as
 those plies run out, so a side ahead makes progress rather than drift into the draw, and a
 side behind takes a repetition when it is offered. The review, a draw offered to the computer
 and Hard also know one ending exactly (`endgames`, `kpk.ts`): king and pawn against king, which

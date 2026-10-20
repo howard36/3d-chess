@@ -11,6 +11,7 @@ import {
   Position,
   QUEEN,
   ROOK,
+  UNICORN,
   WHITE_SIDE,
   cellOf,
 } from './position';
@@ -58,9 +59,11 @@ it('says when there is no move: mated, or stalemated', () => {
 });
 
 it('takes a queen left hanging, and keeps its own out of reach', () => {
-  // The rook on Ac3 looks straight up the c3 column at Black's queen
+  // The rook on Ac3 looks straight up the c3 column at Black's queen (White's
+  // pawn keeps the rook from being all that is left, which could never mate)
   const pos = setUp([
     [0, 0, 0, KING],
+    [0, 1, 1, PAWN],
     [2, 2, 0, ROOK],
     [2, 2, 2, QUEEN | BLACK],
     [4, 4, 4, KING | BLACK],
@@ -276,11 +279,11 @@ describe('the draws', () => {
       [3, 3, 3, KING | BLACK],
     ]);
     expect(new Searcher(bare).search({ maxDepth: 3, timeMs: 1e9, margin: 0 }).score).toBe(0);
-    // A rook down, Black's king takes White's last piece: a draw
+    // A queen down, Black's king takes White's queen: a draw
     const pos = setUp(
       [
         [4, 0, 0, KING],
-        [2, 2, 2, ROOK],
+        [2, 2, 2, QUEEN],
         [3, 3, 3, KING | BLACK],
       ],
       BLACK_SIDE,
@@ -290,12 +293,42 @@ describe('the draws', () => {
     expect(result.score).toBe(0);
   });
 
-  it('scores the kings left alone as a draw in the search of captures too', () => {
+  it('scores a lone rook, bishop, knight or unicorn against a bare king as a draw', () => {
+    for (const piece of [ROOK, BISHOP, KNIGHT, UNICORN]) {
+      const pos = setUp([
+        [4, 0, 0, KING],
+        [0, 4, 0, piece],
+        [2, 2, 4, KING | BLACK],
+      ]);
+      expect(new Searcher(pos).search({ maxDepth: 3, timeMs: 1e9, margin: 0 }).score).toBe(0);
+    }
+  });
+
+  it('takes a piece to leave material that can never mate', () => {
+    // A rook and bishop down, Black's king takes the bishop: a lone rook can't mate
+    const pos = setUp(
+      [
+        [4, 0, 0, KING],
+        [2, 2, 2, BISHOP],
+        [0, 4, 0, ROOK],
+        [3, 3, 3, KING | BLACK],
+      ],
+      BLACK_SIDE,
+    );
+    const result = new Searcher(pos).search({ maxDepth: 3, timeMs: 1e9, margin: INF });
+    expect(Position.record(result.move)).toEqual({ from: 'Dd4', to: 'Cc3' });
+    expect(result.score).toBe(0);
+    for (const s of result.scores.filter((s) => s.move !== result.move))
+      expect(s.score).toBeLessThan(0);
+  });
+
+  it('scores dead material as a draw in the search of captures too', () => {
     // White's knight steps beside Black's king without checking it, and
-    // Black's king takes it in the search of captures alone
+    // Black's king takes it in the search of captures alone, leaving a lone rook
     const pos = setUp([
       [0, 0, 0, KING],
       [0, 1, 2, KNIGHT],
+      [4, 0, 0, ROOK],
       [3, 3, 3, KING | BLACK],
     ]);
     const result = new Searcher(pos).search({ maxDepth: 1, timeMs: 1e9, margin: INF });
