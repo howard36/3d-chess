@@ -1,24 +1,38 @@
-// The draws besides stalemate, as in chess: the two kings alone on the board,
-// the same position (the same pieces on the same squares, the same side to
-// move) for the third time, and fifty moves by each side with no capture and
-// no pawn move. This board has no castling and no en passant, so a position
-// is only its pieces and the side to move. Decided in game/history.ts for the
-// game, and by the computer player's search on its own board (ai/position.ts).
+// The draws besides stalemate: material that can never mate (the two kings
+// alone, as in chess, and on this board a lone king against one rook, bishop,
+// knight or unicorn, or against a unicorn and one of those), the same
+// position (the same pieces on the same squares, the same side to move) for
+// the third time, and fifty moves by each side with no capture and no pawn
+// move. This board has no castling and no en passant, so a position is only
+// its pieces and the side to move. Decided in game/history.ts for the game,
+// and by the computer player's search on its own board (ai/position.ts).
 
 import type { Board, Move } from './board';
 import { PieceType } from './pieces';
 import type { Piece } from './pieces';
 import type { Coord } from './coords';
 
-/** Whether the kings are the only pieces left: neither side can ever mate. */
-export function onlyKings(board: Board): boolean {
+/**
+ * Whether neither side can ever mate, however the other plays: the two kings
+ * alone, or a lone king against a king with one rook, bishop, knight or
+ * unicorn, or with a unicorn and one of those. On a 5×5×5 board none of these
+ * has a single checkmate position (research/endgames/deadmates.ts checks every
+ * one), and without pawns the material can only shrink, into another of them.
+ */
+export function insufficientMaterial(board: Board): boolean {
+  const pieces: Record<'white' | 'black', PieceType[]> = { white: [], black: [] };
   for (let z = 0; z < 5; z++)
     for (let x = 0; x < 5; x++)
       for (let y = 0; y < 5; y++) {
         const piece = board.getPiece({ x, y, z });
-        if (piece && piece.type !== PieceType.King) return false;
+        if (!piece || piece.type === PieceType.King) continue;
+        if (piece.type === PieceType.Pawn || piece.type === PieceType.Queen) return false;
+        pieces[piece.color].push(piece.type);
       }
-  return true;
+  const { white, black } = pieces;
+  if (white.length && black.length) return false;
+  const army = white.length ? white : black;
+  return army.length <= 1 || (army.length === 2 && army.includes(PieceType.Unicorn));
 }
 
 /** A position standing for the third time draws. */

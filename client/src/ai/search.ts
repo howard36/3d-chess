@@ -296,7 +296,7 @@ export class Searcher {
     allowNull: boolean,
   ): number {
     const pos = this.pos;
-    if (ply > 0 && (pos.repeated(this.rootPly) || pos.onlyKings())) return 0;
+    if (ply > 0 && (pos.repeated(this.rootPly) || pos.insufficientMaterial())) return 0;
     const known = this.endgames ? this.ending() : null;
     if (ply > 0 && known === 0) return 0;
     const inCheck = pos.inCheck();
@@ -444,8 +444,8 @@ export class Searcher {
     this.nodes++;
     this.checkTime();
     if (this.stopped) return 0;
-    // A capture that leaves the kings alone draws
-    if (pos.onlyKings()) return 0;
+    // A capture that leaves too little to mate draws
+    if (pos.insufficientMaterial()) return 0;
     const known = this.endgames ? this.ending() : null;
     if (known === 0) return 0;
     // Mobility only where it could matter: not far above beta or below alpha

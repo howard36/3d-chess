@@ -358,6 +358,7 @@ const GameView: React.FC<GameViewProps> = ({
                       total: analysis.total,
                       grades: analysis.grades,
                       counts: analysis.counts,
+                      evaluations: analysis.evaluations,
                       best: better,
                       bestNotation: betterNotation,
                       onRetry: startAnalysis,
