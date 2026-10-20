@@ -59,19 +59,9 @@ export const PaceOnGpu = () => {
     }
     gl.render(scene, camera);
     // A frame at rest drawn in part may take a pass for each rect it redraws
-    // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says. Nothing
-    // moves between a frame's passes, so the later ones keep the first's
-    // matrices (three.js would walk the whole scene again for each)
+    // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says
     const nextPass = scene.userData?.nextPass as (() => boolean) | undefined;
-    const auto = scene.matrixWorldAutoUpdate;
-    try {
-      for (let pass = 1; pass < MAX_PASSES && nextPass?.(); pass++) {
-        scene.matrixWorldAutoUpdate = false;
-        gl.render(scene, camera);
-      }
-    } finally {
-      scene.matrixWorldAutoUpdate = auto;
-    }
+    for (let pass = 1; pass < MAX_PASSES && nextPass?.(); pass++) gl.render(scene, camera);
     // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
     if (gl.getScissorTest()) gl.setScissorTest(false);
     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;

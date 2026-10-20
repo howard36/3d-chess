@@ -135,34 +135,30 @@ it('draws anyway once a fence has held it for PACE_MAX_SKIPS frames', () => {
   expect(draw).toHaveBeenCalledTimes(2);
 });
 
-it('draws each pass a frame has, keeping the first pass’s matrices for the rest', () => {
+it('draws each pass a frame has', () => {
   // (backdropCache.tsx: a frame at rest redrawing separate rects, a pass each)
-  const scene = { matrixWorldAutoUpdate: true, userData: { nextPass: vi.fn() } };
+  const scene = { userData: { nextPass: vi.fn() } };
   scene.userData.nextPass
     .mockReturnValueOnce(true)
     .mockReturnValueOnce(true)
     .mockReturnValue(false);
-  const walks: boolean[] = [];
-  const draw = vi.spyOn(gpu.gl, 'render').mockImplementation(() => {
-    walks.push(scene.matrixWorldAutoUpdate);
-  });
+  const draw = vi.spyOn(gpu.gl, 'render').mockImplementation(() => {});
+  draw.mockClear();
   render(<PaceOnGpu />);
   frame.run!({ ...state, scene });
-  expect(walks).toEqual([true, false, false]);
-  expect(scene.matrixWorldAutoUpdate).toBe(true);
+  expect(draw).toHaveBeenCalledTimes(3);
   draw.mockRestore();
 });
 
 it('draws a frame in MAX_PASSES passes at most, whatever nextPass says', () => {
   // (a render that never reaches the scene's onBeforeRender, which takes the
   // pass's rect, leaves nextPass true: a lost context, a stubbed render)
-  const scene = { matrixWorldAutoUpdate: true, userData: { nextPass: vi.fn() } };
+  const scene = { userData: { nextPass: vi.fn() } };
   scene.userData.nextPass.mockImplementation(() => scene.userData.nextPass.mock.calls.length < 100);
   const draw = vi.spyOn(gpu.gl, 'render').mockImplementation(() => {});
   draw.mockClear();
   render(<PaceOnGpu />);
   frame.run!({ ...state, scene });
   expect(draw).toHaveBeenCalledTimes(MAX_PASSES);
-  expect(scene.matrixWorldAutoUpdate).toBe(true);
   draw.mockRestore();
 });
