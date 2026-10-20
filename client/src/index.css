@@ -1446,10 +1446,12 @@ body {
   .hud-history[data-ended] {
     top: 12px;
     bottom: auto;
-    /* The top row to itself (the way home stands with the rematch, below:
-       .hud-end), so the move shown between the steps and each side's marks
-       on one line have room on a narrow phone */
-    width: min(400px, calc(100vw - 24px));
+    /* The top row's middle: as wide as the move shown between the steps and
+       each side's marks on one line want, but clear of the way home in the
+       top left corner (.hud-home) and as far from the right edge, so it
+       stays centred; in a window too narrow for that, the whole row, the
+       way home under it (below) */
+    width: min(360px, calc(100vw - 2 * var(--home-room)));
     padding: 2px;
     border-radius: 20px;
   }
@@ -2470,36 +2472,10 @@ body {
   top: 8px;
   right: 8px;
 }
-/* The review: the way home and the rematch. Home keeps its corner (.hud-home)
-   and the rematch its place below the tower (.hud-new-game), but in the top
-   layout, where the steps take the top row, the two share one row
-   below the tower: home at its left, the rematch in its middle while there is
-   room (a wide answer to an offer pushes it right, never over home) */
+/* The review: the way home in its corner at the top left (.hud-home) and
+   the rematch below the tower (.hud-new-game), in every layout */
 .hud-end {
   display: contents;
-}
-@media (min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px)))) {
-  .hud-end {
-    position: fixed;
-    right: max(12px, env(safe-area-inset-right));
-    bottom: 18px;
-    left: max(12px, env(safe-area-inset-left));
-    z-index: 1000;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    pointer-events: none;
-  }
-  .hud-end > .hud-home {
-    position: static;
-    justify-self: start;
-  }
-  .hud-end > .hud-new-game {
-    position: static;
-    grid-column: 2;
-    transform: none;
-    pointer-events: auto;
-  }
 }
 /* Play again, below the tower, once the result card is put away */
 .hud-new-game {
@@ -2586,6 +2562,33 @@ body {
   .hud-home {
     width: calc(40px + var(--caps-odd));
     height: calc(40px + var(--caps-odd));
+  }
+}
+/* What the steps at the top keep clear of either side (.hud-history): the
+   window's edge, the way home and a gap after it. The way home in its words
+   (a window over 719 px wide) never meets the steps */
+:root {
+  --home-room: calc(12px + 36px + var(--caps-odd) + 8px);
+}
+@media (pointer: coarse) {
+  :root {
+    --home-room: calc(12px + 40px + var(--caps-odd) + 8px);
+  }
+}
+/* A window too narrow for the steps between the way home and the right edge
+   (less than 300 px left between them): the steps take the whole top row,
+   and the way home stands under its left end, 8 px below it */
+@media (min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px)))) and (max-width: 419px) {
+  .hud-history[data-ended] {
+    width: calc(100vw - 24px);
+  }
+  .hud-end > .hud-home {
+    top: calc(12px + 40px + 8px);
+  }
+}
+@media (min-height: 481px) and (not (((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px)))) and (max-width: 419px) and (pointer: coarse) {
+  .hud-end > .hud-home {
+    top: calc(12px + 44px + 8px);
   }
 }
 

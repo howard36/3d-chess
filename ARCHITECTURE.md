@@ -298,11 +298,12 @@ Key decisions:
   `rematch-announcer` says an offer and a refusal. With the card put away the screen is the
   review's: the board, the record and the rematch. The pill and the captured pieces step
   out of sight (still in the page, visually hidden, for a screen reader and the hooks
-  below) and the way to the tutorial goes; the way home stays. In the top layout (a window
-  without room beside the tower, below), where the steps take the top row, the way home stands with the rematch in one row
-  below the tower (`.hud-end`), at its left, the rematch in its middle while there is room;
-  the steps then have the top row's whole width (to 400 px), so the move shown between
-  them and each side's marks fit on one line on a 360 px phone.
+  below) and the way to the tutorial goes; the way home stays, in the top left corner in every layout
+  (`.hud-home`), the rematch alone below the tower. In the top layout (a window without
+  room beside the tower, below) the steps take the middle of the top row, 360 px wide,
+  clear of the way home and as far from the right edge, so they stay centred
+  (`--home-room`); where that would leave them under 300 px (a window under 420 px wide)
+  they take the whole row and the way home stands under its left end.
   While the game is on, a
   flag in a circle stands under the way to the tutorial at the right (`screens/GameActions.tsx`,
   `.hud-game`, in one column with the move history, which takes its place once the game is over, `.hud-side`: below the HUD's band, but in every window shape where the window is empty
