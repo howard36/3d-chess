@@ -3,9 +3,10 @@
 // men is tried, the bare king to move, and counted as mate when it is in
 // check with no legal move. An ending with none can never be won, however
 // either side plays, and draws as soon as it stands (engine/draws.ts,
-// insufficientMaterial). The moves are the engine's own vectors; every mate
-// found in the endings that have them, and a sample of the rest, are checked
-// against the engine's own isCheckmate.
+// insufficientMaterial). The moves are the engine's own vectors; one mate in
+// fifty found in the endings that have them, and 20,000 random positions of
+// the endings that have none, are checked against the engine's isCheckmate.
+// About 13 minutes on one core; it exits non-zero if a dead ending has a mate.
 //
 // usage (bundled as research/levels/match.ts is): node deadmates.mjs
 import { Board } from '../../client/src/engine/board';
@@ -156,4 +157,6 @@ for (let i = 0; i < 20000; i++) {
   if (boardOf(army, wk, bk, ps).isCheckmate('black'))
     throw new Error(`a mate the count missed: ${army.join('')} ${wk} ${bk} ${ps}`);
 }
-console.log(`engine agrees on ${checked} mates sampled and 20,000 dead positions`);
+console.log(
+  `the engine agrees on ${Math.ceil(checked / 50)} of the ${checked} mates (one in fifty) and on 20,000 random dead positions`,
+);
