@@ -1,0 +1,50 @@
+diff --git a/client/scripts/bench-browser.mjs b/client/scripts/bench-browser.mjs
+index 39fbdf1..701a5ab 100644
+--- a/client/scripts/bench-browser.mjs
++++ b/client/scripts/bench-browser.mjs
+@@ -1600,9 +1600,15 @@ async function joinViaUI(browser, scope) {
+   const { gameId } = white.last.game_created;
+   const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
+   const page = await ctx.newPage();
++  if (process.env.PROBE_NO_LINK) await page.addInitScript(() => { window.__noLinkAhead = true; });
+   await page.goto(`${BASE}/game/${gameId}`);
++  if (process.env.PROBE_JOIN_WAIT) {
++    await page.getByRole('button', { name: /^Join game\b/i }).waitFor();
++    await sleep(Number(process.env.PROBE_JOIN_WAIT));
++  }
+   await page.getByRole('button', { name: /^Join game\b/i }).click();
+   await waitFirstFrame(page);
++  if (process.env.PROBE_JOIN_WAIT) await sleep(2500);
+   const b = await snap(page);
+   const click = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
+   const frame = firstFrameEnd(b);
+@@ -1625,6 +1631,8 @@ async function joinViaUI(browser, scope) {
+       // The click, from the page's time origin (the Join button's own row
+       // starts there), so the long tasks below line up with it
+       clickAt: Math.round(click - b.timeOrigin),
++      r3fAt: Math.round(b.r3fAt - click),
++      drawn: b.renders.slice(0, 4).map((r) => [Math.round(r[0] - click), Math.round(r[1]), typeof r[5] === 'number' ? Math.round(r[5] - click) : r[5]]),
+       stages: b.stage
+         .filter(([t]) => t >= click - 1 && t <= frame + 1)
+         .map(([t, ...rest]) => [Math.round(t - click), ...rest]),
+@@ -2071,6 +2079,20 @@ async function computerSection(browser) {
+           runs.push({
+             wayInFrame: firstFrameEnd(s) - pick,
+             wayInUsable: usable - pick,
++            wayInTrace: {
++              r3fAt: Math.round(s.r3fAt - pick),
++              drawn: s.renders.slice(0, 4).map((r) => [Math.round(r[0] - pick), Math.round(r[1]), typeof r[5] === 'number' ? Math.round(r[5] - pick) : r[5]]),
++              stages: s.stage
++                .filter(([t]) => t >= pick - 1 && t <= usable)
++                .map(([t, ...rest]) => [Math.round(t - pick), ...rest]),
++              links: (s.linked ?? [])
++                .filter(([l]) => l >= pick - 2000 && l <= firstFrameEnd(s))
++                .map(([l, what, where]) => [Math.round(l - pick), where, what.slice(0, 40)]),
++              longTasks: tasksIn(s.lt, pick, firstFrameEnd(s)).map(([t, d]) => [
++                Math.round(t - pick),
++                Math.round(d),
++              ]),
++            },
+             workers: s.workers.length,
+             links: (s.links ?? []).filter((l) => l >= usable).length,
+             moves: thinking,
