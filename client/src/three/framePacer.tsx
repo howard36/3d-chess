@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { Camera, Object3D, Scene } from 'three';
 import { MAX_PASSES } from './scene/damage';
 
 /**
@@ -26,8 +25,6 @@ const stepped = () => typeof (window as { __vclock?: unknown }).__vclock === 'ob
 export const PaceOnGpu = () => {
   const gl = useThree((s) => s.gl);
   const fence = useRef<{ sync: WebGLSync; skipped: number } | null>(null);
-  // The timer that watches a held frame's fence (awaitedFrame)
-  const poll = useRef(0);
   useEffect(() => {
     const context = gl.getContext() as WebGL2RenderingContext;
     const canvas = gl.domElement;
@@ -36,47 +33,10 @@ export const PaceOnGpu = () => {
     canvas.addEventListener('webglcontextlost', lost);
     return () => {
       canvas.removeEventListener('webglcontextlost', lost);
-      clearTimeout(poll.current);
-      poll.current = 0;
       if (fence.current && !context.isContextLost()) context.deleteSync(fence.current.sync);
       fence.current = null;
     };
   }, [gl]);
-  const draw = (scene: Scene, camera: Camera) => {
-    const context = gl.getContext() as WebGL2RenderingContext;
-    gl.render(scene, camera);
-    // A frame at rest drawn in part may take a pass for each rect it redraws
-    // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says
-    const nextPass = scene.userData?.nextPass as (() => boolean) | undefined;
-    for (let pass = 1; pass < MAX_PASSES && nextPass?.(); pass++) gl.render(scene, camera);
-    // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
-    if (gl.getScissorTest()) gl.setScissorTest(false);
-    if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
-    const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    if (!sync) return;
-    fence.current = { sync, skipped: 0 };
-    context.flush();
-  };
-  // A held frame the player waits on is drawn as soon as its predecessor's
-  // fence passes, not at the next display frame: the GPU is not left idle
-  // for up to a display frame at each step of the chain before the picture
-  const watch = (scene: Scene, camera: Camera) => {
-    if (poll.current) return;
-    const check = () => {
-      poll.current = 0;
-      const context = gl.getContext() as WebGL2RenderingContext;
-      const last = fence.current;
-      if (!last || context.isContextLost() || !awaited(scene)) return;
-      if (context.getSyncParameter(last.sync, context.SYNC_STATUS) === context.UNSIGNALED) {
-        poll.current = window.setTimeout(check, 1);
-        return;
-      }
-      context.deleteSync(last.sync);
-      fence.current = null;
-      draw(scene, camera);
-    };
-    poll.current = window.setTimeout(check, 1);
-  };
   useFrame(({ scene, camera, invalidate }) => {
     const context = gl.getContext() as WebGL2RenderingContext;
     const last = fence.current;
@@ -92,30 +52,25 @@ export const PaceOnGpu = () => {
       if (busy) {
         last.skipped++;
         invalidate();
-        if (awaited(scene)) watch(scene, camera);
         return;
       }
       if (!lost) context.deleteSync(last.sync);
       fence.current = null;
     }
-    clearTimeout(poll.current);
-    poll.current = 0;
-    draw(scene, camera);
+    gl.render(scene, camera);
+    // A frame at rest drawn in part may take a pass for each rect it redraws
+    // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says
+    const nextPass = scene.userData?.nextPass as (() => boolean) | undefined;
+    for (let pass = 1; pass < MAX_PASSES && nextPass?.(); pass++) gl.render(scene, camera);
+    // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
+    if (gl.getScissorTest()) gl.setScissorTest(false);
+    if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
+    const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!sync) return;
+    fence.current = { sync, skipped: 0 };
+    context.flush();
   }, 1);
   return null;
-};
-
-/** How long after a new position or a selection its frames count as awaited (awaitedFrame). */
-export const AWAITED_MS = 400;
-
-/** A new position or a selection the player waits on to see (Board). */
-export const markAwaited = (scene: Object3D) => {
-  scene.userData.awaited = performance.now();
-};
-
-const awaited = (scene: Object3D) => {
-  const at = scene.userData?.awaited as number | undefined;
-  return at !== undefined && performance.now() - at < AWAITED_MS;
 };
 
 /** The display frames a frame waits for the GPU at most (a second at 60 Hz): a fence that never passes holds nothing. */
