@@ -4,11 +4,11 @@
   "heading": "No speed change held; the frame pacer gets a cap, two checks now fail on broken code, and two copies of engine code are gone",
   "meta": "<p>This general run kept four changes: a cap on the frame pacer's pass loop, a stronger damage check, one shared copy of the pawn capture table and of the key generator, and a benchmark row for the lobby's scene. None of them claims a speed win, and the final A/B calls no primary row better or worse. The branch is <code>improve/20261020-0715</code> from base <code>bd26e1c</code>; main did not move during the run. Every figure is from software rendering (SwiftShader) on a 4-vCPU VM, and each names the commits it compares.</p>",
   "needs": {
-    "intro": "<p>Nothing here blocks the merge. All three items are information.</p>",
+    "intro": "<p>Nothing here blocks the merge. All four items are information.</p>",
     "items": [
       {
         "title": "Information: two primary rows lean slower in the final A/B, neither called",
-        "body": "<p>On <code>f163681</code> against <code>bd26e1c</code>, 10 pairs (<code>ab-20261020-0715-final.md</code>):</p><ul><li>Reopening a long game: 123 → 133 ms, median pair ×1.140, 6 of 10 pairs worse. The pairs run from 0.57 to 1.69.</li><li>The player's move appears: 151 → 161 ms, median pair ×1.102, 6 of 10 pairs worse. The pairs run from 0.74 to 1.32.</li></ul><p>The code these rows run is the same on both sides. The pawn table and the key generator moved file without a change of text. The pass cap stops the loop only when a render never reaches the backdrop's hook, which does not happen in the app; <code>damage.spec</code> reads the board's own frames and finds them identical to whole ones. The same rows went the other way in this run's other A/Bs of nearly the same code: the player's move was ×0.929 in <code>ab-20261020-0715-mw1b.md</code>, and reopening leaned ×1.167 at step 2 on the base itself.</p>",
+        "body": "<p>On <code>f163681</code> against <code>bd26e1c</code>, 10 pairs (<code>ab-20261020-0715-final.md</code>):</p><ul><li>Reopening a long game: 123 → 133 ms, median pair ×1.140, 6 of 10 pairs worse. The pairs run from 0.57 to 1.69.</li><li>The player's move appears: 151 → 161 ms, median pair ×1.102, 6 of 10 pairs worse. The pairs run from 0.74 to 1.32.</li></ul><p>The code these rows run is the same on both sides. The pawn table and the key generator moved file without a change of text. The pass cap stops the loop only when a render returns before it reaches the backdrop's hook. In the app that happens only while the WebGL context is lost, which none of the benchmark's runs do, so their frames draw the same passes on both sides; <code>damage.spec</code> reads the board's own frames and finds them identical to whole ones. The same rows went the other way in this run's other A/Bs of nearly the same code: the player's move was ×0.929 in <code>ab-20261020-0715-mw1b.md</code>, and reopening leaned ×1.167 at step 2 on the base itself.</p>",
         "recommend": "No decision needed. Read reopening and the player's move again in the next run's step 2, with 10 or more pairs."
       },
       {
@@ -17,8 +17,13 @@
         "recommend": "No decision needed. The speed leads are at the top of the ledger for the next speed run."
       },
       {
+        "title": "Information: three rows leaned slower on the base itself at step 2, none called, all traced to the last run's PR",
+        "body": "<p>On <code>bd26e1c</code> against <code>2f25230</code>, 10 pairs (<code>ab-20261020-0715-regress.md</code>):</p><ul><li>The start page answers its first click, desktop: 10.7 → 13.7 ms, median pair ×1.268, 9 of 10 pairs worse.</li><li>Reopening a long game: median pair ×1.167, 5 of 10 pairs worse. Its diagnostic \"replaying and showing the record\" went 53 → 80 ms, 8 of 10 pairs worse.</li><li>A finished game's review: 2.04 → 2.12 s, median pair ×1.056, 6 of 10 pairs worse.</li></ul><p>A split (<code>ab-20261020-0715-bisect-owner.md</code>: main before #201 against <code>2f25230</code>, 8 pairs) shows that the owner's PRs #192–#200 move none of them: first click ×1.029, reopening ×0.940, review ×0.981. So they come from #201. The first click's share is RT1 (×1.103 alone at 10 pairs, <code>ab-20261020-0008-rt1-coldload.md</code>): since RT1 the lobby's canvas mounts in the same commit as the side choice. Reopening's replay leaned ×1.26 on #201 alone in the last run's final A/B, likely the same mechanism (the game's canvas now commits with the move record). #201 was not bisected further.</p><p>LC1, the fix aimed at the first click's lean (mount the lobby's canvas a frame after the side choice), was not built: under full motion the side choice's words wait for the lobby scene's first frame, so the row times a page commit that the player does not see, and a later mount would move that time stamp, not the picture. This run added a row that times the scene itself (see Changed).</p>",
+        "recommend": "No decision needed. LC1 stays open in the ledger, to be judged against the new scene row; reopening is read again at the next step 2."
+      },
+      {
         "title": "Information: the lobby scene comes close to its 1.5 s fallback on a phone's first visit",
-        "body": "<p>On a phone's first visit (4× CPU, Fast 4G), the lobby's scene draws 1.51 s after the first click, at the median. The lobby has a fallback that starts the page's entrance 1.5 s after it mounts if the scene has not drawn. In the final A/B no load reached the fallback (0 of 100 phone loads), but the margin is about 100 ms.</p>",
+        "body": "<p>On a phone's first visit (4× CPU, Fast 4G), the lobby's scene draws 1.51 s after the first click on <code>f163681</code> and 1.52 s on <code>bd26e1c</code>, at the median. The lobby has a fallback that starts the page's entrance 1.5 s after it mounts if the scene has not drawn. In the final A/B no load reached the fallback (0 of 100 phone loads), but the margin is about 100 ms.</p>",
         "recommend": "No decision needed. Ledger 0715:LL1 holds it: if loads start to reach the fallback, preload the lobby's chunk in the start page's idle time."
       }
     ]
@@ -31,7 +36,10 @@
         "body": "<p><code>f163681</code> against <code>bd26e1c</code>, 10 pairs, 73 minutes (<code>ab-20261020-0715-final.md</code>): ×0.991 over 16 rows, none called. All 117 diagnostics are unchanged within their noise. Memory is flat: JavaScript memory after reopening is −0.2%, and geometries and textures grow the same over 16 plies on both sides. The start page downloads 0.5 KiB less on desktop and 0.4 KiB less on the phone. Search speed is ×1.013, not called.</p>",
         "charts": [
           {
-            "rows": { "change": "final: f163681 vs bd26e1c, --primary, 10 pairs", "only": "PRIMARY" },
+            "rows": {
+              "change": "final: f163681 vs bd26e1c, --primary, 10 pairs",
+              "only": "PRIMARY"
+            },
             "caption": "f163681 against bd26e1c, 10 pairs (ab-20261020-0715-final.md).",
             "target": 1.2
           }
@@ -39,10 +47,13 @@
       },
       {
         "title": "Step 2: the base against the last run's base",
-        "body": "<p><code>bd26e1c</code> against <code>2f25230</code>, 10 pairs (<code>ab-20261020-0715-regress.md</code>). The last run's changes hold: joining's first board picture is ×0.811 and the computer's ×0.774, and the player's move is ×0.688 and the opponent's ×0.689. All four are called better, and no row is called worse. One diagnostic is called worse: the CPU time to prepare the player's move's picture, 1.63 → 2.85 ms. That is the cost of the last run's extra passes, and MW1 below tried to take it back.</p>",
+        "body": "<p><code>bd26e1c</code> against <code>2f25230</code>, 10 pairs (<code>ab-20261020-0715-regress.md</code>). The last run's changes hold: joining's first board picture is ×0.811 and the computer's ×0.774, and the player's move is ×0.688 and the opponent's ×0.689. All four are called better, and no row is called worse. Three rows lean slower without being called: the desktop first click ×1.268 (9 of 10 pairs worse), reopening ×1.167 (its replay 53 → 80 ms, 8 of 10 worse) and the review ×1.056; all three trace to #201 (see Needs from me). One diagnostic is called worse: the CPU time to prepare the player's move's picture, 1.63 → 2.85 ms. That is the cost of the last run's extra passes, and MW1 below tried to take it back.</p>",
         "charts": [
           {
-            "rows": { "change": "regression check: bd26e1c vs 2f25230, --primary, 10 pairs", "only": "PRIMARY" },
+            "rows": {
+              "change": "regression check: bd26e1c vs 2f25230, --primary, 10 pairs",
+              "only": "PRIMARY"
+            },
             "caption": "bd26e1c against 2f25230, 10 pairs (ab-20261020-0715-regress.md).",
             "target": 1.2
           }
@@ -55,7 +66,7 @@
     "items": [
       {
         "title": "The frame pacer draws at most MAX_PASSES passes a frame (e06673c, ledger 0008:PL2)",
-        "body": "<p>The pacer's pass loop ended only when a render reached the backdrop's <code>onBeforeRender</code> hook. A render that returned early, such as on a lost WebGL context, made the loop run without end and froze the page. The loop now stops at <code>MAX_PASSES</code>, the most passes that <code>passes()</code> can return, so a normal frame draws exactly what it did before.</p><p>Evidence: the new case in <code>framePacer.test.tsx</code> fails on the base (100 renders for a <code>nextPass</code> that stays true, against 4) and passes on the branch. One gap is left: after such a frame, the backdrop keeps a stale pass for the next frame (ledger 0715:PX1).</p>"
+        "body": "<p>The pacer's pass loop ended only when a render reached the backdrop's <code>onBeforeRender</code> hook. A render that returned early made the loop run without end and froze the page. In the app that happens only while the WebGL context is lost, when three.js returns from every render at once; the benchmark's runs never lose it. The loop now stops at <code>MAX_PASSES</code>, the most passes that <code>passes()</code> can return, so a normal frame draws exactly what it did before.</p><p>Evidence: the new case in <code>framePacer.test.tsx</code> fails on the base (100 renders for a <code>nextPass</code> that stays true, against 4) and passes on the branch. One gap is left: after such a frame, the backdrop keeps a stale pass for the next frame (ledger 0715:PX1).</p>"
       },
       {
         "title": "damage.spec reads the board's own frames; damage.test pins two more rules (0d22817)",
@@ -97,7 +108,7 @@
       },
       {
         "title": "LC1: mount the lobby's canvas after the page's commit (not built)",
-        "body": "<p>The row it aimed at times a page commit that the player does not see under full motion. A later mount would move that time stamp, not the picture. The ledger now says to judge LC1 against the new scene row.</p>"
+        "body": "<p>LC1 aimed at the desktop first click's lean since RT1 (10.7 → 13.7 ms at step 2, ×1.268, 9 of 10 pairs worse, not called). But under full motion the side choice's words wait for the lobby scene's first frame, so that row times a page commit that the player does not see. A later mount would move that time stamp, not the picture. The ledger now says to judge LC1 against the new scene row.</p>"
       }
     ]
   },
