@@ -55,10 +55,7 @@ vi.mock('./glide', async (importOriginal) => {
 });
 /** A move's glide as the board plans one that arrives unannounced (not played here). */
 const arriving = (from: Coord, to: Coord, { capture = false } = {}) =>
-  planGlide(toWorld(from, 'white'), toWorld(to, 'white'), {
-    lift: PIECE_LIFT.selected * PIECE_SCALE,
-    capture,
-  });
+  planGlide(toWorld(from, 'white'), toWorld(to, 'white'), { capture });
 vi.mock('./scene/pieces', () => ({
   PieceBody: (props: PieceBodyProps) => {
     drawn.bodies.push(props);
@@ -704,8 +701,7 @@ describe('Board', () => {
     const [, fy] = toWorld(LEVEL_B_PAWN, 'white');
     const [, ty] = toWorld(up, 'white');
     expect(glide.position.y).toBeCloseTo(fy - ty + PIECE_LIFT.selected * PIECE_SCALE);
-    // Played here: off at once (a move arriving unannounced would still be
-    // rising on its square)
+    // Played here: off at once
     const plan = planGlide(toWorld(LEVEL_B_PAWN, 'white'), toWorld(up, 'white'), {
       lift: PIECE_LIFT.selected * PIECE_SCALE,
       played: true,
@@ -714,7 +710,6 @@ describe('Board', () => {
     expect(glide.position.toArray()).toEqual(
       glidePose(plan, 50).offset.map((v) => expect.closeTo(v, 5)),
     );
-    expect(glidePose(arriving(LEVEL_B_PAWN, up), 50).progress).toBe(0);
   });
 
   it('puts a played piece down again if its move is refused', async () => {
@@ -1122,10 +1117,14 @@ describe('Board', () => {
 
       // Part way: where its glide puts it then, over the line between the
       // squares. Frame deltas are clamped, so simulate several small frames.
+      // Never picked up, it never leaves the floor on its way along a level
       const plan = arriving(FROM, TO);
-      await act(async () => {
-        await renderer.advanceFrames(20, 0.01);
-      });
+      for (let i = 0; i < 20; i++) {
+        await act(async () => {
+          await renderer.advanceFrames(1, 0.01);
+        });
+        expect(group.position.y).toBe(0);
+      }
       const [px, py, pz] = glidePose(plan, 200).offset;
       expect(group.position.x).toBeCloseTo(px);
       expect(group.position.y).toBeCloseTo(py);

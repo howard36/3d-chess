@@ -199,14 +199,12 @@ const Board = (props: BoardProps) => {
     let glide: Glide | null = null;
     const { camera, size } = view();
     const scaleAt = (cell: Coord) => screenScale(camera, size.height, worldOf(cell));
-    // Held up as a picked-up piece is: from the start when the player played
-    // it here, rising to it first when it arrives unannounced
-    const carry = PIECE_LIFT.selected * PIECE_SCALE;
     if (!still && lastMove && (props.review ? step === 1 : step > 0)) {
       const { from, to } = lastMove.move;
       const mine = sent.current;
       const played = step === 1 && !!mine && sameCoord(mine.from, from) && sameCoord(mine.to, to);
-      const lift = !played || (carried && sameCoord(carried, from)) ? carry : 0;
+      const lift =
+        played && carried && sameCoord(carried, from) ? PIECE_LIFT.selected * PIECE_SCALE : 0;
       const capture = !!lastMove.capturedPiece;
       const scale = scaleAt(to);
       const plan = planGlide(worldOf(from), worldOf(to), { lift, played, capture, scale });
@@ -214,7 +212,7 @@ const Board = (props: BoardProps) => {
     } else if (!still && props.review && step === -1 && was.lastMove) {
       const { from, to } = was.lastMove.move;
       const captured = was.lastMove.capturedPiece;
-      const plan = planGlide(worldOf(to), worldOf(from), { lift: carry, scale: scaleAt(from) });
+      const plan = planGlide(worldOf(to), worldOf(from), { scale: scaleAt(from) });
       // The taken piece stands again once its taker, going home, has left
       // it: as far from it as the taker was when it reached it
       glide = { from: to, to: from, plan, back: true, captured, revealMs: clearsSourceAtMs(plan) };

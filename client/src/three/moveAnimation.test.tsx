@@ -68,14 +68,14 @@ describe('planGlide', () => {
     expect(planGlide([4, 5.4, 4], TO, { scale: 130 }).travelMs).toBeGreaterThan(2 * square);
   });
 
-  it('sets off at once when played here, a beat into its rise when it arrives unannounced', () => {
+  it('takes as long either way: only how it sets off differs', () => {
     const played = planGlide(FROM, TO, { played: true });
     const unannounced = planGlide(FROM, TO);
-    expect(played.departMs).toBe(0);
-    expect(unannounced.departMs).toBe(GLIDE.departMs);
-    expect(unannounced.departMs).toBeLessThan(GLIDE.riseMs);
-    expect(touchdownMs(unannounced)).toBe(GLIDE.departMs + unannounced.travelMs);
-    expect(touchdownMs(played)).toBe(played.travelMs);
+    expect(touchdownMs(unannounced)).toBe(touchdownMs(played));
+    const early = played.travelMs / 10;
+    expect(glidePose(played, early).progress).toBeGreaterThan(
+      2 * glidePose(unannounced, early).progress,
+    );
   });
 
   it('heads along the move across the board, and has no heading straight up', () => {
@@ -88,7 +88,7 @@ describe('planGlide', () => {
       const quiet = planGlide(FROM, TO, { played });
       const capture = planGlide(FROM, TO, { played, capture: true });
       expect(contactAtMs(quiet)).toBeNull();
-      expect(contactAtMs(capture)!).toBeGreaterThan(capture.departMs);
+      expect(contactAtMs(capture)!).toBeGreaterThan(0);
       expect(contactAtMs(capture)!).toBeLessThan(touchdownMs(capture));
       expect(touchdownMs(capture)).toBe(touchdownMs(quiet));
       // GLIDE.contactReach short of the square
@@ -162,21 +162,16 @@ describe('glidePose', () => {
     expect(steps[steps.length - 1]).toBeLessThan(fastest / 10);
   });
 
-  it('unannounced: still while it starts to rise, then gathers speed with no lurch', () => {
+  it('unannounced: gathers speed from rest with no lurch, and settles into its square', () => {
     const steps = stepsOf(unannounced);
     const fastest = Math.max(...steps);
     const peak = steps.indexOf(fastest) * 10;
-    const depart = unannounced.departMs;
-    // Nothing along the way before it sets off, and its first frames after
-    // that barely move it, each a little more than the last
-    for (let ms = 0; ms + 10 <= depart; ms += 10) expect(stepOf(unannounced)(ms)).toBe(0);
-    expect(stepOf(unannounced)(depart)).toBeLessThan(fastest / 10);
-    for (let i = depart / 10 + 1; i * 10 < peak; i++) {
-      expect(steps[i]).toBeGreaterThanOrEqual(steps[i - 1]);
-    }
+    // Its first frames barely move it, each a little more than the last
+    expect(steps[0]).toBeLessThan(fastest / 10);
+    for (let i = 1; i * 10 < peak; i++) expect(steps[i]).toBeGreaterThanOrEqual(steps[i - 1]);
     // At its fastest later into its travel than a played move, but before halfway
-    expect(peak - depart).toBeGreaterThan(unannounced.travelMs / 6);
-    expect(peak - depart).toBeLessThan(unannounced.travelMs / 2);
+    expect(peak).toBeGreaterThan(unannounced.travelMs / 6);
+    expect(peak).toBeLessThan(unannounced.travelMs / 2);
     for (let i = peak / 10 + 1; i < steps.length; i++) {
       expect(steps[i]).toBeLessThanOrEqual(steps[i - 1]);
       expect(steps[i]).toBeGreaterThan(0);
@@ -192,26 +187,6 @@ describe('glidePose', () => {
     expect(midway.offset[1]).toBeCloseTo(0.11 * (1 - midway.progress));
     expect(midway.offset[1]).toBeGreaterThan(0);
     expect(glidePose(held, touchdownMs(held)).offset[1]).toBe(0);
-  });
-
-  it('unannounced: rises to the carried height as it sets off, and comes down onto its square', () => {
-    const plan = planGlide(FROM, TO, { lift: 0.11 });
-    const heights = Array.from(
-      { length: Math.floor(touchdownMs(plan) / 10) + 1 },
-      (_, i) => glidePose(plan, i * 10).offset[1],
-    );
-    expect(heights[0]).toBe(0);
-    // Up most of the way before it has gone a tenth of the way
-    const up = Math.max(...heights);
-    const top = heights.indexOf(up) * 10;
-    expect(up).toBeGreaterThan(0.11 * 0.8);
-    expect(glidePose(plan, top).progress).toBeLessThan(0.1);
-    // Rising until then, coming down after, and down on its square at the end
-    for (let i = 1; i * 10 <= top; i++) expect(heights[i]).toBeGreaterThanOrEqual(heights[i - 1]);
-    for (let i = top / 10 + 1; i < heights.length; i++) {
-      expect(heights[i]).toBeLessThanOrEqual(heights[i - 1]);
-    }
-    expect(glidePose(plan, touchdownMs(plan)).offset[1]).toBe(0);
   });
 });
 

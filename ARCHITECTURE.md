@@ -761,13 +761,14 @@ promotion's too, once its piece is chosen: `Board.tsx` remembers the move it `se
 answers the tap at once: the piece, held up while its move goes to the server, leaves at
 its fastest early on, a critically damped spring let go. Every other move (an opponent's,
 the computer's, a step through the record, the start page's games, a move typed in the
-move box) comes unannounced, so it announces itself: the piece rises to the height a
-picked-up piece stands at and sets off a beat into its rise (110 ms), gathering speed from
-rest with no lurch in its first frame (a spring one order smoother), and comes down onto
-its square on the way. Its time grows with the square root of its length on screen (the
-view's CSS pixels per world unit at its square, `screenScale`), so a long move on a large
-monitor is not a blink: a square in about 300 ms on a laptop's window, up to 760 ms. What brought the shown position is decided once each time its move count
-changes (`Board.tsx`, `arrival`): a later position glides its last move in; in the game's
+move box) comes unannounced, so it must not lurch: the piece, never picked up, slides
+along the board gathering speed from rest, with no lurch in its first frame (a spring one
+order smoother), at its fastest a quarter of the way in. Its time grows with the square
+root of its length on screen (the view's CSS pixels per world unit at its square,
+`screenScale`), so a long move on a large monitor is not a blink: a square in about
+300 ms on a laptop's window, up to 760 ms. What brought the shown position is decided
+once each time its move count changes (`Board.tsx`, `arrival`): a later position glides
+its last move in; in the game's
 review (`review`, the move history: see HUD) only a step of one move glides, forward as a
 move lands or back with the undone move's piece gliding home in reverse (a piece it had
 taken standing again, `Reveal`, once the glide has left its square), and a jump of
