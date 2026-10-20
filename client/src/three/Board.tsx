@@ -18,7 +18,7 @@ import { PieceMesh } from './PieceMesh';
 import { PieceType } from '../engine/pieces';
 import { Coord, fromZXY, sameCoord, toZXY } from '../engine/coords';
 import { CELLS } from './layout';
-import { contactAtMs, planGlide, touchdownMs } from './glide';
+import { clearsSourceAtMs, contactAtMs, planGlide, screenScale, touchdownMs } from './glide';
 import type { GlidePlan } from './glide';
 import { MoveGlide, Reveal } from './moveAnimation';
 import { PIECE_LIFT } from './pieceMotion';
@@ -175,6 +175,12 @@ const Board = (props: BoardProps) => {
   // The piece the player has just played, held up until its move comes back
   // (so its glide sets off from where the player's hand left it)
   const [carried, setCarried] = useState<Coord | null>(null);
+  // The move a tap on one of the held piece's destinations sent (a
+  // promotion's, once its piece is chosen, too): when it comes back it is
+  // the player's own, and glides at once; any other move arrives unannounced
+  const sent = useRef<Move | null>(null);
+  // The view, read as a move arrives: its glide's length on screen
+  const view = useThree((s) => s.get);
 
   // How the shown position arrived, decided once each time it changes (its
   // move count). One move on (a move landing, a step forward through the
@@ -191,22 +197,29 @@ const Board = (props: BoardProps) => {
     // (Nothing glides for a player who asked for less motion)
     const still = prefersReducedMotion();
     let glide: Glide | null = null;
+    const { camera, size } = view();
+    const scaleAt = (cell: Coord) => screenScale(camera, size.height, worldOf(cell));
+    // Held up as a picked-up piece is: from the start when the player played
+    // it here, rising to it first when it arrives unannounced
+    const carry = PIECE_LIFT.selected * PIECE_SCALE;
     if (!still && lastMove && (props.review ? step === 1 : step > 0)) {
       const { from, to } = lastMove.move;
-      const lift = carried && sameCoord(carried, from) ? PIECE_LIFT.selected * PIECE_SCALE : 0;
+      const mine = sent.current;
+      const played = step === 1 && !!mine && sameCoord(mine.from, from) && sameCoord(mine.to, to);
+      const lift = !played || (carried && sameCoord(carried, from)) ? carry : 0;
       const capture = !!lastMove.capturedPiece;
-      const plan = planGlide(worldOf(from), worldOf(to), { lift, capture });
+      const scale = scaleAt(to);
+      const plan = planGlide(worldOf(from), worldOf(to), { lift, played, capture, scale });
       glide = { from, to, plan, back: false, captured: lastMove.capturedPiece, revealMs: 0 };
     } else if (!still && props.review && step === -1 && was.lastMove) {
       const { from, to } = was.lastMove.move;
       const captured = was.lastMove.capturedPiece;
-      const plan = planGlide(worldOf(to), worldOf(from));
+      const plan = planGlide(worldOf(to), worldOf(from), { lift: carry, scale: scaleAt(from) });
       // The taken piece stands again once its taker, going home, has left
       // it: as far from it as the taker was when it reached it
-      const forward = planGlide(worldOf(from), worldOf(to), { capture: !!captured });
-      const revealMs = forward.travelMs - (contactAtMs(forward) ?? forward.travelMs);
-      glide = { from: to, to: from, plan, back: true, captured, revealMs };
+      glide = { from: to, to: from, plan, back: true, captured, revealMs: clearsSourceAtMs(plan) };
     }
+    sent.current = null;
     arrival.current = { count: shownCount, key: was.key + 1, glide, lastMove };
   }
   const { glide, key: arrivalKey } = arrival.current;
@@ -418,6 +431,7 @@ const Board = (props: BoardProps) => {
 
     // Put the piece down first, so the move cannot be played twice
     choose(null);
+    sent.current = { from: selected, to: targetCoord };
     if (choices.length > 1 && props.onChoosePromotion) {
       props.onChoosePromotion(choices);
     } else if (props.onMove) {
