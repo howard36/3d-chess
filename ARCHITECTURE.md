@@ -1585,7 +1585,8 @@ which only holds what main deployed, so a branch's preview build points it at th
 preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 `public/_headers` sets three headers on every address: other sites may not show the app in
 a frame, browsers must not guess file types, and a link the player follows sends only the
-site's name. The build adds a rule keeping each file it wrote under `/assets/` a year (their
+site's name; and a game's address (its seats' credential) tells search engines not to index it.
+The build adds a rule keeping each file it wrote under `/assets/` a year (their
 names carry their hash; `keepHashedFiles` in `vite.config.ts`), one rule a file, so a name the
 deploy lacks is never kept, and `assets/404.html` makes it a 404. The start page's pictures
 are kept a year too (`/landing/*`, `versionLandingPictures`): the built page asks for them

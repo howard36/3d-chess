@@ -16,7 +16,10 @@ self.onmessage = (event: MessageEvent<ThinkRequest>) => {
         ? { id, score: assessPosition(records) }
         : { id, move: chooseMove(records, difficulty, seed, { game }) };
   } catch (e) {
-    reply = { id, error: String(e) };
+    // (with its stack, which the page logs: where the search failed; only
+    // V8's stack starts with the message)
+    const stack = e instanceof Error ? (e.stack ?? '') : '';
+    reply = { id, error: stack.startsWith(String(e)) ? stack : `${String(e)}\n${stack}`.trim() };
   }
   self.postMessage(reply);
 };

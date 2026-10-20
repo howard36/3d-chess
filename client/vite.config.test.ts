@@ -219,7 +219,9 @@ test('the build fails on a file under assets/ with no hash in its name', () => {
 });
 
 test('the build fails past the host’s 100 rules', () => {
-  const many = Array.from({ length: 100 }, (_, i) => `assets/c${i}-B2x9_kQe.js`);
+  // (one past the limit, with the host's own rules: public/_headers)
+  const own = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8')).length;
+  const many = Array.from({ length: 101 - own }, (_, i) => `assets/c${i}-B2x9_kQe.js`);
   expect(() => keepFiles(many)).toThrow(/101 rules/);
 });
 
