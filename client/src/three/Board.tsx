@@ -42,6 +42,7 @@ import { knightFacing, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from 
 import { Selection } from './scene/selection';
 import { pieceArrival } from './intro/timeline';
 import { useEntranceReplay } from './replay';
+import { markAwaited } from './framePacer';
 
 // The 125 cell boxes are click targets only, never drawn: every one is
 // `visible={false}`, and three's Raycaster tests layers, not visibility, so
@@ -235,6 +236,11 @@ const Board = (props: BoardProps) => {
   // State for selected piece and its legal moves
   const [selected, setSelected] = useState<null | Coord>(null);
   const [legalMoves, setLegalMoves] = useState<Move[]>([]);
+  // A new position or a piece picked up or put down: the player waits on its
+  // picture, which PaceOnGpu draws as soon as the GPU is free (awaitedFrame)
+  useLayoutEffect(() => {
+    markAwaited(view().scene);
+  }, [board, selected, view]);
   // The held piece as of now, not as of the last render: a move clears it at
   // once, so nothing later in the same event (or before the next render) can
   // play it again
