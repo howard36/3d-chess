@@ -9,6 +9,7 @@ import type { MoveRecord } from '../types/messages';
 const GAMES = [
   '900 · White · 89',
   '952 · Black · 110',
+  '107 · White · 129',
   '303 · Black · 124',
   '416 · Black · 158',
   '284 · White · 161',
