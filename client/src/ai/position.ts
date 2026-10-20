@@ -549,10 +549,33 @@ export class Position {
     return sum;
   }
 
-  /** Whether the kings are the only pieces left (a draw, engine/draws.ts): no material either side. */
-  onlyKings(): boolean {
+  /**
+   * Whether neither side can ever mate (a draw, engine/draws.ts): the kings
+   * alone, or a lone king against one rook, bishop, knight or unicorn, or a
+   * unicorn and one of those. The kept material sums rule out nearly every
+   * position at once; only one side's bare king walks the other's pieces.
+   */
+  insufficientMaterial(): boolean {
     const o = this.ply * TERMS;
-    return this.terms[o + T_MATERIAL] === 0 && this.terms[o + T_MATERIAL + 1] === 0;
+    const white = this.terms[o + T_MATERIAL];
+    const black = this.terms[o + T_MATERIAL + 1];
+    if (white !== 0 && black !== 0) return false;
+    if (white === 0 && black === 0) return true;
+    const side = white !== 0 ? WHITE_SIDE : BLACK_SIDE;
+    let pieces = 0;
+    let unicorns = 0;
+    for (let w = side << 2; w < (side << 2) + 4; w++) {
+      let bits = this.occ[w];
+      while (bits !== 0) {
+        const low = bits & -bits;
+        bits ^= low;
+        const type = this.board[((w & 3) << 5) | (31 - Math.clz32(low))] & 7;
+        if (type === KING) continue;
+        if (type === PAWN || type === QUEEN || ++pieces > 2) return false;
+        if (type === UNICORN) unicorns++;
+      }
+    }
+    return pieces === 1 || unicorns > 0;
   }
 
   /** In king and pawn against king, the pawn's cell; otherwise -1. */
