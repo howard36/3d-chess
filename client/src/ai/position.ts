@@ -6,8 +6,14 @@
 // engine's order; position.test.ts checks every move list against the engine.
 
 import { fromZXY, toZXY } from '../engine/coords';
-import { BISHOP_VECTORS, KNIGHT_VECTORS, QUEEN_VECTORS, ROOK_VECTORS } from '../engine/pieces';
-import { REPETITIONS } from '../engine/draws';
+import {
+  BISHOP_VECTORS,
+  KNIGHT_VECTORS,
+  QUEEN_VECTORS,
+  ROOK_VECTORS,
+  pawnCaptureDeltas,
+} from '../engine/pieces';
+import { REPETITIONS, splitmix32 } from '../engine/draws';
 import type { MoveRecord, Promotion } from '../types/messages';
 import { NUMBERS } from './numbers';
 import type { EvalNumbers, PieceNumbers } from './numbers';
@@ -89,14 +95,7 @@ for (let c = 0; c < CELLS; c++) {
     const dir = side === WHITE_SIDE ? 1 : -1;
     PAWN_FORWARD[side][c] = inBoard(x, y + dir, z) ? cellOf(x, y + dir, z) : -1;
     PAWN_UP[side][c] = inBoard(x, y, z + dir) ? cellOf(x, y, z + dir) : -1;
-    // Forwards-up, forwards-left, forwards-right, up-left, up-right
-    for (const [dx, dy, dz] of [
-      [0, dir, dir],
-      [-1, dir, 0],
-      [1, dir, 0],
-      [-1, 0, dir],
-      [1, 0, dir],
-    ]) {
+    for (const [dx, dy, dz] of pawnCaptureDeltas(dir)) {
       if (inBoard(x + dx, y + dy, z + dz))
         PAWN_CAP[side][c * 5 + PAWN_CAP_LEN[side][c]++] = cellOf(x + dx, y + dy, z + dz);
       if (inBoard(x - dx, y - dy, z - dz))
@@ -326,14 +325,7 @@ const LETTER_PROMO: Record<Promotion, number> = {
 // hash only 32 bits deep (position.test.ts).
 const ZOBRIST_LO = new Int32Array(16 * CELLS);
 const ZOBRIST_HI = new Int32Array(16 * CELLS);
-let zSeed = 0x9e3779b9;
-const nextZ = () => {
-  zSeed = (zSeed + 0x9e3779b9) | 0;
-  let z = zSeed;
-  z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
-  z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
-  return z ^ (z >>> 16);
-};
+const nextZ = splitmix32(0x9e3779b9);
 for (let i = 0; i < 16 * CELLS; i++) {
   ZOBRIST_LO[i] = nextZ();
   ZOBRIST_HI[i] = nextZ();

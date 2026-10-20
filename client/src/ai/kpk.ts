@@ -11,6 +11,7 @@
 // stalemate and the pawn lost, the most advanced first (about 10 ms a square,
 // a third of a second for a pawn that hasn't moved), and keeps them.
 
+import { pawnCaptureDeltas } from '../engine/pieces';
 import { CELLS, CX, CY, CZ, DIST, cellOf } from './position';
 
 const inBoard = (x: number, y: number, z: number) =>
@@ -36,13 +37,7 @@ for (let c = 0; c < CELLS; c++) {
       NEAR[c * 26 + NEAR_LEN[c]++] = cellOf(x + dx, y + dy, z + dz);
   if (inBoard(x, y + 1, z)) FORWARD[c] = cellOf(x, y + 1, z);
   if (inBoard(x, y, z + 1)) UP[c] = cellOf(x, y, z + 1);
-  for (const [dx, dy, dz] of [
-    [0, 1, 1],
-    [-1, 1, 0],
-    [1, 1, 0],
-    [-1, 0, 1],
-    [1, 0, 1],
-  ])
+  for (const [dx, dy, dz] of pawnCaptureDeltas(1))
     if (inBoard(x + dx, y + dy, z + dz)) ATTACKS[c * CELLS + cellOf(x + dx, y + dy, z + dz)] = 1;
 }
 /** White's pawn promotes on rank 5 of level E. */
