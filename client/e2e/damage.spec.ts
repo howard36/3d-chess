@@ -165,6 +165,17 @@ const check = async (
   // A quiet move, the reply, then a capture and its recapture
   await game.playAll(['Ad2-Ac3', 'Eb5-Ec3', 'Ab2-Ba3', 'Ed5-Ce5']);
   await page.waitForTimeout(1500);
+  // On a loaded machine the game is over in fewer frames: the last move's
+  // shimmer, travelling at rest, gives the frames still to compare
+  await page.waitForFunction(
+    () => {
+      const c = (window as unknown as { __damageCheck: { frames: number; shares: number[] } })
+        .__damageCheck;
+      return c.frames > 20 && c.shares.length > 20;
+    },
+    null,
+    { timeout: 60000 },
+  );
   const result = await page.evaluate(
     () =>
       (
