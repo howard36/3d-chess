@@ -1,7 +1,7 @@
 {
   "title": "Perf run 20261020-0008",
   "eyebrow": "3D chess · perf-iteration · run 20261020-0008 · speed run",
-  "heading": "The board comes up about a quarter sooner, and a move shows about 30% sooner",
+  "heading": "A game's first board picture comes up about a quarter sooner",
   "meta": "<p>This speed run kept two speed changes and one fix to the benchmark, plus three tests that the review asked for. They are on branch <code>improve/20261020-0008</code>, from base <code>2f25230</code>, with main merged in at <code>4b47d81</code>. Every figure below is from software rendering (SwiftShader) on a 4-vCPU VM, and each names the commits it compares.</p>",
   "needs": {
     "intro": "<p>Nothing here blocks the merge. Both items are information the skill asks for, not questions.</p>",
@@ -23,10 +23,13 @@
     "items": [
       {
         "title": "Final A/B: the branch against main as merged, all 16 primary rows",
-        "body": "<p><code>026ac73</code> against <code>4b47d81</code>, 8 pairs, 52 minutes (<code>ab-20261020-0008-final.md</code>): ×1.067 over 16 rows. Two rows are called better: joining's first board picture, 1.07 s to 834 ms, and the computer's, 1.18 s to 907 ms. The player's move went 220 to 146 ms, better in all 8 pairs, but the pairs spread from 0.59 to 0.82, so the A/B does not call it. Improve's 10-pair A/B called it at ×0.709. No row is called worse. Memory is flat. The start page downloads 0.8 KiB more on desktop and on the phone.</p>",
+        "body": "<p><code>026ac73</code> against <code>4b47d81</code>, 8 pairs, 52 minutes (<code>ab-20261020-0008-final.md</code>): ×1.067 over 16 rows. Two rows are called better: joining's first board picture, 1.07 s to 834 ms, and the computer's, 1.18 s to 907 ms. The player's move went 220 to 146 ms, better in all 8 pairs, but the pairs spread from 0.59 to 0.82, so the A/B does not call it on the final commit. Improve's 10-pair A/B of DR2 and DR5 called it at ×0.709, so it is reported here as a lean, not a held result. No row is called worse. Memory is flat. The start page downloads 0.8 KiB more on desktop and on the phone.</p>",
         "charts": [
           {
-            "rows": { "change": "final: 026ac73 vs 4b47d81 (main as merged), --primary, 8 pairs", "only": "PRIMARY" },
+            "rows": {
+              "change": "final: 026ac73 vs 4b47d81 (main as merged), --primary, 8 pairs",
+              "only": "PRIMARY"
+            },
             "caption": "026ac73 against 4b47d81, 8 pairs (ab-20261020-0008-final.md).",
             "target": 1.2
           }
@@ -41,14 +44,30 @@
         "title": "A game's board comes up without React's reveal hold (RT1, 5ba8ed6)",
         "body": "<p>When a canvas's code had already loaded, React still suspended it once and then held the page for up to 300 ms before showing it. <code>lazyChunk</code> now hands React the loaded code at once, so the canvas renders in the page's first commit. The game's canvas also measures its size without r3f's 50 ms delay. The change reaches every canvas and screen loaded through <code>lazyChunk</code>: the game, the lobby, the tutorial and the computer game.</p><p>Against <code>2f25230</code>, 10 pairs (<code>ab-20261020-0008-rt1.md</code>): joining's first board picture ×0.781 and the computer's ×0.766, both called better. On the final commit: ×0.766 and ×0.772, both called better. The test <code>lazyChunk.test.tsx</code> fails on the base's code.</p>",
         "charts": [
-          { "rows": { "run": "20261020-0008", "change": "1018-0317:RT1", "only": "PRIMARY" }, "caption": "2f25230 against RT1's code, setup and computer sections, 10 pairs (ab-20261020-0008-rt1.md).", "target": 1.2 }
+          {
+            "rows": {
+              "run": "20261020-0008",
+              "change": "1018-0317:RT1",
+              "only": "PRIMARY"
+            },
+            "caption": "2f25230 against RT1's code, setup and computer sections, 10 pairs (ab-20261020-0008-rt1.md).",
+            "target": 1.2
+          }
         ]
       },
       {
         "title": "A frame at rest redraws a few small rects, and the shimmer only its pulses (DR2 and DR5, f825a1d)",
         "body": "<p>Before, a frame at rest redrew one rect around everything that changed. A pick's marks are spread over the tower, so that rect met most pieces, and in software rendering each piece costs its vertices. Now the frame is drawn in up to 4 smaller rects, one pass each, and each pass leaves out the pieces wholly outside its rect. The last move's shimmer now marks only the stretch its pulses light, not the whole line.</p><p>Against <code>4f47439</code>, 10 pairs (<code>ab-20261020-0008-dr2-dr5.md</code>): the player's move 220 to 153 ms, ×0.709, called better. The opponent's move ×0.707 and a pick ×0.850 were not called. The CPU time to prepare the player's move's picture rose from 1.6 to 2.7 ms and is called worse. That is about 1 ms against about 70 ms saved. e2e <code>damage.spec</code> finds 0 differing pixels between these frames and the same frames drawn whole, on desktop and phone.</p><p>Trade-off: these changes add 0.8 KiB (gzip) to the scene code that the start page's preview downloads. The start page's timing rows did not move (phone usable ×0.997).</p>",
         "charts": [
-          { "rows": { "run": "20261020-0008", "change": "1019-1119:DR2+DR5", "only": "PRIMARY" }, "caption": "4f47439 against DR2+DR5, setup, move-latency and select sections, 10 pairs (ab-20261020-0008-dr2-dr5.md).", "target": 1.2 }
+          {
+            "rows": {
+              "run": "20261020-0008",
+              "change": "1019-1119:DR2+DR5",
+              "only": "PRIMARY"
+            },
+            "caption": "4f47439 against DR2+DR5, setup, move-latency and select sections, 10 pairs (ab-20261020-0008-dr2-dr5.md).",
+            "target": 1.2
+          }
         ]
       },
       {
@@ -68,36 +87,81 @@
   "rejected": {
     "intro": "",
     "items": [
-      { "title": "The waited-for frame queued behind the frame in flight (1017-0532:UF1)", "body": "<p>8 pairs (<code>ab-20261020-0008-uf1.md</code>): the player's move ×1.281, worse in 8 of 8 pairs; a pick ×1.364, worse in 7 of 8. Reverted. The likely cause is that the queued frame is the click's own frame, so in software rendering two frames of GPU work stand before the picture the player waits for.</p>" },
-      { "title": "The last move's line marks only the stretch drawn so far (0008:LB1)", "body": "<p>8 pairs (<code>ab-20261020-0008-line.md</code>): the player's move ×1.044, the opponent's ×0.976. No gain. Reverted.</p>" },
-      { "title": "A V8 compile hint on the entry (1009-0411:P3)", "body": "<p>Cold load, 8 pairs (<code>ab-20261020-0008-hints.md</code>): every start-page row ×0.99 to ×1.03. No gain. Reverted.</p>" },
-      { "title": "Holding the lobby's frames while the game links its programs (JC1's premise)", "body": "<p>Measured with temporary marks, not kept as code: about 650 ms of joining's ~830 ms first picture is SwiftShader linking the game's 26 shader programs, and holding the lobby's frames changed nothing (795 ms). This points to the next run's main bet, 0008:PR1.</p>" }
+      {
+        "title": "The waited-for frame queued behind the frame in flight (1017-0532:UF1)",
+        "body": "<p>8 pairs (<code>ab-20261020-0008-uf1.md</code>): the player's move ×1.281, worse in 8 of 8 pairs; a pick ×1.364, worse in 7 of 8. Reverted. The likely cause is that the queued frame is the click's own frame, so in software rendering two frames of GPU work stand before the picture the player waits for.</p>"
+      },
+      {
+        "title": "The last move's line marks only the stretch drawn so far (0008:LB1)",
+        "body": "<p>8 pairs (<code>ab-20261020-0008-line.md</code>): the player's move ×1.044, the opponent's ×0.976. No gain. Reverted.</p>"
+      },
+      {
+        "title": "A V8 compile hint on the entry (1009-0411:P3)",
+        "body": "<p>Cold load, 8 pairs (<code>ab-20261020-0008-hints.md</code>): every start-page row ×0.99 to ×1.03. No gain. Reverted.</p>"
+      },
+      {
+        "title": "Holding the lobby's frames while the game links its programs (JC1's premise)",
+        "body": "<p>Measured with temporary marks, not kept as code: about 650 ms of joining's ~830 ms first picture is SwiftShader linking the game's 26 shader programs, and holding the lobby's frames changed nothing (795 ms). This points to the next run's main bet, 0008:PR1.</p>"
+      }
     ]
   },
   "choices": {
     "intro": "",
     "items": [
-      { "title": "Final A/B against main as merged, not the run's base", "body": "<p>main gained six PRs during the run, including #200, which changes move timing. The final A/B compares the branch's final commit with <code>4b47d81</code> (main as merged), so it measures only this PR. Run 1841 did the same.</p>" },
-      { "title": "8 pairs for the final A/B", "body": "<p>16 runs fit the stage's time. At 8 pairs the player's move was better in every pair but not called; it is reported as not called.</p>" },
-      { "title": "Review items that do not block the merge went to the ledger", "body": "<p>New rows: 0008:PL2 (cap the pacer's pass loop), PS2 (the cost of <code>passes()</code> on frames with many changes), MS2 (the canvas's scroll listener), LZ1 (a chunk loaded by another importer), TR1 (triangles per move as a bench diagnostic), CR2 (the creator's first picture and one stray shader count). Notes were added to EN1, DR12, DR8, DR9, CL1, SP1 and PR1.</p>" },
-      { "title": "The breakthrough bet was not started", "body": "<p>0008:PR1, making the game's renderer and its 26 shader programs before the click, needs 80 to 250 lines in the lobby's handover and a 20-minute A/B. Under an hour was left, so it is the next speed run's first item.</p>" }
+      {
+        "title": "Final A/B against main as merged, not the run's base",
+        "body": "<p>main gained six PRs during the run, including #200, which changes move timing. The final A/B compares the branch's final commit with <code>4b47d81</code> (main as merged), so it measures only this PR. Run 1841 did the same.</p>"
+      },
+      {
+        "title": "8 pairs for the final A/B",
+        "body": "<p>16 runs fit the stage's time. At 8 pairs the player's move was better in every pair but not called; it is reported as not called.</p>"
+      },
+      {
+        "title": "Review items that do not block the merge went to the ledger",
+        "body": "<p>New rows: 0008:PL2 (cap the pacer's pass loop), PS2 (the cost of <code>passes()</code> on frames with many changes), MS2 (the canvas's scroll listener), LZ1 (a chunk loaded by another importer), TR1 (triangles per move as a bench diagnostic), CR2 (the creator's first picture and one stray shader count). Notes were added to EN1, DR12, DR8, DR9, CL1, SP1 and PR1.</p>"
+      },
+      {
+        "title": "The breakthrough bet was not started",
+        "body": "<p>0008:PR1, making the game's renderer and its 26 shader programs before the click, needs 80 to 250 lines in the lobby's handover and a 20-minute A/B. Under an hour was left, so it is the next speed run's first item.</p>"
+      }
     ]
   },
   "notConfirmed": {
     "intro": "",
     "items": [
-      { "title": "DR2 on a real GPU", "body": "<p>Every figure is from software rendering, where a pass costs its vertices. On a phone's GPU, several passes might cost more than one. Ledger 1019-1119:DR8 asks for a check on real phones.</p>" },
-      { "title": "DR5's own share of the gain", "body": "<p>DR2 alone gave ×0.735 (not called) and DR2 with DR5 ×0.709 (called). They are one commit, so DR5's own effect is unknown (ledger 0008:SP1).</p>" },
-      { "title": "The ~650 ms of shader linking", "body": "<p>The figure comes from temporary marks that are not committed. The next run redoes them before building PR1.</p>" }
+      {
+        "title": "DR2 on a real GPU",
+        "body": "<p>Every figure is from software rendering, where a pass costs its vertices. On a phone's GPU, several passes might cost more than one. Ledger 1019-1119:DR8 asks for a check on real phones.</p>"
+      },
+      {
+        "title": "DR5's own share of the gain",
+        "body": "<p>DR2 alone gave ×0.735 (not called) and DR2 with DR5 ×0.709 (called). They are one commit, so DR5's own effect is unknown (ledger 0008:SP1).</p>"
+      },
+      {
+        "title": "The ~650 ms of shader linking",
+        "body": "<p>The figure comes from temporary marks that are not committed. The next run redoes them before building PR1.</p>"
+      }
     ]
   },
   "next": {
     "intro": "<p>The top of the ledger for the next speed run:</p>",
     "items": [
-      { "title": "0008:PR1: make the game's renderer and programs before the click", "body": "<p>Aims at most of the ~830 ms of joining's first picture and the computer's ~900 ms.</p>" },
-      { "title": "BR1 and SP1, after TR1's triangle counts", "body": "<p>Fewer triangles per pass for the move and the pick, with the output unchanged.</p>" },
-      { "title": "DR12 and EN1: the start page's bytes", "body": "<p>Keep damage code out of the preview's chunk, and the review's analysis out of the entry.</p>" },
-      { "title": "One search A/B for CW1, TT1 and KP1 (with FM1 and QK1)", "body": "<p>Small search gains, measured together.</p>" }
+      {
+        "title": "0008:PR1: make the game's renderer and programs before the click",
+        "body": "<p>Aims at most of the ~830 ms of joining's first picture and the computer's ~900 ms.</p>"
+      },
+      {
+        "title": "BR1 and SP1, after TR1's triangle counts",
+        "body": "<p>Fewer triangles per pass for the move and the pick, with the output unchanged.</p>"
+      },
+      {
+        "title": "DR12 and EN1: the start page's bytes",
+        "body": "<p>Keep damage code out of the preview's chunk, and the review's analysis out of the entry.</p>"
+      },
+      {
+        "title": "One search A/B for CW1, TT1 and KP1 (with FM1 and QK1)",
+        "body": "<p>Small search gains, measured together.</p>"
+      }
     ]
   }
 }
