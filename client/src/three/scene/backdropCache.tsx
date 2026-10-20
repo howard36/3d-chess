@@ -178,20 +178,29 @@ export const BackdropCache = ({
       copy.visible = mode === 'cached';
       take.visible = mode === 'capture';
     };
-    // Only what changed is drawn when the garden comes from its copy (any
-    // other frame is drawn whole: the capture copies the whole canvas)
+    // Only what changed is drawn when the garden comes from its copy. Any
+    // other frame is drawn whole (the capture copies the whole canvas), and
+    // so is the first one drawn from the copy after it: a frame that draws
+    // the garden itself may differ from the copy by a step where a garden
+    // edge meets a tower edge (the top of this file), and a frame drawn in
+    // part over it would keep those pixels where the same frame drawn whole
+    // has the copy's
     const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {
-      restoreCulled();
+      restoreCulled(state.damage);
       if (!partialRef.current || !garden.current) {
         forgetDamage(state.damage);
+        return;
+      }
+      if (mode !== 'cached') {
+        forgetDamage(state.damage);
+        renderer.setScissorTest(false);
         return;
       }
       const size = renderer.getDrawingBufferSize(drawingBuffer);
       skip.clear();
       skip.add(garden.current).add(copy).add(take);
       // (dev only: e2e's damage.spec.ts draws a frame whole to compare it with one drawn in part)
-      const whole =
-        mode !== 'cached' || (import.meta.env.DEV && scene.userData.wholeFrames === true);
+      const whole = import.meta.env.DEV && scene.userData.wholeFrames === true;
       const d = damage(state.damage, scene, skip, camera, size.x, size.y, whole);
       if (d === 'full') {
         renderer.setScissorTest(false);
@@ -203,6 +212,10 @@ export const BackdropCache = ({
       renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);
       renderer.setScissorTest(true);
     };
+    // The copy is drawn in every frame drawn in part, after three.js has
+    // listed what it draws: what scissor() hid is shown again there, so the
+    // frame leaves nothing hidden, whoever drew it
+    copy.onAfterRender = () => restoreCulled(state.damage);
     take.onAfterRender = (renderer) => {
       const size = renderer.getDrawingBufferSize(drawingBuffer);
       let texture = state.texture;

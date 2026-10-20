@@ -447,11 +447,11 @@ Key decisions:
   it unmounts, which e2e reads to project clicks (the lobby's canvas never does).
 - **Landing page.** The start screen at `/` (`screens/StartScreen.tsx`) fills the window
   with a live preview (`screens/LandingPreview.tsx`): the real `Board`, drawn without its
-  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays seven
+  labels (`labels={false}`) and framed on the tower alone (`towerBodyRings`), plays five
   games the computer played against itself on Hard, each to mate (`game/demo.ts`: chosen
   from a thousand for something happening all the way through and a mate rather than a
   long chase, and for being unlike each other), in an order drawn afresh for each visit
-  and then round again (about 28 minutes), a move every 1.8 s, each as a log of `move_made` messages through
+  and then round again (about 20 minutes), a move every 1.8 s, each as a log of `move_made` messages through
   `deriveHistory`, like a live game, fading under a veil into the next, while
   `three/AutoOrbit.tsx` turns the camera round the tower at a fixed elevation, a full turn
   every 150 s (`three/landingView.ts`). The demo's clock is r3f's. (`showcase.mjs` records
@@ -712,7 +712,7 @@ outlined in white neon, which sink into the tower's shade as they near it on scr
 nothing competes with the board; overhead are stars and chess constellations for a camera
 that looks up (see The garden). The garden changes only with the view, so while the camera rests it is drawn
 from a copy of itself taken on the first frame at rest (`scene/backdropCache.tsx`), and a
-move or a selection redraws the tower over it, and only the screen rect of what changed (`scene/damage.ts`: each object's signature against the last frame's; the canvas keeps its picture). Files and ranks label the two edges of the bottom platform nearest the
+move or a selection redraws the tower over it, and only the screen rect of what changed (`scene/damage.ts`: each object's signature against the last frame's; the canvas keeps its picture, so the first frame from the copy is drawn whole: one that drew the garden itself can differ from the copy by a step where a garden edge meets a tower edge). Files and ranks label the two edges of the bottom platform nearest the
 camera (the top one's, seen from high above). The five level letters, each in its platform's edge colour, share one corner post
 (`letterCorner` in `three/scene/labelAnchors.ts`), each just outside its own platform's
 corner, out along the corner's diagonal, a little above its platform. From low and middling
@@ -754,8 +754,10 @@ while the level's own pieces stand forward a little. Holding a piece
 steps nothing back: its moves to other levels count as much as those on its own. A
 piece under the pointer lifts a little; the selected piece lifts higher and holds still in
 a column of cool light. A move glides, the piece rigid, along the straight line
-between the squares, easing out of its square and into the next and taking longer the
-farther it goes (`three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
+between the squares like a critically damped spring: off its square at once, at its
+fastest early, settling onto the next without passing it, and taking longer the farther
+it goes, by the square root of the distance (a square in about 310 ms, the longest moves
+in 500; `three/glide.ts`, played by `MoveGlide` in `three/moveAnimation.tsx`); a
 piece the player held up stays up while its move goes to the server and settles onto its
 square on the way. What brought the shown position is decided once each time its move count
 changes (`Board.tsx`, `arrival`): a later position glides its last move in; in the game's
@@ -1583,7 +1585,8 @@ which only holds what main deployed, so a branch's preview build points it at th
 preview's own copy (`socialImageOnPreviews`, from Pages' `CF_PAGES_URL`).
 `public/_headers` sets three headers on every address: other sites may not show the app in
 a frame, browsers must not guess file types, and a link the player follows sends only the
-site's name. The build adds a rule keeping each file it wrote under `/assets/` a year (their
+site's name; and a game's address (its seats' credential) tells search engines not to index it.
+The build adds a rule keeping each file it wrote under `/assets/` a year (their
 names carry their hash; `keepHashedFiles` in `vite.config.ts`), one rule a file, so a name the
 deploy lacks is never kept, and `assets/404.html` makes it a 404. The start page's pictures
 are kept a year too (`/landing/*`, `versionLandingPictures`): the built page asks for them
