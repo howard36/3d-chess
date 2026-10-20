@@ -624,6 +624,12 @@ const LINE_LIFT = 0.02;
 const LINE_DRAW_MS = 380;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
 const SHIMMER_MINT = PALETTE.trace;
+/**
+ * A pulse's glow, exp(-x² · falloff) at x pulse-lengths from its centre, and
+ * the cut-off under which the shader draws no fragment: the shader and
+ * shimmerLit's box both read them here.
+ */
+export const SHIMMER_GLOW = { falloff: 4, cut: 0.002 };
 
 export const shimmerMaterial = () =>
   overlayMaterial({
@@ -653,25 +659,23 @@ export const shimmerMaterial = () =>
         // One soft pulse per spacing, the first entering at the start
         float f = fract((vAlong - uTime * uSpeed + uLength) / uSpacing + 0.5);
         float x = (f - 0.5) * uSpacing / uLength;
-        float glow = exp(-x * x * 4.0);
+        float glow = exp(-x * x * ${SHIMMER_GLOW.falloff.toFixed(1)});
         // Soft across: brightest down the middle, nothing at the edges
         float facing = abs(dot(normalize(vNormal), normalize(vView)));
         float a = glow * facing * facing * uPeak * uFade;
-        if (a < 0.002) discard;
+        if (a < ${SHIMMER_GLOW.cut}) discard;
         gl_FragColor = vec4(uColor * a, a);
         #include <colorspace_fragment>
       }`,
   });
 
-/** The fragment shader's cut-off: a shimmer fragment fainter than this is not drawn. */
-const SHIMMER_CUT = 0.002;
 const pathStart = new Vector3();
 const pathEnd = new Vector3();
 
 /**
  * The part of a shimmer's straight tube (`from` to `to`, `radius` thick) its
  * pulses light now, as its shader lights them (no fragment of a pulse is
- * drawn beyond where its glow at full facing falls under SHIMMER_CUT): a
+ * drawn beyond where its glow at full facing falls under SHIMMER_GLOW.cut): a
  * frame of the shimmer travelling redraws only its pulses, not the whole
  * line (damage.ts). Its `aAlong` is the distance along the line, the caps
  * running a radius past either end.
@@ -684,11 +688,12 @@ export const shimmerLit = (
   out: Box3,
 ): Box3 | null => {
   const level = u.uPeak.value * u.uFade.value;
-  if (!(level >= SHIMMER_CUT)) return null;
+  const { falloff, cut } = SHIMMER_GLOW;
+  if (!(level >= cut)) return null;
   const length = u.uLength.value as number;
   const spacing = u.uSpacing.value as number;
   // How far along from a pulse's centre it still shows (a hair over, for rounding)
-  const half = Math.sqrt(Math.log(level / SHIMMER_CUT) / 4) * length * 1.01 + 1e-4;
+  const half = Math.sqrt(Math.log(level / cut) / falloff) * length * 1.01 + 1e-4;
   pathStart.fromArray(from);
   pathEnd.fromArray(to);
   const total = pathStart.distanceTo(pathEnd);

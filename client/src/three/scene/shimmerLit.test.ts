@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Box3, Vector3 } from 'three';
-import { shimmerLit, shimmerMaterial } from './markers';
+import { SHIMMER_GLOW, shimmerLit, shimmerMaterial } from './markers';
 import { tubeData } from './markerGeometry';
 import type { Vec3 } from '../types';
 
@@ -8,15 +8,33 @@ import type { Vec3 } from '../types';
 // (shimmerLit, read by damage.ts): every fragment its shader draws must lie
 // in that box, or a frame drawn in part leaves a lit stretch stale.
 
+// light() is the fragment shader's arithmetic in JS: these are its lines, as
+// the shader must still read them for light() to stand for it.
+const SHADER_LINES = [
+  'float f = fract((vAlong - uTime * uSpeed + uLength) / uSpacing + 0.5);',
+  'float x = (f - 0.5) * uSpacing / uLength;',
+  `float glow = exp(-x * x * ${SHIMMER_GLOW.falloff.toFixed(1)});`,
+  'float facing = abs(dot(normalize(vNormal), normalize(vView)));',
+  'float a = glow * facing * facing * uPeak * uFade;',
+  `if (a < ${SHIMMER_GLOW.cut}) discard;`,
+];
+
 /** The shader's light at a point `along` the line, facing the camera (its brightest). */
 const light = (u: ReturnType<typeof shimmerMaterial>['uniforms'], along: number) => {
   const g = (along - u.uTime.value * u.uSpeed.value + u.uLength.value) / u.uSpacing.value + 0.5;
   const f = g - Math.floor(g);
   const x = ((f - 0.5) * u.uSpacing.value) / u.uLength.value;
-  return Math.exp(-x * x * 4) * u.uPeak.value * u.uFade.value;
+  return Math.exp(-x * x * SHIMMER_GLOW.falloff) * u.uPeak.value * u.uFade.value;
 };
 
 describe('shimmerLit', () => {
+  it('reads the shader whose light it bounds', () => {
+    const source = shimmerMaterial().fragmentShader.replace(/\s+/g, ' ');
+    for (const line of SHADER_LINES) expect(source).toContain(line);
+    // Nothing else in the shader dims or discards a fragment
+    expect(source.match(/discard/g)).toHaveLength(1);
+  });
+
   const cases: [Vec3, Vec3][] = [
     [
       [0, 0, 0],
@@ -50,14 +68,14 @@ describe('shimmerLit', () => {
           const box = shimmerLit(from, to, radius, u, out);
           // Every vertex the shader lights, and points along the axis between
           for (let s = -radius; s <= total + radius; s += 0.005) {
-            if (light(u, s) < 0.002) continue;
+            if (light(u, s) < SHIMMER_GLOW.cut) continue;
             lit++;
             expect(box, `t ${t} along ${s}`).not.toBeNull();
             const p = a.clone().addScaledVector(dir, s);
             expect(box!.distanceToPoint(p)).toBe(0);
           }
           for (let v = 0; v < data.along.length; v++) {
-            if (light(u, data.along[v]) < 0.002) continue;
+            if (light(u, data.along[v]) < SHIMMER_GLOW.cut) continue;
             const p = new Vector3().fromArray(data.position, v * 3);
             expect(box!.distanceToPoint(p)).toBeLessThan(1e-6);
           }
