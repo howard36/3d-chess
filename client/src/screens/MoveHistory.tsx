@@ -81,6 +81,13 @@ const BLOCK = 64;
 /** A window too narrow for the list beside the tower: it opens on asking (index.css). */
 const NARROW = '(max-aspect-ratio: 13/9) and (min-height: 481px)';
 
+/**
+ * A window wide enough for the review's graph in the panel at the top (a
+ * narrow window's, a desktop's or a tablet's): narrower, a phone's, the
+ * position shown is a bar instead (index.css).
+ */
+const GRAPH_ROOM = '(min-width: 600px)';
+
 /** Whether a key went to a text field, which keeps its own keys. */
 const inField = (target: EventTarget | null) =>
   !!(target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]');
@@ -253,6 +260,7 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
   // Where the window has room the list is always open; where it has not,
   // it opens on asking (never while the game is on)
   const narrow = useMediaQuery(NARROW);
+  const graphRoom = useMediaQuery(GRAPH_ROOM);
   const [asked, setAsked] = React.useState(false);
   const open = !hidden && (!narrow || asked);
   const reviewing = shown < applied;
@@ -488,8 +496,22 @@ const MoveHistory: React.FC<MoveHistoryProps> = ({
       }
     >
       {stepsFirst && steps}
-      {/* Under the steps at the top, the position shown as a bar, White's share from the left */}
-      {stepsFirst && open && begun && <EvaluationBar evaluation={shownEvaluation} />}
+      {/* Under the steps at the top, the game's graph where the window has
+          room for it, else the position shown as a bar, White's share from the left */}
+      {stepsFirst &&
+        open &&
+        analysis &&
+        begun &&
+        (graphRoom ? (
+          <AdvantageGraph
+            evaluations={analysis.evaluations}
+            grades={analysis.grades}
+            shown={shown}
+            onShow={show}
+          />
+        ) : (
+          <EvaluationBar evaluation={shownEvaluation} />
+        ))}
       {/* The review, once begun: each side's marks as they come, and beside
           the tower the game's graph */}
       {open && analysis && begun && (

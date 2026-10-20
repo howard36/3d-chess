@@ -1454,8 +1454,15 @@ body {
   }
   /* The bar under them as far below the steps as the panel's edge is above
      them, its ends under the outer icons' */
-  .hud-history[data-ended][data-open] .hud-steps:has(+ .hud-eval-bar) {
+  .hud-history[data-ended][data-open] .hud-steps:has(+ .hud-eval-bar, + .hud-graph) {
     margin-bottom: 3px;
+  }
+  /* The graph there (a window with room for it) the same, its ends under the
+     outer icons' too, above the counts */
+  .hud-history[data-ended] .hud-graph {
+    /* Lower than beside the tower: the open list stands over the tower */
+    height: 40px;
+    margin: 0 10px 8px;
   }
   /* Each side's marks on one line: close together after its stone, and
      the two sides far apart, so the space alone says which are whose */
@@ -1557,7 +1564,8 @@ body {
   .hud-history[data-ended] .hud-steps {
     margin-inline: -1px;
   }
-  .hud-history[data-ended] .hud-eval-bar {
+  .hud-history[data-ended] .hud-eval-bar,
+  .hud-history[data-ended] .hud-graph {
     margin-inline: 12px;
   }
   .hud-history[data-ended] .hud-moves {

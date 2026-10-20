@@ -656,6 +656,29 @@ describe('the review', () => {
     expect(screen.queryByTestId('advantage-graph')).toBeNull();
   });
 
+  it('draws the graph under the steps instead of the bar where the narrow window has room', async () => {
+    // Narrow, and wide enough for the graph: every query matches
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} })),
+    );
+    render(
+      history({
+        moves: record(6),
+        shown: 3,
+        analysis: analysis({ state: 'done', grades: [null, null, 'blunder'], evaluations: EVALS }),
+      }),
+    );
+    const toggle = screen.getByRole('button', { name: /Move list/ });
+    await userEvent.click(toggle);
+    const graph = screen.getByTestId('advantage-graph');
+    expect(screen.queryByTestId('evaluation-bar')).toBeNull();
+    // Under the steps, above the counts
+    expect(graph.previousElementSibling).toHaveClass('hud-steps');
+    expect(graph.nextElementSibling).toHaveAttribute('data-testid', 'analysis-counts');
+    expect(graph.querySelector('.hud-graph-score')).toHaveTextContent('\u22122.9');
+  });
+
   it('shows nothing of itself while the game is on', () => {
     render(
       history({

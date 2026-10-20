@@ -420,8 +420,10 @@ Key decisions:
   blunder and brilliant move a dot of its colour, and the move shown a cursor with its
   score; a press on it shows the position under it. In a window no wider than 13:9 the
   mark and the score stand beside the move shown between the steps, and the review's top
-  and the better move's name come with the list, the position shown as a bar under the
-  steps (White's share from the left). There the outer steps' icons stand as far from the
+  and the better move's name come with the list, under the steps the game's graph (40 px
+  tall, the list standing over the tower) where the window is 600 px wide or more (a
+  desktop's or a tablet's), and in a phone's the position shown as a bar (White's share
+  from the left). There the outer steps' icons stand as far from the
   panel's rounded ends as from its top and bottom, and the bar as far below the steps as
   the panel's edge is above them. The steps and the moves light under a pointer that
   hovers only (`@media (hover: hover)`): a tap on a touch screen would leave one lit. The review
