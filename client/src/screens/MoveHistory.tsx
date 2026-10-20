@@ -12,6 +12,7 @@ import type { Turn } from '../game/history';
 import { focusFromCode } from '../lib/focus';
 import { Stone } from './TurnPill';
 import { MoveText } from './MoveText';
+import { TOP_LAYOUT } from './hudLayout';
 
 /** The game's review, once the game is over (screens/useAnalysis.ts). */
 export interface HistoryAnalysis {
@@ -78,8 +79,8 @@ export interface MoveHistoryProps {
 /** Moves a block of the list holds (an even number: a row is two moves). */
 const BLOCK = 64;
 
-/** A window too narrow for the list beside the tower: it opens on asking (index.css). */
-const NARROW = '(max-aspect-ratio: 13/9) and (min-height: 481px)';
+/** A window without room for the list beside the tower: it opens on asking (index.css). */
+const NARROW = TOP_LAYOUT;
 
 /** Whether a key went to a text field, which keeps its own keys. */
 const inField = (target: EventTarget | null) =>
