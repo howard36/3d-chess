@@ -48,18 +48,23 @@ const check = async (
       );
       return out;
     };
+    // A frame, in as many passes as it takes (the frame pacer's way)
+    const frame = () => {
+      gl.render(scene, camera);
+      while ((scene.userData.nextPass as (() => boolean) | undefined)?.()) gl.render(scene, camera);
+    };
     const part = scene.getObjectByName('backdrop')!.children[0];
     part.visible = !part.visible;
-    gl.render(scene, camera);
+    frame();
     part.visible = !part.visible;
-    gl.render(scene, camera);
-    gl.render(scene, camera);
+    frame();
+    frame();
     // Two frames from the copy, then the same drawn whole
-    gl.render(scene, camera);
-    gl.render(scene, camera);
+    frame();
+    frame();
     const inPart = read();
     scene.userData.wholeFrames = true;
-    gl.render(scene, camera);
+    frame();
     scene.userData.wholeFrames = false;
     const whole = read();
     let n = 0;
@@ -93,6 +98,8 @@ const check = async (
     const { gl } = w.__r3fState;
     const render = gl.render;
     let ours = false;
+    // The passes of one frame (renders in one task) count as one share
+    let sameFrame = false;
     // (getScissor copies into a Vector4, in CSS px; its width and height are z and w)
     const box = { z: 0, w: 0 };
     const target = { copy: (v: { z: number; w: number }): unknown => Object.assign(box, v) };
@@ -100,10 +107,16 @@ const check = async (
       render.apply(this, args);
       if (ours) return;
       const canvas = gl.domElement;
-      if (!gl.getScissorTest()) check.shares.push(1);
-      else {
+      let share = 1;
+      if (gl.getScissorTest()) {
         gl.getScissor(target as unknown as import('three').Vector4);
-        check.shares.push((box.z * box.w) / (canvas.clientWidth * canvas.clientHeight));
+        share = (box.z * box.w) / (canvas.clientWidth * canvas.clientHeight);
+      }
+      if (sameFrame) check.shares[check.shares.length - 1] += share;
+      else {
+        check.shares.push(share);
+        sameFrame = true;
+        queueMicrotask(() => (sameFrame = false));
       }
     };
     const read = (ctx: WebGL2RenderingContext, out: Uint8Array) =>
@@ -127,6 +140,7 @@ const check = async (
       let cached = copy?.visible === true;
       ours = true;
       gl.render(scene, camera);
+      while ((scene.userData.nextPass as (() => boolean) | undefined)?.()) gl.render(scene, camera);
       cached &&= copy?.visible === true;
       gl.setScissorTest(false);
       read(ctx, inPart);
@@ -151,6 +165,17 @@ const check = async (
   // A quiet move, the reply, then a capture and its recapture
   await game.playAll(['Ad2-Ac3', 'Eb5-Ec3', 'Ab2-Ba3', 'Ed5-Ce5']);
   await page.waitForTimeout(1500);
+  // On a loaded machine the game is over in fewer frames: the last move's
+  // shimmer, travelling at rest, gives the frames still to compare
+  await page.waitForFunction(
+    () => {
+      const c = (window as unknown as { __damageCheck: { frames: number; shares: number[] } })
+        .__damageCheck;
+      return c.frames > 20 && c.shares.length > 20;
+    },
+    null,
+    { timeout: 60000 },
+  );
   const result = await page.evaluate(
     () =>
       (

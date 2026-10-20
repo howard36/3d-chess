@@ -18,11 +18,13 @@ import type {
 // the tower leaves a signature (its matrix, geometry and material, every
 // uniform), and where it was on screen; a frame whose objects all match the
 // last frame's draws nothing, and otherwise it draws, scissored to the
-// screen rect of the objects that changed (where they were and where they
-// are), everything but the objects wholly outside that rect (cullOutside:
-// they would write no pixel in it). Inside the rect the frame clears and
-// draws exactly as a full frame does, and outside it nothing changed, so the
-// picture is the full frame's. The garden is not looked at: it is drawn from its copy, which a
+// screen rects of the objects that changed (where they were and where they
+// are; passes(): merged to a few, a pass each), everything but the objects
+// wholly outside the pass's rect (cullOutside: they would write no pixel in
+// it). Inside a rect the frame clears and draws exactly as a full frame
+// does, and outside them nothing changed, so the picture is the full
+// frame's. In software rendering a pass costs about the vertices of the
+// pieces it meets, so a few small rects draw far fewer than their union. The garden is not looked at: it is drawn from its copy, which a
 // change to the camera, the drawing buffer or the garden replaces with a
 // full frame (backdropCache.tsx), as it does every frame that is not
 // drawing from the copy. Every vertex shader of the tower places its
@@ -52,9 +54,16 @@ export interface DamageState {
   next: Map<Object3D, Seen>;
   /** Objects hidden for the frame being drawn in part, to be shown again after it. */
   culled: Object3D[];
+  /** The rects of this frame's changes, one apiece (their union is damage()'s rect). */
+  parts: Rect[];
 }
 
-export const damageState = (): DamageState => ({ seen: new Map(), next: new Map(), culled: [] });
+export const damageState = (): DamageState => ({
+  seen: new Map(),
+  next: new Map(),
+  culled: [],
+  parts: [],
+});
 
 /** Forget the last frame (the next one is drawn whole). */
 export const forgetDamage = (state: DamageState) => state.seen.clear();
@@ -207,6 +216,16 @@ const projectWorld = (p: Projector, point: Vector3, width: number, height: numbe
 
 const scratch: number[] = [];
 
+/**
+ * An object's `userData.damageBox`: the part of its geometry it draws in now
+ * (local space, set in `out`), or null where it draws nothing; screenRect
+ * reads it in place of the whole geometry's bounds. For a mark whose shader
+ * lights a small part of a long geometry (the last move's shimmer).
+ */
+export type DamageBox = (out: Box3) => Box3 | null;
+
+const litBox = new Box3();
+
 const projector: Projector = { minX: 0, minY: 0, maxX: 0, maxY: 0, near: 0, behind: false };
 
 /**
@@ -248,7 +267,9 @@ const screenRect = (
     }
   } else {
     const g = (o as Mesh).geometry as BufferGeometry | undefined;
-    const box = g && boxOf(g);
+    // (an object that lights only part of its geometry says which: DamageBox)
+    const part = o.userData.damageBox as DamageBox | undefined;
+    const box = part ? part(litBox) : g && boxOf(g);
     if (!box) return null;
     if (box.isEmpty()) return null;
     for (let i = 0; i < 8; i++) {
@@ -308,9 +329,15 @@ export const damage = (
   full: boolean,
 ): Rect | null | 'full' => {
   viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-  const { seen, next } = state;
+  const { seen, next, parts } = state;
   let whole = full || seen.size === 0;
   let rect: Rect | null = null;
+  parts.length = 0;
+  const add = (r: Rect | null) => {
+    if (!r) return;
+    rect = unite(rect, r);
+    parts.push(r);
+  };
   const visit = (o: Object3D) => {
     if (!o.visible || skip.has(o)) return;
     if (isDrawable(o) && o.layers.test(camera.layers)) {
@@ -331,7 +358,10 @@ export const damage = (
           };
           if (!whole && changed) {
             if (entry.unbounded || last?.unbounded) whole = true;
-            else rect = unite(unite(rect, last ? last.rect : null), entry.rect);
+            else {
+              add(last ? last.rect : null);
+              add(entry.rect);
+            }
           }
         }
         next.set(o, entry);
@@ -345,12 +375,66 @@ export const damage = (
     for (const [o, last] of seen)
       if (!next.has(o)) {
         if (last.unbounded) whole = true;
-        else rect = unite(rect, last.rect);
+        else add(last.rect);
       }
   state.seen = next;
   state.next = seen;
   seen.clear();
   return whole ? 'full' : rect;
+};
+
+/** The most passes a frame is drawn in (passes()). */
+export const MAX_PASSES = 4;
+
+/** What a pass costs beyond the vertices it draws, in vertices (a guess: three.js's walk, the clear, the copy). */
+const PASS_COST = 2000;
+
+const area = (r: Rect) => r.w * r.h;
+
+/** The vertices `o` hands the GPU (its index, or its positions, times its instances). */
+const verticesOf = (o: Object3D) => {
+  const g = (o as Mesh).geometry as BufferGeometry | undefined;
+  if (!g) return 0;
+  const n = g.index ? g.index.count : (g.attributes.position?.count ?? 0);
+  return n * ((o as Mesh & { count?: number }).count ?? 1);
+};
+
+/** The vertices a frame drawn in `rects`, one pass each, hands the GPU (as cullOutside leaves them). */
+const drawCost = (state: DamageState, rects: Rect[]) => {
+  let n = rects.length * PASS_COST;
+  for (const [o, seen] of state.seen)
+    for (const r of rects)
+      if (!seen.rect || o.children.length > 0 || meets(seen.rect, r)) n += verticesOf(o);
+  return n;
+};
+
+/**
+ * The rects to draw a frame in, one pass each, after damage() gave `union`
+ * (with `extra`, rects a frame before left undrawn): the changes' own rects,
+ * merged pairwise while two overlap (their union is smaller than the two)
+ * or there are more than MAX_PASSES, or the union alone where that draws
+ * fewer vertices. Changes scattered over the tower (a pick's destinations,
+ * a move's old and new marks) are drawn as a few small rects, and each pass
+ * leaves out the objects wholly outside its rect: far fewer pieces drawn.
+ */
+export const passes = (state: DamageState, union: Rect | null, extra: Rect[] = []): Rect[] => {
+  const rects = [...state.parts, ...extra];
+  for (const r of extra) union = unite(union, r);
+  if (!union) return [];
+  while (rects.length > 1) {
+    let bi = 0;
+    let bj = 1;
+    let best = Infinity;
+    for (let i = 0; i < rects.length; i++)
+      for (let j = i + 1; j < rects.length; j++) {
+        const c = area(unite(rects[i], rects[j])!) - area(rects[i]) - area(rects[j]);
+        if (c < best) [best, bi, bj] = [c, i, j];
+      }
+    if (best >= 0 && rects.length <= MAX_PASSES) break;
+    rects[bi] = unite(rects[bi], rects[bj])!;
+    rects.splice(bj, 1);
+  }
+  return rects.length > 1 && drawCost(state, rects) < drawCost(state, [union]) ? rects : [union];
 };
 
 const meets = (a: Rect, b: Rect) =>

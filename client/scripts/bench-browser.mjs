@@ -706,22 +706,41 @@ const BENCH_INIT = () => {
           setTimeout(poll, 1);
         }
       };
+      // A frame drawn in several passes (renders in one task: a frame at
+      // rest redrawing a few separate rects, backdropCache.tsx) is one
+      // record: from the first pass's start to the last one's end, their
+      // draw calls and triangles summed, and drawn once the fence after the
+      // last pass has passed
+      let open = null;
       gl.render = function (scene, camera) {
         const t0 = performance.now();
         try {
           return render.call(this, scene, camera);
         } finally {
           const { calls, triangles } = this.info.render;
-          const record = [
-            performance.timeOrigin + t0,
-            performance.now() - t0,
-            gardenMode(scene),
-            calls,
-            triangles,
-            null,
-          ];
-          b.renders.push(record);
-          drawn(record);
+          const last = open;
+          if (last && pending.at(-1)?.[1] === last) {
+            last[1] = performance.timeOrigin + performance.now() - last[0];
+            last[3] += calls;
+            last[4] += triangles;
+            ctx.deleteSync(pending.pop()[0]);
+            drawn(last);
+          } else {
+            const record = [
+              performance.timeOrigin + t0,
+              performance.now() - t0,
+              gardenMode(scene),
+              calls,
+              triangles,
+              null,
+            ];
+            b.renders.push(record);
+            drawn(record);
+            open = record;
+            queueMicrotask(() => {
+              if (open === record) open = null;
+            });
+          }
         }
       };
     },

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AdditiveBlending, Color, DoubleSide, PlaneGeometry } from 'three';
+import { AdditiveBlending, Box3, Color, DoubleSide, PlaneGeometry, Vector3 } from 'three';
 import type { IUniform } from 'three';
+import type { DamageBox } from './damage';
 import { prefersReducedMotion } from '../motion';
 import { LAYER } from './layers';
 import { LastMoveLine, tubeGeometry, tubeVertex } from './line';
@@ -623,6 +624,12 @@ const LINE_LIFT = 0.02;
 const LINE_DRAW_MS = 380;
 const SHIMMER = { speed: 0.45, spacing: 1.8, length: 0.32, peak: 0.75 };
 const SHIMMER_MINT = PALETTE.trace;
+/**
+ * A pulse's glow, exp(-x² · falloff) at x pulse-lengths from its centre, and
+ * the cut-off under which the shader draws no fragment: the shader and
+ * shimmerLit's box both read them here.
+ */
+export const SHIMMER_GLOW = { falloff: 4, cut: 0.002 };
 
 export const shimmerMaterial = () =>
   overlayMaterial({
@@ -652,15 +659,71 @@ export const shimmerMaterial = () =>
         // One soft pulse per spacing, the first entering at the start
         float f = fract((vAlong - uTime * uSpeed + uLength) / uSpacing + 0.5);
         float x = (f - 0.5) * uSpacing / uLength;
-        float glow = exp(-x * x * 4.0);
+        float glow = exp(-x * x * ${SHIMMER_GLOW.falloff.toFixed(1)});
         // Soft across: brightest down the middle, nothing at the edges
         float facing = abs(dot(normalize(vNormal), normalize(vView)));
         float a = glow * facing * facing * uPeak * uFade;
-        if (a < 0.002) discard;
+        if (a < ${SHIMMER_GLOW.cut}) discard;
         gl_FragColor = vec4(uColor * a, a);
         #include <colorspace_fragment>
       }`,
   });
+
+const pathStart = new Vector3();
+const pathEnd = new Vector3();
+
+/**
+ * The part of a shimmer's straight tube (`from` to `to`, `radius` thick) its
+ * pulses light now, as its shader lights them (no fragment of a pulse is
+ * drawn beyond where its glow at full facing falls under SHIMMER_GLOW.cut): a
+ * frame of the shimmer travelling redraws only its pulses, not the whole
+ * line (damage.ts). Its `aAlong` is the distance along the line, the caps
+ * running a radius past either end.
+ */
+export const shimmerLit = (
+  from: Vec3,
+  to: Vec3,
+  radius: number,
+  u: Record<string, IUniform>,
+  out: Box3,
+): Box3 | null => {
+  const level = u.uPeak.value * u.uFade.value;
+  const { falloff, cut } = SHIMMER_GLOW;
+  if (!(level >= cut)) return null;
+  const length = u.uLength.value as number;
+  const spacing = u.uSpacing.value as number;
+  // How far along from a pulse's centre it still shows (a hair over, for rounding)
+  const half = Math.sqrt(Math.log(level / cut) / falloff) * length * 1.01 + 1e-4;
+  pathStart.fromArray(from);
+  pathEnd.fromArray(to);
+  const total = pathStart.distanceTo(pathEnd);
+  const lo = -radius;
+  const hi = total + radius;
+  // The pulses' centres: along = time * speed - length + k * spacing
+  const first = (u.uTime.value as number) * (u.uSpeed.value as number) - length;
+  const kMin = Math.ceil((lo - half - first) / spacing);
+  const kMax = Math.floor((hi + half - first) / spacing);
+  if (kMin > kMax) return null;
+  const a0 = Math.max(lo, first + kMin * spacing - half);
+  const a1 = Math.min(hi, first + kMax * spacing + half);
+  if (a1 < a0) return null;
+  const k = total > 0 ? 1 / total : 0;
+  out.makeEmpty();
+  out.expandByPoint(
+    pathEnd
+      .clone()
+      .sub(pathStart)
+      .multiplyScalar(a0 * k)
+      .add(pathStart),
+  );
+  out.expandByPoint(
+    pathEnd
+      .sub(pathStart)
+      .multiplyScalar(a1 * k)
+      .add(pathStart),
+  );
+  return out.expandByScalar(radius);
+};
 
 const Shimmer = ({
   from,
@@ -684,16 +747,18 @@ const Shimmer = ({
 }) => {
   const invalidate = useThree((s) => s.invalidate);
   const key = JSON.stringify([from, to, radius, lift]);
-  const geometry = useMemo(() => {
-    return tubeGeometry(tracePath(from, to, { lift }), {
-      radius: radius * 2.4,
-      radialSegments: 8,
-      capSegments: 2,
-    });
+  const material = useMemo(shimmerMaterial, []);
+  const [geometry, damageBox] = useMemo(() => {
+    const [a, b] = tracePath(from, to, { lift });
+    const thick = radius * 2.4;
+    const lit: DamageBox = (out) => shimmerLit(a, b, thick, material.uniforms, out);
+    return [
+      tubeGeometry([a, b], { radius: thick, radialSegments: 8, capSegments: 2 }),
+      { damageBox: lit },
+    ] as const;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
   }, [key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  const material = useMemo(shimmerMaterial, []);
   useRetireOnUnmount(material);
   (material.uniforms.uColor.value as Color).set(color);
   material.uniforms.uPeak.value = peak;
@@ -713,6 +778,7 @@ const Shimmer = ({
     <mesh
       geometry={geometry}
       material={material}
+      userData={damageBox}
       renderOrder={LAYER.trace + 0.2}
       raycast={noRaycast}
       frustumCulled={false}

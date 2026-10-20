@@ -11,12 +11,14 @@ import {
   Vector2,
 } from 'three';
 import type { Camera, Material, Object3D, Scene, WebGLRenderer } from 'three';
+import type { Rect } from './damage';
 import { noRaycast } from '../noRaycast';
 import {
   cullOutside,
   damage,
   damageState,
   forgetDamage,
+  passes,
   pushAll,
   pushValue,
   restoreCulled,
@@ -171,6 +173,10 @@ export const BackdropCache = ({
       texture: null as FramebufferTexture | null,
       valid: false,
       damage: damageState(),
+      /** This frame's rects still to draw, a pass each (nextPass). */
+      pending: [] as Rect[],
+      /** The next render is one of them. */
+      continuing: false,
     };
     const skip = new Set<Object3D>();
     const show = (mode: Mode) => {
@@ -185,8 +191,18 @@ export const BackdropCache = ({
     // edge meets a tower edge (the top of this file), and a frame drawn in
     // part over it would keep those pixels where the same frame drawn whole
     // has the copy's
+    const drawIn = (renderer: WebGLRenderer, r: Rect) => {
+      cullOutside(state.damage, r);
+      const ratio = renderer.getPixelRatio();
+      renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);
+      renderer.setScissorTest(true);
+    };
     const scissor = (renderer: WebGLRenderer, camera: Camera, mode: Mode) => {
       restoreCulled(state.damage);
+      // (rects a frame before left undrawn, should a render have come
+      // without its passes: this frame draws them too)
+      const left = state.pending;
+      state.pending = [];
       if (!partialRef.current || !garden.current) {
         forgetDamage(state.damage);
         return;
@@ -206,11 +222,16 @@ export const BackdropCache = ({
         renderer.setScissorTest(false);
         return;
       }
-      const r = d ?? { x: 0, y: 0, w: 0, h: 0 };
-      cullOutside(state.damage, r);
-      const ratio = renderer.getPixelRatio();
-      renderer.setScissor(r.x / ratio, r.y / ratio, r.w / ratio, r.h / ratio);
-      renderer.setScissorTest(true);
+      const [first, ...rest] = passes(state.damage, d, left);
+      state.pending = rest;
+      drawIn(renderer, first ?? { x: 0, y: 0, w: 0, h: 0 });
+    };
+    // The frame's next pass, if it has one: the next render draws it (the
+    // frame pacer renders until there is none)
+    scene.userData.nextPass = () => {
+      if (state.pending.length === 0) return false;
+      state.continuing = true;
+      return true;
     };
     // The copy is drawn in every frame drawn in part, after three.js has
     // listed what it draws: what scissor() hid is shown again there, so the
@@ -231,6 +252,13 @@ export const BackdropCache = ({
     scene.onBeforeRender = (renderer: WebGLRenderer, s: Scene, camera: Camera, ...rest) => {
       before.call(scene, renderer, s, camera, ...rest);
       const g = garden.current;
+      if (state.continuing) {
+        state.continuing = false;
+        restoreCulled(state.damage);
+        show('cached');
+        drawIn(renderer, state.pending.shift()!);
+        return;
+      }
       // Rendering somewhere else than the canvas: the garden as always
       if (!g || renderer.getRenderTarget() !== null) {
         show('plain');
@@ -261,6 +289,7 @@ export const BackdropCache = ({
       canvas.removeEventListener('webglcontextlost', lost);
       canvas.removeEventListener('webglcontextrestored', lost);
       scene.onBeforeRender = before;
+      delete scene.userData.nextPass;
       scene.remove(copy, take);
       show('plain');
       state.texture?.dispose();
