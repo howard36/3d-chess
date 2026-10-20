@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { MAX_PASSES } from './scene/damage';
 
 /**
  * A stepped clock (window.__vclock: the showcase's recordings, orbit.spec)
@@ -58,9 +59,19 @@ export const PaceOnGpu = () => {
     }
     gl.render(scene, camera);
     // A frame at rest drawn in part may take a pass for each rect it redraws
-    // (backdropCache.tsx)
+    // (backdropCache.tsx), MAX_PASSES at most whatever nextPass says. Nothing
+    // moves between a frame's passes, so the later ones keep the first's
+    // matrices (three.js would walk the whole scene again for each)
     const nextPass = scene.userData?.nextPass as (() => boolean) | undefined;
-    while (nextPass?.()) gl.render(scene, camera);
+    const auto = scene.matrixWorldAutoUpdate;
+    try {
+      for (let pass = 1; pass < MAX_PASSES && nextPass?.(); pass++) {
+        scene.matrixWorldAutoUpdate = false;
+        gl.render(scene, camera);
+      }
+    } finally {
+      scene.matrixWorldAutoUpdate = auto;
+    }
     // (a frame drawn in part, backdropCache.tsx, leaves no scissor behind)
     if (gl.getScissorTest()) gl.setScissorTest(false);
     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
