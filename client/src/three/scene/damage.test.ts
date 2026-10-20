@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  Box3,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
@@ -250,6 +251,28 @@ describe('damage', () => {
     expect(frame()).not.toBeNull();
   });
 
+  it('bounds an object by the part its damageBox says it draws in', () => {
+    // (the last move's shimmer lights a few pulses of a long line: markers.tsx)
+    const { boxes, frame } = setUp();
+    const glow = () => ((boxes[1].material as ShaderMaterial).uniforms.uGlow.value += 1);
+    glow();
+    const whole = frame() as Rect;
+    boxes[1].userData.damageBox = (out: Box3) =>
+      out.set(new Vector3(-0.5, 0.25, -0.5), new Vector3(0.5, 0.5, 0.5));
+    glow();
+    frame();
+    glow();
+    const lit = frame() as Rect;
+    expect(contains(whole, lit)).toBe(true);
+    expect(lit.h).toBeLessThan(whole.h / 2);
+    // Lighting nothing, it draws nothing
+    boxes[1].userData.damageBox = () => null;
+    glow();
+    expect(frame()).toEqual(lit);
+    glow();
+    expect(frame()).toBeNull();
+  });
+
   it('hides for one frame the objects wholly outside its rect, and shows them again', () => {
     const { boxes, frame, state } = setUp();
     boxes[2].position.x = 2.5;
@@ -321,15 +344,18 @@ describe('passes', () => {
   });
 
   it('keeps one rect when that draws fewer vertices, and merges what overlaps', () => {
-    // Light boxes only: a pass costs more than the boxes it would leave out
+    // Light boxes only: a pass costs more than the box between them it would
+    // leave out
     const light = scene(
       [
         [-3, 0],
+        [0, 0],
         [3, 0],
       ],
       false,
     );
-    light.boxes.forEach(glow);
+    glow(light.boxes[0]);
+    glow(light.boxes[2]);
     const union = light.frame() as Rect;
     expect(passes(light.state, union)).toEqual([union]);
     // A box moved a little: where it was and where it is, one rect
