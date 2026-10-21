@@ -1,0 +1,119 @@
+diff --git a/client/src/three/Board.tsx b/client/src/three/Board.tsx
+index 6a0107f..e5fd64b 100644
+--- a/client/src/three/Board.tsx
++++ b/client/src/three/Board.tsx
+@@ -40,6 +40,7 @@ import { Grid } from './scene/grid';
+ import { Better, Capture, Check, LastMove, Quiet } from './scene/markers';
+ import { knightFacing, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
+ import { Selection } from './scene/selection';
++import { holdPicture, releasePicture } from './framePacer';
+ import { pieceArrival } from './intro/timeline';
+ import { useEntranceReplay } from './replay';
+ 
+@@ -297,6 +298,13 @@ const Board = (props: BoardProps) => {
+   useEffect(() => {
+     if (!disabled) setCarried(null);
+   }, [disabled]);
++  // The picture held for the move (holdPicture) is drawn with it
++  const scene = useThree((s) => s.scene);
++  useLayoutEffect(() => releasePicture(scene, true), [board, scene]);
++  useLayoutEffect(() => {
++    if (!disabled) releasePicture(scene, false);
++  }, [disabled, scene]);
++  useLayoutEffect(() => () => releasePicture(scene, false), [scene]);
+ 
+   // Collect all pieces with their coordinates from the provided board
+   const pieces = CELLS.flatMap((coord) => {
+@@ -434,6 +442,7 @@ const Board = (props: BoardProps) => {
+       props.onChoosePromotion(choices);
+     } else if (props.onMove) {
+       setCarried(selected);
++      holdPicture(scene);
+       props.onMove(choices.find((m) => m.promotion === PieceType.Queen) ?? choices[0]);
+     }
+   };
+diff --git a/client/src/three/framePacer.tsx b/client/src/three/framePacer.tsx
+index ad6b757..e0c4f2a 100644
+--- a/client/src/three/framePacer.tsx
++++ b/client/src/three/framePacer.tsx
+@@ -1,5 +1,6 @@
+ import { useEffect, useRef } from 'react';
+ import { useFrame, useThree } from '@react-three/fiber';
++import type { Object3D } from 'three';
+ import { MAX_PASSES } from './scene/damage';
+ 
+ /**
+@@ -24,7 +25,10 @@ const stepped = () => typeof (window as { __vclock?: unknown }).__vclock === 'ob
+  */
+ export const PaceOnGpu = () => {
+   const gl = useThree((s) => s.gl);
+-  const fence = useRef<{ sync: WebGLSync; skipped: number } | null>(null);
++  const fence = useRef<{ sync: WebGLSync; skipped: number; at: number } | null>(null);
++  // How long the GPU took over the last frame it fell behind on (0 when it
++  // kept up with the display)
++  const gpuMs = useRef(0);
+   useEffect(() => {
+     const context = gl.getContext() as WebGL2RenderingContext;
+     const canvas = gl.domElement;
+@@ -56,6 +60,22 @@ export const PaceOnGpu = () => {
+       }
+       if (!lost) context.deleteSync(last.sync);
+       fence.current = null;
++      if (!lost && last.skipped < PACE_MAX_SKIPS)
++        gpuMs.current = last.skipped > 0 ? performance.now() - last.at : 0;
++    }
++    const hold = scene.userData?.pictureHold as PictureHold | undefined;
++    if (hold?.pending && !stepped()) {
++      // A picture the move's own will replace in less than it takes the GPU
++      // to draw it is not drawn: the move's picture then starts on a GPU
++      // that is not still drawing it
++      const bound =
++        hold.echoMs !== null && hold.echoMs > gpuMs.current
++          ? 0
++          : Math.min(gpuMs.current, HOLD_MAX_MS);
++      if (performance.now() - hold.since < bound) {
++        invalidate();
++        return;
++      }
+     }
+     gl.render(scene, camera);
+     // A frame at rest drawn in part may take a pass for each rect it redraws
+@@ -67,7 +87,7 @@ export const PaceOnGpu = () => {
+     if (typeof context.fenceSync !== 'function' || context.isContextLost()) return;
+     const sync = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0);
+     if (!sync) return;
+-    fence.current = { sync, skipped: 0 };
++    fence.current = { sync, skipped: 0, at: performance.now() };
+     context.flush();
+   }, 1);
+   return null;
+@@ -75,3 +95,29 @@ export const PaceOnGpu = () => {
+ 
+ /** The display frames a frame waits for the GPU at most (a second at 60 Hz): a fence that never passes holds nothing. */
+ export const PACE_MAX_SKIPS = 60;
++
++/** The longest a picture is held for the move's (holdPicture). */
++export const HOLD_MAX_MS = 120;
++
++type PictureHold = { pending: boolean; since: number; echoMs: number | null };
++
++/**
++ * A move is on its way to the server: its echo brings a picture of its own,
++ * and a slow GPU still drawing the picture before it (the marks put away)
++ * would make the move's wait for it. Until the echo (releasePicture), for no
++ * longer than the GPU's last frame took, the canvas draws nothing; once an
++ * echo has taken longer than that, nothing is held.
++ */
++export const holdPicture = (scene: Object3D) => {
++  const hold = (scene.userData.pictureHold ??= { pending: false, since: 0, echoMs: null });
++  hold.pending = true;
++  hold.since = performance.now();
++};
++
++/** The move is back (`answered`), or will not be: the next picture is drawn. */
++export const releasePicture = (scene: Object3D, answered: boolean) => {
++  const hold = scene.userData.pictureHold as PictureHold | undefined;
++  if (!hold?.pending) return;
++  hold.pending = false;
++  if (answered) hold.echoMs = performance.now() - hold.since;
++};
