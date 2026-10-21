@@ -1,0 +1,229 @@
+{
+ "title": "Perf run 20261021-0649",
+ "eyebrow": "3D chess · perf-iteration · run 20261021-0649 · general run",
+ "heading": "A shared game opens about 18% sooner on a phone, and a game against the computer reopens 40% sooner",
+ "meta": "<p>This general run changed how each page's code is preloaded: every address now starts downloading its own page first and its 3D scene at low priority, from a script placed ahead of the stylesheet. On a throttled phone, a shared game's link shows its first screen in 720 ms instead of 878 ms, and a saved game against the computer reopens in 819 ms instead of 1.40 s. Both figures are from the final commit's own A/B. The run also fixed three silent failures, added two primary rows and four checks, and removed two hand-kept tables. The work is on branch <code>improve/20261021-0649</code> from base <code>fc66e8a</code>; main did not move during the run. Every figure is from software rendering (SwiftShader) on a 4-vCPU VM, and each names the commits it compares.</p>",
+ "needs": {
+  "intro": "<p>Nothing here blocks the merge. All five items are information. No primary row was called worse; these are the rows the run's rule asks to show you: worse in every pair, or more than 3% worse at the median pair.</p>",
+  "items": [
+   {
+    "title": "Information: joining a game's first board picture leans about 3% slower",
+    "body": "<p>The preload change puts the lobby's 3D canvas at low priority, so its first frame can arrive later. The bench clicks Join about 50 ms after the lobby's first frame, so that frame's work meets the click. Three A/Bs measured \"First board picture, joining a game\":</p><ul><li>The <code>vite.config.ts</code> part alone, 6 pairs: ×1.004, pairs 0.97 1.29 0.98 1.03 0.94 1.04 (<code>ab-20261021-0649-p7.md</code>).</li><li>The committed code, 5 pairs: 774 → 835 ms, ×1.055, worse in all 5 pairs: 1.03 1.09 1.02 1.05 1.14 (<code>ab-20261021-0649-cr1.md</code>).</li><li>The final commit, 10 pairs: 820 → 827 ms, ×1.014, 6 of 10 worse: 0.96 1.00 0.98 0.97 1.03 1.08 1.08 0.93 1.18 1.11 (<code>ab-20261021-0649-final.md</code>).</li></ul><p>Over all 21 pairs the median is ×1.03, with 13 worse. A player who reads the invitation for 1.5 s before joining sees the board sooner: 576 → 573 ms in the final A/B (median pair ×0.95, not called). The two forms that kept the lobby's canvas at normal priority made the desktop's first screen worse in most pairs (Tried and rejected).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 3d771f7 (app = 5e03ce0) vs fc66e8a, --primary, 10 pairs",
+       "only": "^Game setup · Joining"
+      },
+      "caption": "Joining rows, 3d771f7 against fc66e8a, 10 pairs (ab-20261021-0649-final.md)."
+     }
+    ],
+    "recommend": "Merge. The phone's first screen of a shared link gains 158 ms; the instant join loses about 25 ms at the median. Ledger 0649:FB1 is the next step: settle the lean with more pairs, then try raising the canvas's priority once the page has rendered."
+   },
+   {
+    "title": "Information: the computer's first board picture leans 4% slower",
+    "body": "<p>\"First board picture, playing the computer\": 916 → 941 ms, median pair ×1.040, 8 of 10 worse, not called: 1.00 1.03 1.05 1.05 1.10 1.07 0.96 0.99 1.09 1.02 (<code>ab-20261021-0649-final.md</code>). This is the first A/B to measure it on the new code. The likely cause is the same as above: on /computer the lobby's canvas now loads at low priority too. That cause has not been tested.</p>",
+    "recommend": "Merge, with the same follow-up (ledger 0649:FB1 now covers this row too)."
+   },
+   {
+    "title": "Information: the returning phone's start page shows its board 8% later",
+    "body": "<p>\"Start page shows the board, phone, returning\": 292 → 316 ms, median pair ×1.075, 8 of 10 worse, not called: 1.01 1.08 1.07 1.11 0.99 0.96 1.10 1.11 1.04 1.10. The same row read ×1.013 in this run's step 2 and ×1.000 in the last run's final A/B. The start page's only change is in its HTML: the new preload script (90 B gzipped, which adds no link on the start page) now stands between the viewport tag and the start page's own picture-preload script. Whether that order costs 24 ms has not been tested.</p>",
+    "recommend": "Merge. Ledger 0649:SB2: re-check the row, and if it holds, put the picture's script first or leave the preload script out of the start page."
+   },
+   {
+    "title": "Information: two noisy rows over 3% at the median",
+    "body": "<p>\"Start page answers its first click, desktop\": 14.3 → 14.8 ms, median pair ×1.088, 6 of 10 worse (pairs 0.72–1.48). This run's step 2 showed ×1.093 on the same first-click code, before any change. \"A picked-up piece appears\": 80.9 → 80.0 ms, median pair ×1.039, 6 of 10 worse (pairs 0.73–1.16). No code on the pick's path changed.</p>",
+    "recommend": "No decision needed. The next run's step 2 reads both again."
+   },
+   {
+    "title": "Information: the target (every primary row 1.2× faster) is not met",
+    "body": "<p>Two of 18 rows are past it: the phone's shared-game first screen (×0.820) and the computer's reopen on the phone (×0.584). Both are new primary rows this run. The other 16 rows measure moments this run's changes did not aim at, or barely touched (the start page, the move, the pick, the search). This was a general run: most of its kept changes are fixes, checks and bench rows.</p>"
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The primary rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Each bar is a row's change, head divided by base, and each dot is one pair; left of 1× is faster. The dashed line is the target, 1.2× faster than the base.</p>",
+  "items": [
+   {
+    "title": "The final commit against the base: all 18 primary rows",
+    "body": "<p><code>3d771f7</code> (app code as at <code>5e03ce0</code>) against <code>fc66e8a</code>, 10 pairs, 79 minutes (<code>ab-20261021-0649-final.md</code>). Overall ×1.040 across the 18 rows. Two rows are called better: a shared game's first screen on the phone, 878 → 720 ms (×0.820, pairs 0.79–0.85), and reopening a game against the computer on the phone, 1.40 s → 819 ms (×0.584, pairs 0.57–0.70). No row is called worse. Memory is flat: geometries +10 over 16 plies on both sides, textures 0, the heap after reopening +0.5%. Among 122 diagnostics one is called: the phone's join makes 23 requests instead of 25.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 3d771f7 (app = 5e03ce0) vs fc66e8a, --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "3d771f7 (app = 5e03ce0) against fc66e8a, 10 pairs, every primary row (ab-20261021-0649-final.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "Step 2: the base against the last run's base",
+    "body": "<p><code>fc66e8a</code> against <code>8260314</code>, 10 pairs (<code>ab-20261021-0649-regress.md</code>). Nothing regressed. The start page's phone row held the last run's gain (686 → 642 ms, ×0.934, called better).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regress: fc66e8a vs 8260314 (app = 4bdeb55), --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "fc66e8a against 8260314, 10 pairs (ab-20261021-0649-regress.md)."
+     }
+    ]
+   },
+   {
+    "title": "The long view: not re-measured this run",
+    "body": "<p>No A/B compared this branch with the first recorded run's base <code>92ce041</code>; a full primary A/B takes about 80 minutes here and the budget was spent. The latest such A/B is run 20261018-1719's, charted below.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: 8a3e922 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "8a3e922 against 92ce041, 3 pairs (run 20261018-1719)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>Twelve app and bench changes, each its own commit, plus run-record commits. Every figure names the A/B report it comes from, in <code>bench/loop/</code>.</p>",
+  "items": [
+   {
+    "title": "Each page preloads its own chunks, ahead of the stylesheet (P7, 4fcf15a)",
+    "body": "<p>The built page has an inline script that starts downloading a page's chunks before the entry has loaded. Before this change it stood after the stylesheet link, so the browser ran it only once the CSS had arrived: one round trip late on a phone. It also preloaded the same list on every lobby page, the tutorial's chunks included.</p><p>Now one table, <code>PRELOADS</code> in <code>vite.config.ts</code>, lists per address the page's own chunks first, then its canvases (three.js and the scene) at <code>fetchPriority=\"low\"</code>. The script stands right after the viewport tag. A game against the computer's address (<code>/computer/:id</code>) now waits for its page before the app first renders, as <code>/game/:id</code> already did (<code>pageReady</code>).</p><p>Two primary rows were called better on the committed code (<code>ab-20261021-0649-cr1.md</code>, 5 pairs): a shared game's first screen on the throttled phone, 889 → 723 ms (×0.813), and reopening a game against the computer on the phone, 1.42 s → 816 ms (×0.574). The first A/B (<code>ab-20261021-0649-p7.md</code>, 6 pairs) measured the <code>vite.config.ts</code> part alone and called the phone row at ×0.812. The final commit's own A/B is in Scoreboard.</p><p>Bytes linked per address (gzip -9, entry included, measured with <code>tools/preload-sizes.mjs</code> on builds of <code>fc66e8a</code> and <code>5e03ce0</code>): /new and /game/:id 511.9 → 506.1 KB, /computer 511.9 → 510.1 KB, /learn 489.6 → 480.6 KB. Every page's HTML grows by 90 B gzipped (3,478 → 3,568 B), the start page's included.</p><p>Trade-off: joining a game's first board picture leans slower (Needs from me).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "0649:CR1",
+       "only": "PRIMARY"
+      },
+      "caption": "The committed code (app as 95a391d) against fc66e8a, 5 pairs, setup and computer sections (ab-20261021-0649-cr1.md)."
+     }
+    ]
+   },
+   {
+    "title": "The computer's side choice waits for its game's page (a8b824c)",
+    "body": "<p>Choosing a side against the computer went to <code>/computer/:id</code> before that page's chunk had arrived. The page then suspended under the lobby, against the lobby's rule that a page under it shows from its first render. It now waits for the chunk, as the online side choice does. A new <code>ChooseSide.test</code> case fails on the base and passes here.</p>"
+   },
+   {
+    "title": "The first frame after a lost WebGL context is drawn whole (d32eb64)",
+    "body": "<p>When the browser lost and restored the GPU context in the middle of a two-pass frame, the next frame drew one stale part over an invalid copy of the garden. The lost-context handler now clears that state. A new <code>backdropCache.test</code> case fails on the base and passes here.</p>"
+   },
+   {
+    "title": "A computer whose search did not load says so when offered a draw (ae92139)",
+    "body": "<p>If the search code failed to download (an old page after a deploy, or offline), a draw offer was declined silently. The player now sees the same reload notice they see on the computer's turn. A new <code>useComputerGame.test</code> case fails on the base and passes here.</p>"
+   },
+   {
+    "title": "New bench rows (a281138, 86d30f4, 39704fa)",
+    "body": "<p>Two new primary rows: a shared game's first screen on a throttled phone (4× CPU, Fast 4G), and reopening a game against the computer on that phone. Beside the existing rows: a join after a 1.5 s pause (a player who reads the invitation first), and the time until the game's entrance is over.</p>"
+   },
+   {
+    "title": "New checks (95a391d, 3e23722, 5d84114, 5e03ce0)",
+    "body": "<ul><li><code>damage.test</code> now tests the damage box on a box away from the origin, so reading it untransformed fails.</li><li><code>draws.test</code> pins a fingerprint of the move tables that the dead-ending research ran on; a reordered table fails it.</li><li>One short-window height, <code>SHORT_WINDOW_PX</code> (480 px), is now read by all five code copies, and <code>stylesheets.test</code> checks every nearby height query in the CSS against it.</li></ul>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>c43a84b derives each promotion table from its other half (engine and computer): net −8 lines, two hand-kept table pairs to none. Behaviour is unchanged; <code>position.test</code> compares move lists and wire round trips with the engine.</p><p>Code size, base → final (lines, non-test, non-generated): engine 826 → 822, ai 3,138 → 3,134, game 2,190 → 2,190, three 23,041 → 23,045, screens 6,205 → 6,232, hooks 712 → 723, lib 440 → 447, other src 733 → 730, <code>vite.config.ts</code> +2; the app grows by about 40 lines, mostly the preload table and <code>pageReady</code>. Tests +172 lines, bench +178.</p>",
+  "items": []
+ },
+ "rejected": {
+  "intro": "<p>Each result names its A/B report in <code>bench/loop/</code>.</p>",
+  "items": [
+   {
+    "title": "P7 form (a): the same preloads with every file at default priority",
+    "body": "<p>6 pairs (<code>ab-20261021-0649-p7a.md</code>): the phone's first screen ×0.819, called better, but the desktop's first screen of a shared game worse in 6 of 6 pairs (×1.074). The form to retry is one line: drop <code>if(q)l.fetchPriority='low'</code> from <code>preloadScript</code>.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1009-0411:P7",
+       "variant": "the same lists and placement without the canvases' low priority (not kept)",
+       "only": "PRIMARY"
+      },
+      "caption": "Form (a) against fc66e8a, 6 pairs (ab-20261021-0649-p7a.md)."
+     }
+    ]
+   },
+   {
+    "title": "P7 form (c): the lobby's canvas at default priority, only the board's chunks low",
+    "body": "<p>5 pairs (<code>ab-20261021-0649-p7c.md</code>): the phone ×0.832 and the computer's reopen ×0.573 called better, joining's first board picture ×1.008, but the desktop's first screen ×1.120 (4 of 5 pairs worse). Patch: <code>patches/preload-lobby-canvas-default-P7c.patch</code>.</p>"
+   },
+   {
+    "title": "lazyChunk's preload defined through ready",
+    "body": "<p>One line more with no change in behaviour. Dropped before commit.</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "",
+  "items": [
+   {
+    "title": "P7 kept in form (b), the canvases at low priority",
+    "body": "<p>It was the only form with no desktop row worse in every pair. Its cost is joining's first board picture (Needs from me). On a phone opening /new or /computer cold, the lobby's scene may also arrive later; no row measures that yet (ledger 0649:SC1).</p>"
+   },
+   {
+    "title": "P7 and pageReady in one commit",
+    "body": "<p>Both change how a game's address gets its page, and they were measured together on the committed code (<code>ab-20261021-0649-cr1.md</code>). No A/B separates the computer's reopen win between the preload and the wait.</p>"
+   },
+   {
+    "title": "Two new primary rows",
+    "body": "<p>A shared game's first screen on the phone and the computer's reopen on the phone, added beside the existing rows (ledger JB1 and CR1).</p>"
+   },
+   {
+    "title": "Scoreboard rows relabelled",
+    "body": "<p>The 18 rows from <code>ab-20261021-0649-p7.md</code> named <code>4fcf15a</code> but measured an earlier tree (its <code>vite.config.ts</code> alone). Their <code>variant</code> now says so, and the commits table cites cr1 for the committed code. The commit messages of 4fcf15a and c43a84b keep their original figures; c43a84b's line count is corrected in the run record (net −8, not −7).</p>"
+   },
+   {
+    "title": "Review items that do not block the merge went to the ledger",
+    "body": "<p>New rows FB1, SC1, PS1, PT1, UD1, PN1, MA1 and SB1; notes added to UC1, C2 and DM1; PX1's and JB1's unfinished halves put back. One small item was done instead: <code>TOP_LAYOUT</code> now reads <code>SHORT_WINDOW_PX</code> (5e03ce0).</p>"
+   },
+   {
+    "title": "GI1 not tried",
+    "body": "<p>The bench clicks the start page's button the moment it is ready, so neither form of GI1 can move a row until a row clicks after a pause.</p>"
+   }
+  ]
+ },
+ "notConfirmed": {
+  "intro": "",
+  "items": [
+   {
+    "title": "Why the computer's reopen got faster",
+    "body": "<p>The win comes from two parts of 4fcf15a: the computer's page preloaded on /computer, and <code>pageReady</code>, which makes the address wait for its page before the first render. No A/B separates them. The suggested mechanism (on the base, the page suspended under the lobby and React held its reveal) is read from the code, not measured.</p>"
+   },
+   {
+    "title": "The dead-ending fingerprint",
+    "body": "<p><code>deadmates.ts</code> now prints the move tables' fingerprint, but the script was not run (about 13 minutes); it was only bundled. The pinned value matches the tables, which have not changed since the research ran (ledger 0715:DM1).</p>"
+   },
+   {
+    "title": "The causes of the four leans in Needs from me",
+    "body": "<p>Each cause given there is a reading of the code. None was tested with a probe or an A/B of its own.</p>"
+   },
+   {
+    "title": "Mutants not re-run",
+    "body": "<p>The step-4 checks were each shown failing on a broken copy once, during step 4. This stage re-ran only 5e03ce0's mutant.</p>"
+   }
+  ]
+ },
+ "next": {
+  "intro": "<p>The top of the ledger:</p>",
+  "items": [
+   {
+    "title": "0649:FB1 and 0649:SB2: this run's leans",
+    "body": "<p>Settle the joining and computer first-picture leans with more pairs, then try raising the lobby canvas's priority once the page has rendered. Re-check the returning start page's board, and move the preload script after the picture's if it holds.</p>"
+   },
+   {
+    "title": "1951:GI1: fetch the game chunk once the start page is usable",
+    "body": "<p>Needs a bench row that clicks after a pause first; the bench clicks at once.</p>"
+   },
+   {
+    "title": "0649:PS1 and 0649:PT1: guard the preload",
+    "body": "<p>A test that the preload script stays ahead of the stylesheet (where this run's win comes from), and a transitive walk of chunk imports. Worth doing before the vite 8.3.5 bump, which changes chunk preloads.</p>"
+   },
+   {
+    "title": "General run: JB1's creator half, SC1, MA1, UD1, PX1, DM1's rerun, AA2",
+    "body": "<p>Bench rows for the creator's step and the side choice on a phone, small fixes from the review, and the A/A lean on the desktop.</p>"
+   }
+  ]
+ }
+}
