@@ -7,6 +7,7 @@ import { expect, test, vi } from 'vitest';
 import { picturePlacement } from './src/three/landingLens';
 import { parseHeaders } from './bench/preview.config';
 import config, {
+  GAME_SCREEN_PATH,
   KEEP_A_YEAR,
   keepHashedFiles,
   keepSceneOutOfEntry,
@@ -321,4 +322,21 @@ test('the built page preloads the scene on every page the app draws it on, from 
     else expect([address, SCENE_PATH.test(address)]).toEqual([address, true]);
   }
   expect(SCENE_PATH.test('/nope')).toBe(false);
+});
+
+test("the built page preloads the game's page and board on the lobby's pages alone, from App.tsx", () => {
+  const app = readFileSync(resolve(import.meta.dirname, 'src/App.tsx'), 'utf8');
+  // The routes under LobbyLayout: the side choice and the games it goes on to
+  const lobby = app.match(/<Route element={<LobbyLayout \/>}>([\s\S]*?)<\/Route>/)?.[1];
+  expect(lobby).toBeTruthy();
+  const inLobby = new Set([...lobby!.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]));
+  expect(inLobby).toContain('/game/:gameId');
+  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]);
+  for (const route of routes) {
+    for (const address of new Set([
+      route.replace(/:\w+\??/g, 'ABC123'),
+      route.replace(/\/:\w+\?/g, ''),
+    ]))
+      expect([address, GAME_SCREEN_PATH.test(address)]).toEqual([address, inLobby.has(route)]);
+  }
 });

@@ -1651,7 +1651,8 @@ three.js, the scene and the set's precomputed parts, about 330 KB (gzip; the ben
 it at once and shows its title and button without waiting for it; on the side choice
 (`/new`, `/computer`), a game's address (`/game/:id`, `/computer/:id`) and the tutorial
 (`/learn`) the built page preloads it from the start (a
-`modulepreload` added by a small plugin in `vite.config.ts`), so a shared link shows its
+`modulepreload` added by a small plugin in `vite.config.ts`; the game screen and the game's
+board only on the lobby's pages, `GAME_SCREEN_PATH`), so a shared link shows its
 invitation without waiting for three.js, and does not wait for the entry before asking
 for the scene. Should the chunk fail to load (a dropped connection, a deploy that replaced
 it), only the canvas is left out: each is loaded with `lazyChunk` (`src/lib/cachedImport.ts`)
