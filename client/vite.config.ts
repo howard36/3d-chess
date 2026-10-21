@@ -271,6 +271,8 @@ const SHOWN_BEFORE_SCENE = [
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/ComputerGameScreen.tsx',
 ];
+const LOBBY_CANVAS = '/src/screens/lobby/LobbyCanvas.tsx';
+const PIECE_DATA = ['/src/three/pieces/knight.medium.ts', '/src/three/scene/occlusion.medium.ts'];
 export const keepSceneOutOfEntry = (): Plugin => ({
   name: 'keep-scene-out-of-entry',
   apply: 'build',
@@ -314,15 +316,35 @@ export const keepSceneOutOfEntry = (): Plugin => ({
         `keep-scene-out-of-entry: the start page's code and styles are ${bytes} bytes gzipped, ` +
           `over ENTRY_GZIP_BUDGET (${ENTRY_GZIP_BUDGET}): name the cost in the PR and raise it`,
       );
-    for (const page of SHOWN_BEFORE_SCENE) {
-      const chunk = [...chunks.values()].find((c) =>
-        c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(page)),
+    const holding = (module: string) =>
+      [...chunks.values()].find((c) =>
+        c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(module)),
       );
+    for (const page of SHOWN_BEFORE_SCENE) {
+      const chunk = holding(page);
       if (!chunk) this.error(`keep-scene-out-of-entry: no chunk holds ${page}`);
       else if (entry.has(chunk.fileName))
         this.error(`keep-scene-out-of-entry: ${page} is in the entry, not a chunk of its own`);
       else walk(chunk.fileName);
     }
+    // The lobby draws only kings: the rest of the set's precomputed parts
+    // (three/pieces/pieceData.ts) stay out of its canvas's chunk and what that
+    // imports statically, so the side choice never waits for them
+    const lobby = holding(LOBBY_CANVAS);
+    if (!lobby) this.error(`keep-scene-out-of-entry: no chunk holds ${LOBBY_CANVAS}`);
+    const withLobby = new Set<string>();
+    const walkLobby = (file: string) => {
+      const chunk = chunks.get(file);
+      if (!chunk || withLobby.has(file)) return;
+      withLobby.add(file);
+      const data = chunk.moduleIds.find((id) =>
+        PIECE_DATA.some((m) => id.replaceAll('\\', '/').endsWith(m)),
+      );
+      if (data)
+        this.error(`keep-scene-out-of-entry: ${file} loads with the lobby and holds ${data}`);
+      chunk.imports.forEach(walkLobby);
+    };
+    walkLobby(lobby!.fileName);
   },
 });
 

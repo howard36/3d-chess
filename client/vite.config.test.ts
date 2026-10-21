@@ -256,6 +256,13 @@ const sceneGate = (change: (parts: Record<string, Part>) => void = () => {}) => 
       '/node_modules/three/build/three.module.js',
       '/src/ai/search.ts',
     ]),
+    'lobby.js': chunk('lobby.js', ['/src/screens/lobby/LobbyCanvas.tsx'], {
+      imports: ['scene.js'],
+    }),
+    'data.js': chunk('data.js', [
+      '/src/three/pieces/knight.medium.ts',
+      '/src/three/scene/occlusion.medium.ts',
+    ]),
     'index.css': { type: 'asset', fileName: 'index.css', source: 'body{}' },
   };
   change(parts);
@@ -302,6 +309,33 @@ test('the build keeps the scene and the search out of the start page and the pag
       p['game.js'].imports = ['scene.js'];
     }),
   ).toThrow(/scene.js loads before the scene/);
+});
+
+test('the build keeps the set’s precomputed parts out of what the lobby loads', () => {
+  // In the scene's chunk, which the lobby's canvas imports statically
+  expect(() =>
+    sceneGate((p) => {
+      p['scene.js'].moduleIds = [
+        '/node_modules/three/build/three.module.js',
+        'C:\\app\\src\\three\\scene\\occlusion.medium.ts',
+      ];
+    }),
+  ).toThrow(/scene.js loads with the lobby and holds .*occlusion.medium.ts/);
+  // In the lobby canvas's own chunk
+  expect(() =>
+    sceneGate((p) => {
+      p['lobby.js'].moduleIds = [
+        '/src/screens/lobby/LobbyCanvas.tsx',
+        '/src/three/pieces/knight.medium.ts',
+      ];
+    }),
+  ).toThrow(/lobby.js loads with the lobby and holds \/src\/three\/pieces\/knight.medium.ts/);
+  // A bundle with no lobby canvas means the gate checks nothing
+  expect(() =>
+    sceneGate((p) => {
+      delete p['lobby.js'];
+    }),
+  ).toThrow(/no chunk holds \/src\/screens\/lobby\/LobbyCanvas.tsx/);
 });
 
 test('the build fails past the start page’s budget, and on an entry with no styles', () => {
