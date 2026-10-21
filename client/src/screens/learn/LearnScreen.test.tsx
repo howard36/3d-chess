@@ -5,15 +5,21 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import LearnScreen from './LearnScreen';
 import type { LearnCanvasProps } from './LearnCanvas';
 import { toZXY } from '../../engine/coords';
-import { ChunkLoadError } from '../../lib/cachedImport';
+import { ChunkLoadError, reloadPage } from '../../lib/cachedImport';
 
-const canvas = vi.hoisted(() => ({ fails: false }));
+vi.mock('../../lib/cachedImport', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/cachedImport')>()),
+  reloadPage: vi.fn(),
+}));
+
+const canvas = vi.hoisted(() => ({ fails: false as false | 'chunk' | 'webgl' }));
 
 // The board is a WebGL canvas, which jsdom can't provide: a stand-in that
 // shows what it was handed and plays what the player would tap
 vi.mock('./LearnCanvas', () => ({
   default: ({ practice, boardKey, onMove, onChoosePromotion, disabled }: LearnCanvasProps) => {
-    if (canvas.fails) throw new ChunkLoadError(new Error('Failed to fetch'));
+    if (canvas.fails === 'chunk') throw new ChunkLoadError(new Error('Failed to fetch'));
+    if (canvas.fails === 'webgl') throw new Error('Error creating WebGL context.');
     const moves = practice.focus ? practice.board.generateLegalMoves(practice.focus) : [];
     return (
       <div
@@ -263,21 +269,64 @@ test('stands the card beside the tower in a wide window, under it in a narrow on
   vi.unstubAllGlobals();
 });
 
-test('goes without its board, its lessons still there to read', async () => {
-  canvas.fails = true;
+const renderLesson = (path = '/learn/unicorn') =>
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/learn/:lesson?" element={<LearnScreen />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+test('goes without its board, its lessons still there to read, and says so', async () => {
+  canvas.fails = 'chunk';
   vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
-    render(
-      <MemoryRouter initialEntries={['/learn/unicorn']}>
-        <Routes>
-          <Route path="/learn/:lesson?" element={<LearnScreen />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderLesson();
     expect(await screen.findByText('8 lines')).toBeInTheDocument();
-    await vi.waitFor(() => expect(screen.queryByTestId('learn-count')).toBeNull());
+    const notice = await screen.findByTestId('board-failed');
+    expect(notice).toHaveAttribute('role', 'alert');
+    expect(notice).toHaveTextContent("Couldn't load the board");
+    expect(screen.queryByTestId('learn-count')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Queen' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Queen' })).toBeInTheDocument();
+    // A retry that brings it: the board, and the move count back
+    canvas.fails = false;
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByTestId('board')).toBeInTheDocument();
+    expect(screen.queryByTestId('board-failed')).toBeNull();
+    expect(screen.getByTestId('learn-count')).toBeInTheDocument();
+    expect(reloadPage).not.toHaveBeenCalled();
+  } finally {
+    canvas.fails = false;
+    vi.mocked(console.error).mockRestore();
+  }
+});
+
+test('loads the page afresh when a retry of its board fails too', async () => {
+  canvas.fails = 'chunk';
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.mocked(reloadPage).mockClear();
+  try {
+    renderLesson();
+    await screen.findByTestId('board-failed');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
+  } finally {
+    canvas.fails = false;
+    vi.mocked(console.error).mockRestore();
+  }
+});
+
+test('says when there is no WebGL for its board, with nothing to retry', async () => {
+  canvas.fails = 'webgl';
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    renderLesson();
+    expect(await screen.findByTestId('board-failed')).toHaveTextContent(
+      'No 3D board: WebGL is off in this browser',
+    );
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
   } finally {
     canvas.fails = false;
     vi.mocked(console.error).mockRestore();

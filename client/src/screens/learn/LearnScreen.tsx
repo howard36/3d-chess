@@ -1,7 +1,8 @@
 import React from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
-import { lazyChunk } from '../../lib/cachedImport';
+import { lazyChunk, reloadPage } from '../../lib/cachedImport';
 import { ChunkBoundary } from '../../components/ChunkBoundary';
+import type { ChunkFailure } from '../../components/ChunkBoundary';
 import { LESSONS, lessonById, practise, reachable, startPractice } from '../../game/lessons';
 import type { Lesson } from '../../game/lessons';
 import type { Move } from '../../engine';
@@ -87,7 +88,21 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
         ? 'Back to game'
         : 'Play a game';
 
-  const [noBoard, setNoBoard] = React.useState(false);
+  // Why the board did not come (its chunk or the piece data, or no WebGL),
+  // said where the move count stands; each retry mounts a fresh try
+  const [board, setBoard] = React.useState<{ attempt: number; failed: ChunkFailure | null }>({
+    attempt: 0,
+    failed: null,
+  });
+  const boardFailed = (why: ChunkFailure) => {
+    // A retry that fails too: only a fresh page gets the board (as the game's)
+    if (why === 'chunk' && board.attempt > 0) return reloadPage();
+    setBoard((b) => ({ ...b, failed: why }));
+  };
+  const retryBoard = () => {
+    learnCanvas.retry();
+    setBoard((b) => ({ attempt: b.attempt + 1, failed: null }));
+  };
   const beside = useCardBeside();
   const LearnCanvas = learnCanvas.Component;
   const count = reachable(practice);
@@ -95,7 +110,7 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
   return (
     <main className="learn" data-testid="learn" data-card={beside ? 'beside' : 'below'}>
       <div className="learn-stage">
-        <ChunkBoundary canvas onFail={() => setNoBoard(true)}>
+        <ChunkBoundary key={board.attempt} canvas onFail={boardFailed}>
           <React.Suspense fallback={null}>
             <LearnCanvas
               practice={practice}
@@ -168,7 +183,19 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
           </div>
         </div>
         <div className="learn-foot">
-          {!noBoard && practice.focus && (
+          {board.failed && (
+            <p className="learn-count learn-failed" role="alert" data-testid="board-failed">
+              {board.failed === 'webgl'
+                ? 'No 3D board: WebGL is off in this browser'
+                : "Couldn't load the board"}
+            </p>
+          )}
+          {board.failed === 'chunk' && (
+            <button className="button-link learn-again" onClick={retryBoard}>
+              <span className="caps">Retry</span>
+            </button>
+          )}
+          {!board.failed && practice.focus && (
             <p
               className="learn-count"
               data-testid="learn-count"
