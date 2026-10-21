@@ -252,12 +252,13 @@ describe('damage', () => {
   });
 
   it('bounds an object by the part its damageBox says it draws in', () => {
-    // (the last move's shimmer lights a few pulses of a long line: markers.tsx)
+    // (the last move's shimmer lights a few pulses of a long line: markers.tsx;
+    // a box off the origin, so a part read in the scene's space misses it)
     const { boxes, frame } = setUp();
-    const glow = () => ((boxes[1].material as ShaderMaterial).uniforms.uGlow.value += 1);
+    const glow = () => ((boxes[2].material as ShaderMaterial).uniforms.uGlow.value += 1);
     glow();
     const whole = frame() as Rect;
-    boxes[1].userData.damageBox = (out: Box3) =>
+    boxes[2].userData.damageBox = (out: Box3) =>
       out.set(new Vector3(-0.5, 0.25, -0.5), new Vector3(0.5, 0.5, 0.5));
     glow();
     frame();
@@ -266,7 +267,7 @@ describe('damage', () => {
     expect(contains(whole, lit)).toBe(true);
     expect(lit.h).toBeLessThan(whole.h / 2);
     // Lighting nothing, it draws nothing
-    boxes[1].userData.damageBox = () => null;
+    boxes[2].userData.damageBox = () => null;
     glow();
     expect(frame()).toEqual(lit);
     glow();
