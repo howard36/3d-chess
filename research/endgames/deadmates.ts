@@ -9,6 +9,7 @@
 // About 13 minutes on one core; it exits non-zero if a dead ending has a mate.
 //
 // usage (bundled as research/levels/match.ts is): node deadmates.mjs
+import { createHash } from 'node:crypto';
 import { Board } from '../../client/src/engine/board';
 import {
   BISHOP_VECTORS,
@@ -159,4 +160,9 @@ for (let i = 0; i < 20000; i++) {
 }
 console.log(
   `the engine agrees on ${Math.ceil(checked / 50)} of the ${checked} mates (one in fifty) and on 20,000 random dead positions`,
+);
+// The moves checked, as engine/draws.test.ts pins them
+const moves = [N, KING_VECTORS, ROOK_VECTORS, BISHOP_VECTORS, KNIGHT_VECTORS, UNICORN_VECTORS];
+console.log(
+  `moves fingerprint ${createHash('sha256').update(JSON.stringify(moves)).digest('hex').slice(0, 16)}`,
 );
