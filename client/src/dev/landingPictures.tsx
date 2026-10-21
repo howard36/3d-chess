@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../index.css';
 import { LandingPreview } from '../screens/LandingPreview';
+import { loadPieceData } from '../three/pieces/pieceData';
 import { LANDING_PICTURES, PICTURE_FADE } from '../three/landingLens';
 import type { PictureDensity, PictureName } from '../three/landingLens';
 import { PALETTE } from '../three/scene/palette';
@@ -27,10 +28,14 @@ const edge = `${PICTURE_FADE * 100}%`;
 const fade = (to: string) =>
   `linear-gradient(to ${to}, ${NIGHT}, transparent ${edge}, transparent calc(100% - ${edge}), ${NIGHT})`;
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <LandingPreview picture={picture} />
-    <div style={{ position: 'absolute', inset: 0, background: fade('right') }} />
-    <div style={{ position: 'absolute', inset: 0, background: fade('bottom') }} />
-  </React.StrictMode>,
+// (the preview draws the whole set, so the set's data loads first, as the
+// start page's own preview loader does)
+void loadPieceData().then(() =>
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <LandingPreview picture={picture} />
+      <div style={{ position: 'absolute', inset: 0, background: fade('right') }} />
+      <div style={{ position: 'absolute', inset: 0, background: fade('bottom') }} />
+    </React.StrictMode>,
+  ),
 );
