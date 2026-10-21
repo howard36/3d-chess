@@ -1,7 +1,15 @@
+import { createHash } from 'node:crypto';
 import { Board } from './board';
 import { hashAfter, positionHash } from './draws';
 import { fromZXY } from './coords';
-import { PieceType } from './pieces';
+import {
+  BISHOP_VECTORS,
+  KING_VECTORS,
+  KNIGHT_VECTORS,
+  PieceType,
+  ROOK_VECTORS,
+  UNICORN_VECTORS,
+} from './pieces';
 
 /** A seeded generator, so a failure reproduces. */
 const rng = (seed: number) => () => {
@@ -84,4 +92,15 @@ it('counts a promoted pawn as the piece it became', () => {
   expect(hashAfter(positionHash(board, 'white'), board, after, move)).toBe(
     positionHash(after, 'black'),
   );
+});
+
+it('draws only the endings research/endgames/deadmates.ts found dead, for these moves', () => {
+  // insufficientMaterial's endings have no mate on a 5×5×5 board with the
+  // pieces' moves as deadmates.ts last checked every placement of them; it
+  // prints this fingerprint of those moves. Should one change, rerun it
+  // (about 13 minutes, bundled as research/levels/match.ts is) and update the
+  // fingerprint only if it still exits 0
+  const moves = [5, KING_VECTORS, ROOK_VECTORS, BISHOP_VECTORS, KNIGHT_VECTORS, UNICORN_VECTORS];
+  const fingerprint = createHash('sha256').update(JSON.stringify(moves)).digest('hex');
+  expect(fingerprint.slice(0, 16)).toBe('ec1c212fcfad1975');
 });

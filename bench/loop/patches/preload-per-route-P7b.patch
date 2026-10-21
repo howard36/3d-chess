@@ -1,0 +1,527 @@
+From 4fcf15a273653193d98776fcc56ff29498d12877 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 21 Oct 2026 09:02:20 +0000
+Subject: [PATCH] perf(client): a shared game's first screen on a phone 887 ->
+ 719 ms, each page's chunks preloaded per route ahead of the stylesheet
+
+The built page's preload script (vite.config.ts) stood after Vite's
+stylesheet link, so the parser ran it only once the CSS had arrived, a
+round trip late on a phone; and it preloaded one list on every lobby page,
+the tutorial's chunks among them, and the lobby's canvas on /learn. Since
+GS1 a game's address waits for its page's chunk before it first renders,
+so that round trip was the first screen's. Now (ledger 1009-0411:P7):
+- one table, PRELOADS: per address the page's own chunks first, then its
+  canvases (three.js, the scene) at fetchPriority low, so they never hold
+  the page up; no tutorial chunks on the lobby's pages, no lobby canvas on
+  /learn, and ComputerGameScreen on /computer and /computer/:id;
+- the script right after the viewport tag, ahead of the stylesheet;
+- /computer/:id waits for its page before the app first renders, as
+  /game/:id does (pageReady, screens/pageChunk.ts, which main.tsx calls;
+  a part that suspends in the first commit holds it 300 ms).
+
+Evidence: setup A/B vs fc66e8a, 6 pairs (bench/loop/ab-20261021-0649-p7.md;
+scoreboard 1009-0411:P7): "A shared game's page, first screen, phone (4x CPU,
+Fast 4G)" 887 -> 719 ms, x0.812, every pair 0.77-0.83, called better;
+requests 25 -> 23. Desktop first screen x0.924 and first board picture
+x1.004 (median pairs, mixed, not called). The same lists without the low
+priority (ab-20261021-0649-p7a.md) took the phone to x0.819 but made the
+desktop's first screen worse in 6 of 6 pairs (x1.074), so the scene waits.
+Built per path (gzip -9 of the files linked): /game/:id and /new 425.7 ->
+419.9 KB, /learn 403.5 -> 394.4 KB, /computer/:id 425.7 -> 423.9 KB with
+its page now among them; the HTML 3,478 -> 3,564 B gzipped.
+
+Checks: vite.config.test runs the generated script per address on a
+hand-made bundle (fails with the tutorial's chunks back on the lobby's
+pages, the computer's page dropped, or /learn's path broken), checks every
+App.tsx route's row, and that GameScreen.tsx in the entry, or a scene
+chunk under it, fails the build (fails with GameScreen dropped from
+SHOWN_BEFORE_SCENE; ledger 1951:GT1). pageChunk.test fails with the
+/game/ wait removed. Beside them, the _headers test now also expects
+exactly 100 rules to pass (fails with `count >= 100`; ledger 1841:VB1). vitest 1,594 passed; e2e computer, chunkFailure and
+createGame specs pass.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+---
+ ARCHITECTURE.md                         |  14 +--
+ client/src/main.tsx                     |   9 +-
+ client/src/screens/computerGameChunk.ts |   5 +-
+ client/src/screens/gameScreenChunk.ts   |   2 +-
+ client/src/screens/pageChunk.test.ts    |  28 +++++
+ client/src/screens/pageChunk.ts         |  16 +++
+ client/vite.config.test.ts              | 129 ++++++++++++++++++------
+ client/vite.config.ts                   | 106 +++++++++----------
+ 8 files changed, 213 insertions(+), 96 deletions(-)
+ create mode 100644 client/src/screens/pageChunk.test.ts
+ create mode 100644 client/src/screens/pageChunk.ts
+
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 6abed6c..19e95fd 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -1640,9 +1640,10 @@ the shapes change), and `datamodel-code-generator`, pinned exactly, whose update
+ The client's entry (with its CSS, kept under `ENTRY_GZIP_BUDGET` gzipped in `vite.config.ts`:
+ the build fails above it, raised only on purpose) holds the start screen and the side choice.
+ The game screen (the invitation, the HUD, the move record, the review) is a chunk of its own
+-(`screens/gameScreenChunk.ts`): a game's address preloads it from the HTML and waits for it
+-before the app first renders (`main.tsx`), and the side choice asks for it as it shows and
+-goes on to the game only once it is in, so the page never renders empty under the lobby.
++(`screens/gameScreenChunk.ts`), as is a game against the computer: a game's address preloads
++its page from the HTML and waits for it before the app first renders (`pageReady`,
++`screens/pageChunk.ts`), and the side choice asks for it as it shows and goes on to the game
++only once it is in, so the page never renders empty under the lobby.
+ Everything 3D is a chunk the entry loads lazily, shared by the start page's preview
+ (`screens/LandingPreview.tsx`), the lobby's
+ canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
+@@ -1650,9 +1651,10 @@ the tutorial's (`screens/learn/LearnCanvas.tsx`):
+ three.js, the scene and the set's precomputed parts, about 330 KB (gzip; the benchmark report's "Bundle"). The start page asks for
+ it at once and shows its title and button without waiting for it; on the side choice
+ (`/new`, `/computer`), a game's address (`/game/:id`, `/computer/:id`) and the tutorial
+-(`/learn`) the built page preloads it from the start (a
+-`modulepreload` added by a small plugin in `vite.config.ts`; the game screen and the game's
+-board only on the lobby's pages, `GAME_SCREEN_PATH`), so a shared link shows its
++(`/learn`) the built page preloads it from the start, with each page's own chunks (a
++`modulepreload` added by a small script in the head, ahead of the stylesheet, from
++`PRELOADS` in `vite.config.ts`: the game screen and the game's board on the lobby's pages,
++the tutorial's page and board on its own), so a shared link shows its
+ invitation without waiting for three.js, and does not wait for the entry before asking
+ for the scene. Should the chunk fail to load (a dropped connection, a deploy that replaced
+ it), only the canvas is left out: each is loaded with `lazyChunk` (`src/lib/cachedImport.ts`)
+diff --git a/client/src/main.tsx b/client/src/main.tsx
+index 3e0e096..8bbaaf9 100644
+--- a/client/src/main.tsx
++++ b/client/src/main.tsx
+@@ -7,13 +7,10 @@ import '@fontsource/manrope/latin-500.css';
+ import '@fontsource/manrope/latin-600.css';
+ import '@fontsource/manrope/latin-700.css';
+ import './index.css';
+-import { gameScreen } from './screens/gameScreenChunk';
++import { pageReady } from './screens/pageChunk';
+ 
+-// A game's address renders its page in the app's first commit: the page's
+-// chunk (preloaded from the HTML's head alongside the entry) is waited for
+-// first, as a part that suspended would hold its commit for 300 ms
+-const start = /^\/game\//.test(location.pathname) ? gameScreen.ready() : Promise.resolve();
+-void start.then(() =>
++// A game's address renders its page in the app's first commit
++void pageReady(location.pathname).then(() =>
+   ReactDOM.createRoot(document.getElementById('root')!).render(
+     <React.StrictMode>
+       <ErrorBoundary>
+diff --git a/client/src/screens/computerGameChunk.ts b/client/src/screens/computerGameChunk.ts
+index b02bbb2..0cb79d1 100644
+--- a/client/src/screens/computerGameChunk.ts
++++ b/client/src/screens/computerGameChunk.ts
+@@ -2,6 +2,7 @@ import { lazyChunk } from '../lib/cachedImport';
+ 
+ // A game against the computer is a chunk of its own (the stand-in for the
+ // server, the handle on the computer's worker), so the start page's entry
+-// carries none of it. The side choice against the computer asks for it as
+-// soon as it shows; App renders it (ComputerGameRoute).
++// carries none of it. Its address waits for it before the app first renders
++// (pageReady), the side choice against the computer asks for it as soon as it
++// shows; App renders it (ComputerGameRoute).
+ export const computerGame = lazyChunk(() => import('./ComputerGameScreen'));
+diff --git a/client/src/screens/gameScreenChunk.ts b/client/src/screens/gameScreenChunk.ts
+index a3380a1..e3cc85c 100644
+--- a/client/src/screens/gameScreenChunk.ts
++++ b/client/src/screens/gameScreenChunk.ts
+@@ -2,6 +2,6 @@ import { lazyChunk } from '../lib/cachedImport';
+ 
+ // A game's page (its HUD, its move record, the review) is a chunk of its own,
+ // so the start page's entry carries none of it. A game's address waits for it
+-// before the app first renders (main.tsx), the side choice asks for it as soon
++// before the app first renders (pageReady), the side choice asks for it as soon
+ // as it shows, and a game against the computer imports it with its own chunk.
+ export const gameScreen = lazyChunk(() => import('./GameScreen'));
+diff --git a/client/src/screens/pageChunk.test.ts b/client/src/screens/pageChunk.test.ts
+new file mode 100644
+index 0000000..bb1ff68
+--- /dev/null
++++ b/client/src/screens/pageChunk.test.ts
+@@ -0,0 +1,28 @@
++import { beforeEach, expect, test, vi } from 'vitest';
++import { pageReady } from './pageChunk';
++
++// Each page's chunk, as a promise of its own to tell which one is waited for
++const { game, computer } = vi.hoisted(() => ({
++  game: Promise.resolve(),
++  computer: Promise.resolve(),
++}));
++vi.mock('./gameScreenChunk', () => ({ gameScreen: { ready: vi.fn(() => game) } }));
++vi.mock('./computerGameChunk', () => ({ computerGame: { ready: vi.fn(() => computer) } }));
++
++beforeEach(() => vi.clearAllMocks());
++
++test("a game's address waits for its page's chunk before the app first renders", () => {
++  expect(pageReady('/game/ABC123')).toBe(game);
++  expect(pageReady('/computer/abc123')).toBe(computer);
++});
++
++test('any other address renders at once, asking for no chunk', async () => {
++  const { gameScreen } = await import('./gameScreenChunk');
++  const { computerGame } = await import('./computerGameChunk');
++  for (const path of ['/', '/new', '/computer', '/learn', '/learn/rook', '/game/', '/nope']) {
++    const ready = pageReady(path);
++    expect([path, ready === game || ready === computer]).toEqual([path, false]);
++  }
++  expect(gameScreen.ready).not.toHaveBeenCalled();
++  expect(computerGame.ready).not.toHaveBeenCalled();
++});
+diff --git a/client/src/screens/pageChunk.ts b/client/src/screens/pageChunk.ts
+new file mode 100644
+index 0000000..b91c11d
+--- /dev/null
++++ b/client/src/screens/pageChunk.ts
+@@ -0,0 +1,16 @@
++import { matchPath } from 'react-router';
++import { gameScreen } from './gameScreenChunk';
++import { computerGame } from './computerGameChunk';
++
++/**
++ * What the app's first render at `path` waits for: the page's own chunk,
++ * where its route renders one (App.tsx), preloaded from the HTML's head
++ * alongside the entry (vite.config.ts, PRELOADS), as a part that suspended in
++ * the first commit would hold it for 300 ms.
++ */
++export const pageReady = (path: string): Promise<void> =>
++  matchPath('/game/:gameId', path)
++    ? gameScreen.ready()
++    : matchPath('/computer/:gameId', path)
++      ? computerGame.ready()
++      : Promise.resolve();
+diff --git a/client/vite.config.test.ts b/client/vite.config.test.ts
+index a485820..c5a861b 100644
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -7,14 +7,14 @@ import { expect, test, vi } from 'vitest';
+ import { picturePlacement } from './src/three/landingLens';
+ import { parseHeaders } from './bench/preview.config';
+ import config, {
+-  GAME_SCREEN_PATH,
+   KEEP_A_YEAR,
+   keepHashedFiles,
+   keepSceneOutOfEntry,
+   landingVersion,
+   placeLandingPictureEarly,
++  PRELOADS,
+   preloadLandingPictureOnStartPage,
+-  SCENE_PATH,
++  preloadScript,
+   versionLandingPictures,
+ } from './vite.config';
+ 
+@@ -219,11 +219,12 @@ test('the build fails on a file under assets/ with no hash in its name', () => {
+   expect(() => keepFiles(['assets/a-B2x9_kQe.js', 'assets/b.js'])).toThrow(/assets\/b.js/);
+ });
+ 
+-test('the build fails past the host’s 100 rules', () => {
++test('the build fails past the host’s 100 rules, and not at them', () => {
+   // (one past the limit, with the host's own rules: public/_headers)
+   const own = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8')).length;
+   const many = Array.from({ length: 101 - own }, (_, i) => `assets/c${i}-B2x9_kQe.js`);
+   expect(() => keepFiles(many)).toThrow(/101 rules/);
++  expect(() => keepFiles(many.slice(1))).not.toThrow();
+ });
+ 
+ // The gate that keeps three.js, r3f, the scene and the search out of the
+@@ -289,6 +290,17 @@ test('the build keeps the scene and the search out of the start page and the pag
+       p['index.js'].moduleIds = ['/src/main.tsx', '/src/screens/learn/LearnScreen.tsx'];
+     }),
+   ).toThrow(/LearnScreen.tsx is in the entry/);
++  // Nor the game's page, nor what it imports statically
++  expect(() =>
++    sceneGate((p) => {
++      p['index.js'].moduleIds = ['/src/main.tsx', '/src/screens/GameScreen.tsx'];
++    }),
++  ).toThrow(/GameScreen.tsx is in the entry/);
++  expect(() =>
++    sceneGate((p) => {
++      p['game.js'].imports = ['scene.js'];
++    }),
++  ).toThrow(/scene.js loads before the scene/);
+ });
+ 
+ test('the build fails past the start page’s budget, and on an entry with no styles', () => {
+@@ -306,37 +318,96 @@ test('the build fails past the start page’s budget, and on an entry with no st
+   ).toThrow(/imports no CSS/);
+ });
+ 
+-test('the built page preloads the scene on every page the app draws it on, from App.tsx', () => {
+-  const app = readFileSync(resolve(import.meta.dirname, 'src/App.tsx'), 'utf8');
+-  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]);
+-  expect(routes).toContain('/game/:gameId');
+-  // Each route's address, its parameters filled in (and left out where optional)
+-  const addresses = routes.flatMap((r) => [
+-    r.replace(/:\w+\??/g, 'ABC123'),
+-    r.replace(/\/:\w+\?/g, ''),
+-  ]);
+-  for (const address of new Set(addresses)) {
+-    // The start page loads the scene itself; any other address is no page's
+-    if (address === '/' || address === '*')
+-      expect([address, SCENE_PATH.test(address)]).toEqual([address, false]);
+-    else expect([address, SCENE_PATH.test(address)]).toEqual([address, true]);
+-  }
+-  expect(SCENE_PATH.test('/nope')).toBe(false);
+-});
+-
+-test("the built page preloads the game's page and board on the lobby's pages alone, from App.tsx", () => {
++/** Each of App.tsx's routes, with its address (parameters filled in, and left out where optional) and the element it renders. */
++const appRoutes = () => {
+   const app = readFileSync(resolve(import.meta.dirname, 'src/App.tsx'), 'utf8');
+   // The routes under LobbyLayout: the side choice and the games it goes on to
+   const lobby = app.match(/<Route element={<LobbyLayout \/>}>([\s\S]*?)<\/Route>/)?.[1];
+   expect(lobby).toBeTruthy();
+   const inLobby = new Set([...lobby!.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]));
+   expect(inLobby).toContain('/game/:gameId');
+-  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]);
+-  for (const route of routes) {
+-    for (const address of new Set([
+-      route.replace(/:\w+\??/g, 'ABC123'),
+-      route.replace(/\/:\w+\?/g, ''),
+-    ]))
+-      expect([address, GAME_SCREEN_PATH.test(address)]).toEqual([address, inLobby.has(route)]);
++  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"\s+element={<(\w+)/g)];
++  expect(routes.length).toBeGreaterThan(5);
++  return routes.flatMap(([, route, element]) =>
++    [...new Set([route.replace(/:\w+\??/g, 'ABC123'), route.replace(/\/:\w+\?/g, '')])].map(
++      (address) => ({ route, address, element, lobby: inLobby.has(route) }),
++    ),
++  );
++};
++const preloadsOf = (address: string) => {
++  const row = PRELOADS.find(([path]) => path.test(address));
++  return row && [...row[1], ...row[2]];
++};
++
++test('the built page preloads what each page the app draws the scene on needs, from App.tsx', () => {
++  for (const { address, element, lobby } of appRoutes()) {
++    const modules = preloadsOf(address);
++    // The start page loads the scene itself; any other address is no page's
++    if (address === '/' || address === '*') expect([address, modules]).toEqual([address, undefined]);
++    // The lobby's pages: the game's page, the lobby's canvas and the game's
++    // board (and a game against the computer's own page); the tutorial's,
++    // its page and board
++    else if (lobby)
++      expect([address, modules]).toEqual([
++        address,
++        expect.arrayContaining(['GameScreen.tsx', 'lobby/LobbyCanvas.tsx', 'GameCanvas.tsx']),
++      ]);
++    else
++      expect([address, modules]).toEqual([
++        address,
++        ['learn/LearnScreen.tsx', 'learn/LearnCanvas.tsx'],
++      ]);
++    // A page from a chunk of its own has it preloaded
++    if (element === 'ComputerGameRoute') expect(modules).toContain('ComputerGameScreen.tsx');
+   }
++  expect(preloadsOf('/nope')).toBeUndefined();
++});
++
++test('the preload script links, on each page, what its chunks need beyond the entry', () => {
++  const chunk = (fileName: string, ids: string[], imports: string[] = [], isEntry = false) => ({
++    fileName,
++    moduleIds: ids.map((id) => `/app/src/screens/${id}`),
++    imports,
++    isEntry,
++  });
++  const chunks = [
++    chunk('index.js', ['../main.tsx'], ['shared.js'], true),
++    chunk('shared.js', ['../lib/focus.ts']),
++    chunk('game.js', ['GameScreen.tsx'], ['shared.js', 'history.js']),
++    chunk('history.js', ['../game/history.ts']),
++    chunk('computer.js', ['ComputerGameScreen.tsx'], ['game.js']),
++    chunk('lobby.js', ['lobby/LobbyCanvas.tsx'], ['three.js']),
++    chunk('board.js', ['GameCanvas.tsx'], ['three.js', 'history.js']),
++    chunk('learn.js', ['learn/LearnScreen.tsx'], ['shared.js']),
++    chunk('learnBoard.js', ['learn/LearnCanvas.tsx'], ['three.js']),
++    chunk('three.js', ['../../node_modules/three/build/three.module.js']),
++  ];
++  const script = preloadScript(chunks);
++  /** The files linked at `pathname`, a low priority one marked so. */
++  const linked = (pathname: string) => {
++    const links: { rel: string; href: string; fetchPriority?: string }[] = [];
++    const document = {
++      createElement: () => ({}),
++      head: { appendChild: (l: (typeof links)[number]) => links.push(l) },
++    };
++    new Function('location', 'document', script)({ pathname }, document);
++    expect(links.every((l) => l.rel === 'modulepreload')).toBe(true);
++    return links.map((l) => (l.fetchPriority === 'low' ? `${l.href} (low)` : l.href));
++  };
++  const lobby = ['/lobby.js (low)', '/three.js (low)', '/board.js (low)'];
++  const game = ['/game.js', '/history.js', ...lobby];
++  expect(linked('/game/ABC123')).toEqual(game);
++  expect(linked('/new')).toEqual(game);
++  const computer = ['/computer.js', '/game.js', '/history.js', ...lobby];
++  expect(linked('/computer')).toEqual(computer);
++  expect(linked('/computer/abc123')).toEqual(computer);
++  const learn = ['/learn.js', '/learnBoard.js (low)', '/three.js (low)'];
++  expect(linked('/learn')).toEqual(learn);
++  expect(linked('/learn/rook')).toEqual(learn);
++  expect(linked('/')).toEqual([]);
++  expect(linked('/nope')).toEqual([]);
++  // A page whose chunk the build does not have fails the build
++  expect(() => preloadScript(chunks.filter((c) => c.fileName !== 'learn.js'))).toThrow(
++    /no chunk holds learn\/LearnScreen.tsx/,
++  );
+ });
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index 3f29d3b..3c667fa 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -108,67 +108,69 @@ export const placeLandingPictureEarly = (): Plugin => ({
+   },
+ });
+ 
+-/** The pages that draw the scene, but for the start page (which loads it itself). */
+-export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
+-/** Of those, the lobby's: the pages that show a game's screen, or go on to it. */
+-export const GAME_SCREEN_PATH = /^\/(game\/|new$|computer(\/|$))/;
+-
+ /**
+- * three.js, the scene and the set's precomputed parts load in a chunk of
+- * their own, the one the lobby's canvas (LobbyCanvas.tsx), the game's board
+- * (GameCanvas.tsx), the tutorial's board (LearnCanvas.tsx) and the landing
+- * page's preview share. On the side choice (/new, /computer), a game's
+- * address (/game/:id, /computer/:id) and the tutorial (/learn, whose own page
+- * is a chunk too, LearnScreen.tsx) the page needs it at once, so the
+- * built page starts fetching it (and the chunks it imports) alongside the
+- * entry, instead of after the entry has loaded and run; the start page leaves
+- * it for later. The game's page (GameScreen.tsx, a chunk of its own) and
+- * board (GameCanvas.tsx, which imports chunks of the page's) are preloaded
+- * on the lobby's pages alone. The build fails if a chunk is not found,
+- * rather than quietly shipping a page without the preload.
++ * What each page needs at once, by address (App.tsx's routes, but for the
++ * start page, which loads the scene itself): its own chunks, which the built
++ * page starts fetching (with the chunks they import) alongside the entry,
++ * instead of after the entry has loaded and run. First the page itself (a
++ * game's address waits for it before it first renders: pageReady), then, at
++ * low priority so they never hold it up, its canvases: three.js, the scene
++ * and the set's precomputed parts load in a chunk of their own, the one the
++ * lobby's canvas (LobbyCanvas.tsx), the game's board (GameCanvas.tsx), the
++ * tutorial's board (LearnCanvas.tsx) and the start page's preview share. The
++ * lobby's pages are the side choice (/new, /computer) and the games it goes on
++ * to. The build fails if a chunk is not found, rather than quietly shipping a
++ * page without the preload.
+  */
+-const GAME_ONLY = ['/src/screens/GameScreen.tsx', '/src/screens/GameCanvas.tsx'];
+-const PRELOADED = [
+-  GAME_ONLY[0],
+-  '/src/screens/lobby/LobbyCanvas.tsx',
+-  GAME_ONLY[1],
+-  '/src/screens/learn/LearnScreen.tsx',
+-  '/src/screens/learn/LearnCanvas.tsx',
++const LOBBY_CANVASES = ['lobby/LobbyCanvas.tsx', 'GameCanvas.tsx'];
++export const PRELOADS: [path: RegExp, page: string[], canvases: string[]][] = [
++  [/^\/(game\/|new$)/, ['GameScreen.tsx'], LOBBY_CANVASES],
++  [/^\/computer(\/|$)/, ['ComputerGameScreen.tsx', 'GameScreen.tsx'], LOBBY_CANVASES],
++  [/^\/learn(\/|$)/, ['learn/LearnScreen.tsx'], ['learn/LearnCanvas.tsx']],
+ ];
++type Chunk = { fileName: string; imports: string[]; moduleIds: string[]; isEntry: boolean };
++/** The preload script for the built page's head, from its bundle's chunks. */
++export const preloadScript = (chunks: Chunk[]) => {
++  // The chunk that holds a module (not always its facade: a dynamic
++  // entry can share its chunk)
++  const from = (file: string) => {
++    const chunk = chunks.find((c) =>
++      c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(`/src/screens/${file}`)),
++    );
++    if (!chunk) throw new Error(`preload-scene-on-game-pages: no chunk holds ${file}`);
++    return chunk;
++  };
++  // Each, and what it imports, less the entry and the chunks it imports
++  // (loading anyway: the page links those itself)
++  const entry = chunks.find((c) => c.isEntry);
++  const loading = new Set(entry ? [entry.fileName, ...entry.imports] : []);
++  const files = (modules: string[]) =>
++    [...new Set(modules.map(from).flatMap((c) => [c.fileName, ...c.imports]))].filter(
++      (f) => !loading.has(f),
++    );
++  const table = PRELOADS.map(([path, page, canvases]) => {
++    const first = files(page);
++    const later = files(canvases).filter((f) => !first.includes(f));
++    return `[${path},${JSON.stringify(first)},${JSON.stringify(later)}]`;
++  });
++  const preload = `(f,q)=>{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';if(q)l.fetchPriority='low';l.href='/'+f;document.head.appendChild(l)}`;
++  return `{const a=location.pathname,p=${preload},m=[${table.join(',')}].find(([r])=>r.test(a));if(m){m[1].forEach(f=>p(f));m[2].forEach(f=>p(f,1))}}`;
++};
+ const preloadSceneOnGamePages = (): Plugin => ({
+   name: 'preload-scene-on-game-pages',
+   apply: 'build',
+   transformIndexHtml: {
+     order: 'post',
+-    handler(_html, ctx) {
++    handler(html, ctx) {
+       const chunks = Object.values(ctx.bundle ?? {}).filter((c) => c.type === 'chunk');
+-      // The chunk that holds a module (not always its facade: a dynamic
+-      // entry can share its chunk)
+-      const from = (file: string) => {
+-        const chunk = chunks.find((c) =>
+-          c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(file)),
+-        );
+-        if (!chunk) throw new Error(`preload-scene-on-game-pages: no chunk holds ${file}`);
+-        return chunk;
+-      };
+-      // Each, and what it imports, less the entry and the chunks it imports
+-      // (loading anyway: the page links those itself)
+-      const entry = chunks.find((c) => c.isEntry);
+-      const loading = new Set(entry ? [entry.fileName, ...entry.imports] : []);
+-      const files = (modules: string[]) =>
+-        [...new Set(modules.map(from).flatMap((c) => [c.fileName, ...c.imports]))].filter(
+-          (f) => !loading.has(f),
+-        );
+-      const lobby = JSON.stringify(files(PRELOADED));
+-      const learn = JSON.stringify(files(PRELOADED.filter((m) => !GAME_ONLY.includes(m))));
+-      const preload = `f=>{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';l.href='/'+f;document.head.appendChild(l)}`;
+-      return [
+-        {
+-          tag: 'script',
+-          injectTo: 'head',
+-          children: `{const p=${preload},a=location.pathname;if(${GAME_SCREEN_PATH}.test(a))${lobby}.forEach(p);else if(${SCENE_PATH}.test(a))${learn}.forEach(p)}`,
+-        },
+-      ];
++      // After the viewport's tag, ahead of the stylesheet: an inline script
++      // waits for a stylesheet before it, and the preload scanner cannot see
++      // the links a script makes
++      const viewport = /<meta name="viewport"[^>]*>/i;
++      if (!viewport.test(html))
++        throw new Error('preload-scene-on-game-pages: index.html has no <meta name="viewport">');
++      const script = `<script>${preloadScript(chunks)}</script>`;
++      return html.replace(viewport, (tag) => `${tag}\n    ${script}`);
+     },
+   },
+ });
+-- 
+2.43.0
+
+From 23c1de04c474914f5a89a1fe47879939c4e12490 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 21 Oct 2026 09:39:40 +0000
+Subject: [PATCH] style(client): vite.config.test formatted
+
+4fcf15a's test file, as prettier writes it (npm run lint failed on it).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+---
+ client/vite.config.test.ts | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/client/vite.config.test.ts b/client/vite.config.test.ts
+index c5a861b..3c13d8c 100644
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -343,7 +343,8 @@ test('the built page preloads what each page the app draws the scene on needs, f
+   for (const { address, element, lobby } of appRoutes()) {
+     const modules = preloadsOf(address);
+     // The start page loads the scene itself; any other address is no page's
+-    if (address === '/' || address === '*') expect([address, modules]).toEqual([address, undefined]);
++    if (address === '/' || address === '*')
++      expect([address, modules]).toEqual([address, undefined]);
+     // The lobby's pages: the game's page, the lobby's canvas and the game's
+     // board (and a game against the computer's own page); the tutorial's,
+     // its page and board
+-- 
+2.43.0
+

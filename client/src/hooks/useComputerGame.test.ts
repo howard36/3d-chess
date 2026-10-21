@@ -25,7 +25,7 @@ const reply = (from: string, to: string): ComputerMove => ({
  */
 const scripted = (
   answers: (ComputerMove | null | 'fail' | 'unloaded')[],
-  scores: (number | 'fail')[] = [],
+  scores: (number | 'fail' | 'unloaded')[] = [],
 ) => {
   const asked: number[] = [];
   const assessed: number[] = [];
@@ -41,6 +41,7 @@ const scripted = (
     assess: (records) => {
       assessed.push(records.length);
       const s = scores.shift() ?? 0;
+      if (s === 'unloaded') return Promise.reject(new ChunkLoadError(new Error('Failed to fetch')));
       return s === 'fail' ? Promise.reject(new Error('no')) : Promise.resolve(s);
     },
     analyse: () => Promise.reject(new Error('not asked in a game')),
@@ -164,6 +165,26 @@ it('makes no move when its code did not load, and says so', async () => {
   // (and nothing played for it: the game waits for the reload)
   expect(loadComputerGame('g2')!.moves).toEqual([]);
   expect(error).toHaveBeenCalledOnce();
+  error.mockRestore();
+});
+
+it('answers no draw offer when its code did not load, and says so', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  newGame('white');
+  const ai = scripted([], ['unloaded']);
+  const { result } = renderHook(() => useComputerGame('g1', options(ai.computer)));
+  await waitFor(() => expect(result.current.messages).toHaveLength(2));
+  act(() => {
+    result.current.send({ type: 'offer_draw' });
+  });
+  await waitFor(() => expect(result.current.messages).toHaveLength(4));
+  // Not a decline it never weighed up: the notice a missing search gives
+  expect(result.current.messages[3]).toEqual({
+    type: 'error',
+    code: 'invalid_message',
+    message: COMPUTER_UNLOADED,
+  });
+  expect(result.current.messages.some((m) => m.type === 'draw_declined')).toBe(false);
   error.mockRestore();
 });
 

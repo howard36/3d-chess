@@ -275,11 +275,14 @@ export const BackdropCache = ({
       show(mode);
       scissor(renderer, camera, mode);
     };
-    // A lost context loses the copy
+    // A lost context loses the copy, and the passes a frame had left: three.js
+    // draws nothing then, so the pacer's loop ends with one still pending
     const canvas = gl.domElement;
     const lost = () => {
       state.valid = false;
       state.last = [];
+      state.continuing = false;
+      state.pending = [];
       forgetDamage(state.damage);
     };
     canvas.addEventListener('webglcontextlost', lost);

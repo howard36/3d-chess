@@ -10,6 +10,8 @@
 // let a window in where the gap would be smaller (hudLayout.test.ts holds
 // them to the fit). index.css spells the same queries out.
 
+import { SHORT_WINDOW_PX } from '../lib/shortWindow';
+
 /**
  * The windows with room beside the tower, as pairs of the narrowest shape
  * (width / height) and the narrowest width, CSS px, any one of which lets a
@@ -28,4 +30,4 @@ export const ROOM_BESIDE =
   '((min-aspect-ratio: 3/2) and (min-width: 1200px)) or ((min-aspect-ratio: 4/3) and (min-width: 1460px))';
 
 /** The top layout: a window of some height without room beside the tower. */
-export const TOP_LAYOUT = `(min-height: 481px) and (not (${ROOM_BESIDE}))`;
+export const TOP_LAYOUT = `(min-height: ${SHORT_WINDOW_PX + 1}px) and (not (${ROOM_BESIDE}))`;

@@ -16,14 +16,6 @@ export interface Piece {
 }
 
 // Wire-format promotion letters (schema: "Q" | "R" | "B" | "N" | "U")
-export const PIECE_TO_PROMOTION: Partial<Record<PieceType, Promotion>> = {
-  [PieceType.Queen]: 'Q',
-  [PieceType.Rook]: 'R',
-  [PieceType.Bishop]: 'B',
-  [PieceType.Knight]: 'N',
-  [PieceType.Unicorn]: 'U',
-};
-
 export const PROMOTION_TO_PIECE: Record<Promotion, PieceType> = {
   Q: PieceType.Queen,
   R: PieceType.Rook,
@@ -31,6 +23,10 @@ export const PROMOTION_TO_PIECE: Record<Promotion, PieceType> = {
   N: PieceType.Knight,
   U: PieceType.Unicorn,
 };
+
+export const PIECE_TO_PROMOTION = Object.fromEntries(
+  Object.entries(PROMOTION_TO_PIECE).map(([letter, piece]) => [piece, letter]),
+) as Partial<Record<PieceType, Promotion>>;
 
 /** A pawn's five capture directions, as [dx, dy, dz] for a pawn moving in `dir`
  * (+1 White, -1 Black; the engine's, the computer's board's and kpk.ts's). */

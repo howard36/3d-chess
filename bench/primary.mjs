@@ -81,6 +81,13 @@ export const PRIMARY = [
     what: 'Joining: Join button shown',
   },
   {
+    moment: 'A shared game’s page, first screen, phone (4× CPU, Fast 4G)',
+    tier: 'browser',
+    section: 'setup',
+    where: 'Game setup',
+    what: 'Joining on a phone (4× CPU, Fast 4G): Join button shown',
+  },
+  {
     moment: 'First board picture, joining a game',
     tier: 'browser',
     section: 'setup',
@@ -100,6 +107,13 @@ export const PRIMARY = [
     section: 'reopen',
     where: 'Reopening a long game',
     what: 'move record shown · 2000 plies',
+  },
+  {
+    moment: 'Reopening a game against the computer, phone (4× CPU, Fast 4G)',
+    tier: 'browser',
+    section: 'setup',
+    where: 'Game setup',
+    what: 'Reopening a game against the computer on a phone (4× CPU, Fast 4G): turn shown',
   },
   {
     moment: 'A finished game’s review, every mark in',

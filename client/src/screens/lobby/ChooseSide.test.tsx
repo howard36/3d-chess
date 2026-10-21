@@ -11,11 +11,15 @@ import { getStoredRole } from '../../lib/playerRole';
 import { isArriving } from '../../lib/computerGames';
 import { fakeSocket } from '../testSupport';
 
-// The game's page is a chunk of its own; the side choice goes on only once
-// it is here (gameScreen.ready), which a test can hold back
+// The game's page is a chunk of its own, as is a game against the computer;
+// the side choice goes on only once it is here (ready), which a test can
+// hold back
 let chunkHere: Promise<void> = Promise.resolve();
 vi.mock('../gameScreenChunk', () => ({
   gameScreen: { preload: () => {}, ready: () => chunkHere },
+}));
+vi.mock('../computerGameChunk', () => ({
+  computerGame: { preload: () => {}, ready: () => chunkHere },
 }));
 
 // The lobby's stage (a WebGL canvas) is LobbyLayout's; here the page runs
@@ -223,6 +227,21 @@ describe('choosing a side', () => {
 
     await act(async () => arrive());
     expect(await screen.findByText('game page ABC123 by REPLACE')).toBeInTheDocument();
+  });
+
+  it("stays where the player went, should they leave before the game's page arrives", async () => {
+    let arrive = () => {};
+    chunkHere = new Promise((resolve) => (arrive = resolve));
+    const send = vi.fn(() => true);
+    const { rerender } = render(at(fakeSocket([], send)));
+    await userEvent.click(black());
+    rerender(at(fakeSocket([created('black')], send)));
+    settle();
+    await userEvent.click(screen.getByRole('button', { name: /Home/ }));
+    expect(screen.getByText('home')).toBeInTheDocument();
+    await act(async () => arrive());
+    expect(screen.getByText('home')).toBeInTheDocument();
+    expect(screen.queryByText(/^game page/)).toBeNull();
   });
 
   it('waits for the answer when the moment is over first, and says so', async () => {
@@ -457,6 +476,31 @@ describe('against the computer', () => {
     settle();
     expect(screen.getByRole('heading', { name: 'Choose difficulty' })).toBeInTheDocument();
     expect(view).toMatchObject({ beat: 'invited', mine: 'black', toss: null });
+  });
+
+  it("waits for the game's page to arrive before going on to it", async () => {
+    let arrive = () => {};
+    chunkHere = new Promise((resolve) => (arrive = resolve));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('reduce'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
+    try {
+      render(computerAt(fakeSocket()));
+      await userEvent.click(black());
+      settle();
+      await userEvent.click(level('Hard'));
+      await act(async () => {});
+      expect(screen.queryByText(/^game page/)).toBeNull();
+      await act(async () => arrive());
+      expect(await screen.findByText(/^game page [a-z0-9]+ by REPLACE$/)).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('moves on at once, for a player who asked for less motion', async () => {

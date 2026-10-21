@@ -1,0 +1,211 @@
+{
+ "title": "Perf run 20261021-0649",
+ "eyebrow": "3D chess · perf-iteration · run 20261021-0649 · general run",
+ "heading": "Faster preloads parked as a trade-off; three silent failures fixed, two phone rows and four checks added",
+ "meta": "<p>This general run measured a change to how each page preloads its code (P7): every address starts downloading its own page first and its 3D scene at low priority, from a script placed ahead of the stylesheet. On a throttled phone it opened a shared game's first screen in 720 ms instead of 878 ms, and reopened a game against the computer in 819 ms instead of 1.40 s. It also made the first board picture lean slower when joining a game or playing the computer. That trades one moment the project names for another, so the change is not in the PR: it waits as a patch for your call (Needs from me). The PR keeps three fixes for silent failures, two new primary bench rows, four checks and one removal. The work is on branch <code>improve/20261021-0649</code> from base <code>fc66e8a</code>; main did not move during the run. Every figure is from software rendering (SwiftShader) on a 4-vCPU VM, and each names the commits it compares.</p>",
+ "needs": {
+  "intro": "<p>The first item is a decision. The PR does not wait on it. The others are information.</p>",
+  "items": [
+   {
+    "title": "Decision: land the per-route preloads (P7, form b)?",
+    "body": "<p>The patch is <code>bench/loop/patches/preload-per-route-P7b.patch</code> (run 0649's 4fcf15a and 23c1de0; apply with <code>git am</code>). It was measured inside this run's final commit <code>3d771f7</code> against <code>fc66e8a</code>, 10 pairs (<code>ab-20261021-0649-final.md</code>):</p><ul><li>Gains, called better: a shared game's first screen on the phone, 878 → 720 ms (×0.820, pairs 0.79–0.85); reopening a game against the computer on the phone, 1.40 s → 819 ms (×0.584, pairs 0.57–0.70).</li><li>Costs, not called but leaning: joining's first board picture, ×1.055 with 5 of 5 pairs worse on the committed code (<code>ab-20261021-0649-cr1.md</code>), ×1.014 in the final, ×1.03 at the median over 21 pairs in three A/Bs; the computer's first board picture ×1.040, 8 of 10 worse; the returning phone's start-page board ×1.075, 8 of 10 worse (it was ×1.013 and ×1.000 in two earlier A/Bs). No row measures opening the side choice cold on a phone, where the lobby's scene may also come later.</li></ul><p>The cause is the canvases' low priority: it lets the page's own chunks arrive first, and makes the 3D scene arrive later. The two forms with the lobby's canvas at normal priority made the desktop's first screen worse in most pairs (Tried and rejected).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 3d771f7 (app = 5e03ce0) vs fc66e8a, --primary, 10 pairs",
+       "only": "^Game setup · Joining"
+      },
+      "caption": "Joining rows, 3d771f7 against fc66e8a, 10 pairs (ab-20261021-0649-final.md)."
+     }
+    ],
+    "recommend": "Let the next speed run try to remove the lean first (ledger 0649:FB1: raise the canvas's priority once the page has rendered; then SC1's row for the side choice). If that fails, I recommend taking form (b) as it is: the phone gain is 158 ms on a shared link's first screen against about 25 ms at the median on an instant join."
+   },
+   {
+    "title": "Information: no A/B has measured this PR's final commit",
+    "body": "<p>The final A/B measured the branch with P7 included and called nothing worse. With P7 taken out (<code>c4aa112</code>), the app keeps a8b824c, d32eb64, ae92139, c43a84b, 5d84114 and 5e03ce0: fixes, checks and refactors, none aimed at speed. A cold-load A/B takes over an hour here, longer than this stage had. The next run's step 2 (this PR's squash against <code>fc66e8a</code>) is their regression check.</p>",
+    "recommend": "No decision needed."
+   },
+   {
+    "title": "Information: the target (every primary row 1.2× faster) is not met",
+    "body": "<p>This was a general run, and the PR's changes do not aim at a primary row. The two rows that met the target belong to the parked P7.</p>",
+    "recommend": "No decision needed."
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The primary rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Each bar is a row's change, head divided by base, and each dot is one pair; left of 1× is faster. The dashed line is the target, 1.2× faster than the base.</p>",
+  "items": [
+   {
+    "title": "The branch with P7 against the base: all 18 primary rows",
+    "body": "<p><code>3d771f7</code> (app code as at <code>5e03ce0</code>, P7 included) against <code>fc66e8a</code>, 10 pairs, 79 minutes (<code>ab-20261021-0649-final.md</code>). This is not the PR's final commit: P7 was taken out after it (<code>c4aa112</code>), and no A/B has measured the commit without it. Overall ×1.040 across the 18 rows. Two rows are called better, both P7's: a shared game's first screen on the phone, 878 → 720 ms (×0.820), and reopening a game against the computer on the phone, 1.40 s → 819 ms (×0.584). No row is called worse. Memory is flat.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 3d771f7 (app = 5e03ce0) vs fc66e8a, --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "3d771f7 (app = 5e03ce0) against fc66e8a, 10 pairs, every primary row (ab-20261021-0649-final.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "Step 2: the base against the last run's base",
+    "body": "<p><code>fc66e8a</code> against <code>8260314</code>, 10 pairs (<code>ab-20261021-0649-regress.md</code>). Nothing regressed. The start page's phone row held the last run's gain (686 → 642 ms, ×0.934, called better).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regress: fc66e8a vs 8260314 (app = 4bdeb55), --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "fc66e8a against 8260314, 10 pairs (ab-20261021-0649-regress.md)."
+     }
+    ]
+   },
+   {
+    "title": "The long view: not re-measured this run",
+    "body": "<p>No A/B compared this branch with the first recorded run's base <code>92ce041</code>; a full primary A/B takes about 80 minutes here and the budget was spent. The latest such A/B is run 20261018-1719's, charted below.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: 8a3e922 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "8a3e922 against 92ce041, 3 pairs (run 20261018-1719)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>App and bench changes kept in the PR, each its own commit, plus run-record commits. Every figure names the A/B report it comes from, in <code>bench/loop/</code>.</p>",
+  "items": [
+   {
+    "title": "The computer's side choice waits for its game's page (a8b824c)",
+    "body": "<p>Choosing a side against the computer went to <code>/computer/:id</code> before that page's chunk had arrived. The page then suspended under the lobby, against the lobby's rule that a page under it shows from its first render. It now waits for the chunk, as the online side choice does. A new <code>ChooseSide.test</code> case fails on the base and passes here.</p>"
+   },
+   {
+    "title": "The first frame after a lost WebGL context is drawn whole (d32eb64)",
+    "body": "<p>When the browser lost and restored the GPU context in the middle of a two-pass frame, the next frame drew one stale part over an invalid copy of the garden. The lost-context handler now clears that state. A new <code>backdropCache.test</code> case fails on the base and passes here.</p>"
+   },
+   {
+    "title": "A computer whose search did not load says so when offered a draw (ae92139)",
+    "body": "<p>If the search code failed to download (an old page after a deploy, or offline), a draw offer was declined silently. The player now sees the same reload notice they see on the computer's turn. A new <code>useComputerGame.test</code> case fails on the base and passes here.</p>"
+   },
+   {
+    "title": "New bench rows (a281138, 86d30f4, 39704fa)",
+    "body": "<p>Two new primary rows: a shared game's first screen on a throttled phone (4× CPU, Fast 4G), and reopening a game against the computer on that phone. Beside the existing rows: a join after a 1.5 s pause (a player who reads the invitation first), and the time until the game's entrance is over.</p><p>The reopen row's first A/B showed P7's win (×0.574, <code>ab-20261021-0649-cr1.md</code>); the row stays, the win waits with P7.</p>"
+   },
+   {
+    "title": "New checks (95a391d, 3e23722, 5d84114, 5e03ce0)",
+    "body": "<ul><li><code>damage.test</code> now tests the damage box on a box away from the origin, so reading it untransformed fails.</li><li><code>draws.test</code> pins a fingerprint of the move tables that the dead-ending research ran on; a reordered table fails it.</li><li>One short-window height, <code>SHORT_WINDOW_PX</code> (480 px), is now read by all five code copies, and <code>stylesheets.test</code> checks every nearby height query in the CSS against it.</li></ul>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>c43a84b derives each promotion table from its other half (engine and computer): net −8 lines (engine 4 added, 8 removed; ai 3 added, 7 removed), two hand-kept table pairs to none. Cyclomatic complexity (ESLint's <code>complexity</code>, every function): engine/pieces.ts 13 → 14 and ai/position.ts 313 → 314, one one-line callback each; the largest function in each file is unchanged. The cost is two <code>Object.fromEntries</code> calls over 5 entries at module load, too small to measure, and an <code>as</code> cast on each derived table. The cast hides no check: each derived table is built from its other half, which TypeScript still checks, and the two can no longer disagree. Behaviour is unchanged; <code>position.test</code> compares move lists and wire round trips with the engine.</p><p>P7's revert (<code>c4aa112</code>) leaves <code>vite.config.ts</code>, its test, <code>main.tsx</code> and the screens' chunk files as on <code>fc66e8a</code>.</p>",
+  "items": []
+ },
+ "rejected": {
+  "intro": "<p>Each result names its A/B report in <code>bench/loop/</code>.</p>",
+  "items": [
+   {
+    "title": "P7 form (b), parked: the canvases at low priority",
+    "body": "<p>Measured and committed (4fcf15a), then taken out at the grading step (<code>c4aa112</code>) because it trades a game page's first screen for the first board frame. Its evidence and its patch are under Needs from me and in ledger 1009-0411:P7.</p>"
+   },
+   {
+    "title": "P7 form (a): the same preloads with every file at default priority",
+    "body": "<p>6 pairs (<code>ab-20261021-0649-p7a.md</code>): the phone's first screen ×0.819, called better, but the desktop's first screen of a shared game worse in 6 of 6 pairs (×1.074). The form to retry is one line: drop <code>if(q)l.fetchPriority='low'</code> from <code>preloadScript</code>.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1009-0411:P7",
+       "variant": "the same lists and placement without the canvases' low priority (not kept)",
+       "only": "PRIMARY"
+      },
+      "caption": "Form (a) against fc66e8a, 6 pairs (ab-20261021-0649-p7a.md)."
+     }
+    ]
+   },
+   {
+    "title": "P7 form (c): the lobby's canvas at default priority, only the board's chunks low",
+    "body": "<p>5 pairs (<code>ab-20261021-0649-p7c.md</code>): the phone ×0.832 and the computer's reopen ×0.573 called better, joining's first board picture ×1.008, but the desktop's first screen ×1.120 (4 of 5 pairs worse). Patch: <code>patches/preload-lobby-canvas-default-P7c.patch</code>.</p>"
+   },
+   {
+    "title": "lazyChunk's preload defined through ready",
+    "body": "<p>One line more with no change in behaviour. Dropped before commit.</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "",
+  "items": [
+   {
+    "title": "P7 out of the PR, whole",
+    "body": "<p>Its phone gain and its first-board-picture lean both come from the canvases' low priority. Splitting off the parts without a lean (pageReady, GT1's checks, VB1) would need its own A/B and checks, more than this stage's hour. They wait in the patch.</p>"
+   },
+   {
+    "title": "c43a84b kept",
+    "body": "<p>−8 lines and no duplicated tables outweigh +1 complexity per file and two casts.</p>"
+   },
+   {
+    "title": "Two new primary rows",
+    "body": "<p>A shared game's first screen on the phone and the computer's reopen on the phone, added beside the existing rows (ledger JB1 and CR1).</p>"
+   },
+   {
+    "title": "Scoreboard rows relabelled",
+    "body": "<p>The 18 rows from <code>ab-20261021-0649-p7.md</code> named <code>4fcf15a</code> but measured an earlier tree (its <code>vite.config.ts</code> alone). Their <code>variant</code> now says so, and the commits table cites cr1 for the committed code. The commit messages of 4fcf15a and c43a84b keep their original figures; c43a84b's line count is corrected in the run record (net −8, not −7).</p>"
+   },
+   {
+    "title": "Review items that do not block the merge went to the ledger",
+    "body": "<p>New rows FB1, SC1, PS1, PT1, UD1, PN1, MA1 and SB1; notes added to UC1, C2 and DM1; PX1's and JB1's unfinished halves put back. One small item was done instead: <code>TOP_LAYOUT</code> now reads <code>SHORT_WINDOW_PX</code> (5e03ce0).</p>"
+   },
+   {
+    "title": "GI1 not tried",
+    "body": "<p>The bench clicks the start page's button the moment it is ready, so neither form of GI1 can move a row until a row clicks after a pause.</p>"
+   }
+  ]
+ },
+ "notConfirmed": {
+  "intro": "",
+  "items": [
+   {
+    "title": "Why the computer's reopen got faster under P7",
+    "body": "<p>The win comes from two parts of the parked P7: the computer's page preloaded on /computer, and <code>pageReady</code>, which makes the address wait for its page before the first render. No A/B separates them. The suggested mechanism (on the base, the page suspended under the lobby and React held its reveal) is read from the code, not measured.</p>"
+   },
+   {
+    "title": "The dead-ending fingerprint",
+    "body": "<p><code>deadmates.ts</code> now prints the move tables' fingerprint, but the script was not run (about 13 minutes); it was only bundled. The pinned value matches the tables, which have not changed since the research ran (ledger 0715:DM1).</p>"
+   },
+   {
+    "title": "The causes of P7's leans",
+    "body": "<p>Each cause given under Needs from me is a reading of the code. None was tested with a probe or an A/B of its own.</p>"
+   },
+   {
+    "title": "Mutants not re-run",
+    "body": "<p>The step-4 checks were each shown failing on a broken copy once, during step 4. This stage re-ran only 5e03ce0's mutant.</p>"
+   }
+  ]
+ },
+ "next": {
+  "intro": "<p>The top of the ledger:</p>",
+  "items": [
+   {
+    "title": "1009-0411:P7 with 0649:FB1, SC1 and SB2",
+    "body": "<p>Land the parked preloads without their lean: settle the joining and computer first-picture leans with more pairs, add a row for opening the side choice cold on a phone, then try raising the lobby canvas's priority once the page has rendered. Re-check the returning start page's board.</p>"
+   },
+   {
+    "title": "1951:GI1: fetch the game chunk once the start page is usable",
+    "body": "<p>Needs a bench row that clicks after a pause first; the bench clicks at once.</p>"
+   },
+   {
+    "title": "0649:PS1 and 0649:PT1: guard the preload",
+    "body": "<p>With P7: a test that the preload script stays ahead of the stylesheet (where P7's win comes from), and a transitive walk of chunk imports. Worth doing before the vite 8.3.5 bump, which changes chunk preloads.</p>"
+   },
+   {
+    "title": "General run: JB1's creator half, SC1, MA1, UD1, PX1, DM1's rerun, AA2",
+    "body": "<p>Bench rows for the creator's step and the side choice on a phone, small fixes from the review, and the A/A lean on the desktop.</p>"
+   }
+  ]
+ }
+}

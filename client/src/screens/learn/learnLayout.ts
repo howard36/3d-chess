@@ -4,11 +4,10 @@
 // wide window the card stands at the left of the tower, and in a short one
 // (a phone on its side) too, so the tower takes the whole height under Home.
 
+import { SHORT_WINDOW_PX } from '../../lib/shortWindow';
+
 /** CSS px at the top kept for Home (index.css, .lobby-top, where the lobby has it: 14 px, the 32 px link, 10 px). */
 export const LEARN_TOP_PX = 56;
-
-/** A window this tall or less is short: the card stands beside the tower, compact. */
-const LEARN_SHORT_PX = 480;
 
 /**
  * Whether the card stands beside the tower (.learn[data-card='beside']): in
@@ -19,7 +18,7 @@ const LEARN_SHORT_PX = 480;
  * below), as the fit frames it.
  */
 export const cardBeside = (width: number, height: number): boolean =>
-  height <= LEARN_SHORT_PX || width / 2 - 0.42 * (height - LEARN_TOP_PX) >= 320;
+  height <= SHORT_WINDOW_PX || width / 2 - 0.42 * (height - LEARN_TOP_PX) >= 320;
 
 export const learnTop = (): number => LEARN_TOP_PX;
 
@@ -47,7 +46,7 @@ export const learnGutter = (width: number): number => Math.min(Math.max(0.06 * w
  * None where the card spans the bottom.
  */
 export const learnLeft = (width: number, height: number): number =>
-  height <= LEARN_SHORT_PX
+  height <= SHORT_WINDOW_PX
     ? 12 + 252 + 12
     : cardBeside(width, height)
       ? learnGutter(width) + 300 + 12

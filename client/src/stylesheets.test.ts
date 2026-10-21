@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { rimColour } from './screens/rim';
+import { SHORT_WINDOW_PX } from './lib/shortWindow';
 import { LEVEL_COLORS, PALETTE } from './three/scene/palette';
 
 // (vitest runs from client/)
@@ -180,4 +181,23 @@ test('the stylesheets’ night is the sky’s, and no stylesheet spells it out a
   expect(html.match(/name="theme-color" content="([^"]+)"/)?.[1].toLowerCase()).toBe(
     PALETTE.skyTop.toLowerCase(),
   );
+});
+
+// A short window (a phone on its side) is one breakpoint, which the layout
+// code reads too (SHORT_WINDOW_PX: the menu's bands, the camera's fit, the
+// tutorial's card): a media query near it that names another height is one
+// of the two moved without the other
+test("the stylesheets' short-window queries stand where the code's SHORT_WINDOW_PX does", () => {
+  const queries = sources(SRC)
+    .filter((f) => f.endsWith('.css'))
+    .flatMap((f) => readFileSync(f, 'utf8').match(/@media[^{]*/g) ?? []);
+  const heights = queries.flatMap((q) =>
+    [...q.matchAll(/(max|min)-height:\s*(\d+)px/g)].map(
+      ([, side, px]) => [side, Number(px)] as const,
+    ),
+  );
+  const near = heights.filter(([, px]) => Math.abs(px - SHORT_WINDOW_PX) <= 10);
+  expect(near.length).toBeGreaterThan(5);
+  for (const [side, px] of near)
+    expect([side, px]).toEqual([side, side === 'max' ? SHORT_WINDOW_PX : SHORT_WINDOW_PX + 1]);
 });

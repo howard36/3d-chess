@@ -4,6 +4,7 @@ import { towerRects, waitForIntro } from './helpers/board';
 import { closeResult } from './helpers/game';
 import type { ScreenRect } from './helpers/board';
 import { openStandInGame } from './helpers/standIn';
+import { SHORT_WINDOW_PX } from '../src/lib/shortWindow';
 
 // The turn pill holds its words in every state, at every window size, from
 // both seats: its content never runs past its rim. The pieces each side has
@@ -215,7 +216,11 @@ async function problemsAt(page: Page, width: number, height: number) {
   for (const h of hauls) {
     if (h.left < 0 || h.right > width) problems.push(`${h.what} run out of the window`);
     // Under the pill, except in a short window (beside the tower, at the left)
-    if (pill && height > 480 && (h.left < pill.left - 0.5 || h.right > pill.right + 0.5)) {
+    if (
+      pill &&
+      height > SHORT_WINDOW_PX &&
+      (h.left < pill.left - 0.5 || h.right > pill.right + 0.5)
+    ) {
       problems.push(`${h.what} run past the pill`);
     }
   }

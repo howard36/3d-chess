@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
-import { Color, PerspectiveCamera, ShaderMaterial, Vector2 } from 'three';
-import type { Material, Mesh, Object3D, Scene, WebGLRenderer } from 'three';
+import {
+  Color,
+  Mesh,
+  MeshBasicMaterial,
+  PerspectiveCamera,
+  ShaderMaterial,
+  SphereGeometry,
+  Vector2,
+} from 'three';
+import type { Material, Object3D, Scene, WebGLRenderer } from 'three';
 import { BACKDROP_END, BackdropCache, backdropSignature } from './backdropCache';
 import { Stage } from './stage';
 import { LAYER } from './layers';
@@ -260,7 +268,11 @@ describe('a frame drawn in part', () => {
     };
     const piece = scene.getObjectByName('piece')!;
     const far = scene.getObjectByName('far')!;
-    return { frame, piece, far };
+    const nextPass = () => (scene.userData.nextPass as () => boolean)();
+    const canvas = (
+      r.scene.instance as unknown as { __r3f?: { root?: { getState(): { gl: WebGLRenderer } } } }
+    ).__r3f!.root!.getState().gl.domElement;
+    return { frame, piece, far, nextPass, canvas, scene };
   };
 
   it('draws whole until the garden comes from its copy, then only what changed', async () => {
@@ -292,6 +304,28 @@ describe('a frame drawn in part', () => {
     expect(frame(false).hidden).toEqual(['piece', 'far']);
     piece.position.x = 0.5;
     expect(frame().hidden).toEqual(['far']);
+  });
+
+  it('draws whole the first frame after a lost context, whatever passes were left', async () => {
+    const { frame, piece, far, nextPass, canvas, scene } = await mountPartial(1);
+    // Something heavy between them, which one pass round both would draw
+    const heavy = new Mesh(new SphereGeometry(0.5, 128, 64), new MeshBasicMaterial());
+    heavy.position.x = -2;
+    scene.add(heavy);
+    frame();
+    frame();
+    frame();
+    frame();
+    // Both boxes move, far apart: a frame of two passes
+    piece.position.x = 2;
+    far.position.x = -6;
+    expect(frame().scissor).not.toBeNull();
+    expect(nextPass()).toBe(true);
+    // The context goes before the second pass is drawn (three.js then renders
+    // nothing, so the pass is never begun), and comes back
+    canvas.dispatchEvent(new Event('webglcontextlost'));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(frame()).toMatchObject({ mode: 'plain', scissor: null });
   });
 
   it('sets its scissor in CSS pixels, whatever the pixel ratio', async () => {

@@ -1,0 +1,21 @@
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index 3c667fa..2a47060 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -122,10 +122,13 @@ export const placeLandingPictureEarly = (): Plugin => ({
+  * to. The build fails if a chunk is not found, rather than quietly shipping a
+  * page without the preload.
+  */
+-const LOBBY_CANVASES = ['lobby/LobbyCanvas.tsx', 'GameCanvas.tsx'];
+ export const PRELOADS: [path: RegExp, page: string[], canvases: string[]][] = [
+-  [/^\/(game\/|new$)/, ['GameScreen.tsx'], LOBBY_CANVASES],
+-  [/^\/computer(\/|$)/, ['ComputerGameScreen.tsx', 'GameScreen.tsx'], LOBBY_CANVASES],
++  [/^\/(game\/|new$)/, ['GameScreen.tsx', 'lobby/LobbyCanvas.tsx'], ['GameCanvas.tsx']],
++  [
++    /^\/computer(\/|$)/,
++    ['ComputerGameScreen.tsx', 'GameScreen.tsx', 'lobby/LobbyCanvas.tsx'],
++    ['GameCanvas.tsx'],
++  ],
+   [/^\/learn(\/|$)/, ['learn/LearnScreen.tsx'], ['learn/LearnCanvas.tsx']],
+ ];
+ type Chunk = { fileName: string; imports: string[]; moduleIds: string[]; isEntry: boolean };

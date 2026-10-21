@@ -301,13 +301,6 @@ const pawnMove = (
   return n;
 };
 
-const PROMO_LETTER: Record<number, Promotion> = {
-  [QUEEN]: 'Q',
-  [ROOK]: 'R',
-  [BISHOP]: 'B',
-  [KNIGHT]: 'N',
-  [UNICORN]: 'U',
-};
 const LETTER_PROMO: Record<Promotion, number> = {
   Q: QUEEN,
   R: ROOK,
@@ -315,6 +308,9 @@ const LETTER_PROMO: Record<Promotion, number> = {
   N: KNIGHT,
   U: UNICORN,
 };
+const PROMO_LETTER = Object.fromEntries(
+  Object.entries(LETTER_PROMO).map(([letter, code]) => [code, letter]),
+) as Record<number, Promotion>;
 
 // --- Hashing -----------------------------------------------------------------
 
