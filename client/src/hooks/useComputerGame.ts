@@ -41,6 +41,13 @@ interface ComputerGameSocket extends GameSocket {
  * server's refusal is, standing until the page is reloaded (the game is kept).
  */
 export const COMPUTER_UNLOADED = 'The computer couldn’t load. Reload the page to play on.';
+const unloaded = (game: ComputerGame, cause: ChunkLoadError): Answer => {
+  console.error('The computer’s search did not load; it waits for a reload.', cause);
+  return {
+    game,
+    replies: [{ type: 'error', code: 'invalid_message', message: COMPUTER_UNLOADED }],
+  };
+};
 
 /** The computer answers a draw offer after a beat, as a person would, never at once. */
 const DRAW_ANSWER_MS = 900;
@@ -167,14 +174,7 @@ export function useComputerGame(
       // Its code is missing (an old page after a deploy, or offline): a move
       // of no thought, every turn, would pass for its play. It waits, and says why
       if (cause instanceof ChunkLoadError) {
-        if (!live || gameRef.current !== game) return;
-        console.error('The computer’s search did not load; it waits for a reload.', cause);
-        const error: WebSocketMessage = {
-          type: 'error',
-          code: 'invalid_message',
-          message: COMPUTER_UNLOADED,
-        };
-        apply({ game, replies: [error] });
+        if (live && gameRef.current === game) apply(unloaded(game, cause));
         return;
       }
       // The game goes on, with a move of no thought at all: say why
@@ -218,12 +218,7 @@ export function useComputerGame(
       // Its code is missing: it cannot weigh the offer up, and says why, as
       // when it is to move (above), rather than seem to have declined it
       if (cause instanceof ChunkLoadError) {
-        if (!live || gameRef.current !== game) return;
-        console.error('The computer’s search did not load; it waits for a reload.', cause);
-        apply({
-          game,
-          replies: [{ type: 'error', code: 'invalid_message', message: COMPUTER_UNLOADED }],
-        });
+        if (live && gameRef.current === game) apply(unloaded(game, cause));
         return;
       }
       console.error('The computer could not weigh the position up; it declines.', cause);
