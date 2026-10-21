@@ -107,7 +107,16 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
 
   React.useEffect(() => {
     if (created) setStoredRole(created.gameId, created.color);
-    if (created && settled) navigate(`/game/${created.gameId}`, { replace: true });
+    if (!created || !settled) return;
+    // Once the game's page is here, so it shows from its first render (a
+    // page under the lobby that suspended would take its canvas down)
+    let live = true;
+    void gameScreen.ready().then(() => {
+      if (live) navigate(`/game/${created.gameId}`, { replace: true });
+    });
+    return () => {
+      live = false;
+    };
   }, [created, settled, navigate]);
   React.useEffect(() => {
     if (!computerGameId || !gone) return;

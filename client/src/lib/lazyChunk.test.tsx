@@ -31,3 +31,21 @@ it('shows the fallback while the chunk is on its way, then the chunk', async () 
   expect(screen.getByText('waiting')).toBeInTheDocument();
   expect(await screen.findByText('canvas')).toBeInTheDocument();
 });
+
+it('is ready once the chunk is in, and the page then renders it in its own commit', async () => {
+  const chunk = lazyChunk(() => Promise.resolve({ default: () => <p>game</p> }));
+  await chunk.ready();
+  const { Component } = chunk;
+  render(
+    <Suspense fallback={fallback}>
+      <Component />
+    </Suspense>,
+  );
+  expect(screen.getByText('game')).toBeInTheDocument();
+  expect(screen.queryByText('waiting')).toBeNull();
+});
+
+it('is ready when the chunk fails to load too, so a page waiting on it goes on', async () => {
+  const chunk = lazyChunk<() => null>(() => Promise.reject(new Error('offline')));
+  await expect(chunk.ready()).resolves.toBeUndefined();
+});

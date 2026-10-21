@@ -1641,8 +1641,10 @@ The client's entry (with its CSS, kept under `ENTRY_GZIP_BUDGET` gzipped in `vit
 the build fails above it, raised only on purpose) holds the start screen and the side choice.
 The game screen (the invitation, the HUD, the move record, the review) is a chunk of its own
 (`screens/gameScreenChunk.ts`): a game's address preloads it from the HTML and waits for it
-before the app first renders (`main.tsx`), and the side choice asks for it as it shows. Everything 3D is a chunk the entry loads
-lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
+before the app first renders (`main.tsx`), and the side choice asks for it as it shows and
+goes on to the game only once it is in, so the page never renders empty under the lobby.
+Everything 3D is a chunk the entry loads lazily, shared by the start page's preview
+(`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
 the tutorial's (`screens/learn/LearnCanvas.tsx`):
 three.js, the scene and the set's precomputed parts, about 330 KB (gzip; the benchmark report's "Bundle"). The start page asks for
