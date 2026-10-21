@@ -73,14 +73,15 @@ describe('preloadBakedSet', () => {
     vi.unstubAllGlobals();
   });
 
-  it('builds the set one piece per task, on timers where there is no idle callback (Safari, iOS)', () => {
+  it('builds the set one piece per task, on timers where there is no idle callback (Safari, iOS)', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('requestIdleCallback', undefined);
     const timer = vi.spyOn(window, 'setTimeout');
     preloadBakedSet();
-    // One task per piece, each asking for the next, and the last finding none
-    for (let i = 0; i < 20 && vi.getTimerCount() > 0; i++) vi.runOnlyPendingTimers();
-    expect(timer).toHaveBeenCalledTimes(Object.values(PieceType).length + 1);
+    // One task per piece, each asking for the next, and the last finding
+    // none: the king's, then the others' once their data is in
+    for (let i = 0; i < 20 && vi.getTimerCount() > 0; i++) await vi.runOnlyPendingTimersAsync();
+    expect(timer).toHaveBeenCalledTimes(Object.values(PieceType).length + 2);
   });
 
   it('uses the idle callback where there is one', () => {

@@ -3,8 +3,8 @@ import { PieceType } from '../../engine/pieces';
 import { cutSlot } from './cut';
 import type { KnightGeometry } from './knight';
 import { decodeKnight } from './knightData';
-import { KNIGHT_MEDIUM } from './knight.medium';
 import { flatPolygon, gridSurface, mergeShells } from './mesh';
+import { pieceData } from './pieceData';
 import type { Vec3 } from './mesh';
 import { arc, corner, revolve, sampleProfile } from './profile';
 import type { Profile, ProfileNode, RevolveOptions } from './profile';
@@ -852,9 +852,10 @@ let shared: PieceSet | null = null;
 
 /**
  * The set the game draws: medium, its knight from the meshes shipped
- * precomputed, byte for byte (knight.medium.ts), built on first use and
+ * precomputed, byte for byte (knight.medium.ts, which must have loaded:
+ * loadPieceData), built on first use and
  * shared by every piece: never dispose or edit these geometries (clone
  * first). The other qualities, and a knight sculpted afresh: sculpted.ts.
  */
 export const pieceSet = (): PieceSet =>
-  (shared ??= buildPieceSet('medium', () => decodeKnight(KNIGHT_MEDIUM)));
+  (shared ??= buildPieceSet('medium', () => decodeKnight(pieceData().knight)));

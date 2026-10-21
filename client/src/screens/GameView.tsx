@@ -29,12 +29,15 @@ import { House } from './House';
 import type { GameActionsProps } from './GameActions';
 import { learnScreen } from './learn/learnChunk';
 import type { LearnState } from './learn/learnBack';
+import { loadPieceData } from '../three/pieces/pieceData';
 
 // The 3D board (three.js, the scene, the entrance's director) is a chunk of
 // its own, the one the lobby's canvas loads too, asked for as soon as this
 // view loads: the HUD and the move record show without waiting for it, and
 // stay should it fail to load
-const gameCanvas = lazyChunk(() => import('./GameCanvas'));
+const gameCanvas = lazyChunk(() =>
+  Promise.all([import('./GameCanvas'), loadPieceData()]).then(([m]) => m),
+);
 gameCanvas.preload();
 
 /** The board's moves while it shows an earlier position (it takes none, should one come). */

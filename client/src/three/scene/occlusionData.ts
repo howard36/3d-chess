@@ -9,18 +9,22 @@ import { fromStoredText, toStoredText } from '../pieces/bytes';
 
 /** Per piece type, each present part's vertex count (PIECE_PARTS order); then the bytes. */
 export interface OcclusionData {
-  counts: Record<PieceType, number[]>;
+  counts: Partial<Record<PieceType, number[]>>;
   base64: string;
 }
 
 const TYPES = Object.values(PieceType);
 
-export const encodeOcclusion = (occlusion: Record<PieceType, Float32Array[]>): OcclusionData => {
-  const counts = {} as Record<PieceType, number[]>;
-  const all = TYPES.flatMap((type) => occlusion[type]);
+/** The types' occlusion as one OcclusionData (every type's, unless `types` names some). */
+export const encodeOcclusion = (
+  occlusion: Partial<Record<PieceType, Float32Array[]>>,
+  types: PieceType[] = TYPES,
+): OcclusionData => {
+  const counts: OcclusionData['counts'] = {};
+  const all = types.flatMap((type) => occlusion[type]!);
   const bytes = new Uint8Array(all.reduce((n, ao) => n + ao.byteLength, 0));
   let at = 0;
-  for (const type of TYPES) counts[type] = occlusion[type].map((ao) => ao.length);
+  for (const type of types) counts[type] = occlusion[type]!.map((ao) => ao.length);
   for (const ao of all) {
     bytes.set(new Uint8Array(ao.buffer, ao.byteOffset, ao.byteLength), at);
     at += ao.byteLength;
@@ -28,15 +32,16 @@ export const encodeOcclusion = (occlusion: Record<PieceType, Float32Array[]>): O
   return { counts, base64: toStoredText(bytes) };
 };
 
-/** Each type's parts' occlusion, decoded (each part's values in a buffer of its own). */
+/** Each stored type's parts' occlusion, decoded (each part's values in a buffer of its own). */
 export const decodeOcclusion = ({
   counts,
   base64,
-}: OcclusionData): Record<PieceType, Float32Array[]> => {
+}: OcclusionData): Partial<Record<PieceType, Float32Array[]>> => {
   const bytes = fromStoredText(base64);
-  const out = {} as Record<PieceType, Float32Array[]>;
+  const out: Partial<Record<PieceType, Float32Array[]>> = {};
   let at = 0;
   for (const type of TYPES) {
+    if (!counts[type]) continue;
     out[type] = counts[type].map((n) => {
       const ao = new Float32Array(bytes.buffer.slice(at, at + n * 4));
       at += n * 4;

@@ -1027,8 +1027,13 @@ knight is not sculpted in the browser: its head, mane and eyes (a few hundred
 milliseconds of sculpting and decimating) ship precomputed, byte for byte, in
 `pieces/knight.medium.ts`. The gallery, the benches and the tests reach the other
 qualities through `sculptedPieceSet('low' | 'medium' | 'high')` (`pieces/sculpted.ts`),
-which sculpts their knights; the game's build holds none of that code. The medium set's baked occlusion (below) ships the same way, in
-`scene/occlusion.medium.ts`. After changing a piece's shape (anything in `three/pieces/`,
+which sculpts their knights; the game's build holds none of that code. The medium set's baked occlusion (below) ships the same way: the
+king's in `scene/occlusion.king.ts`, the rest in `scene/occlusion.medium.ts`. The knight
+and the rest's occlusion (about 90 KB gzip) are a chunk of their own that only a dynamic
+import reaches (`pieces/pieceData.ts`), so the lobby, which draws only kings, never waits
+for them; whatever draws the other pieces loads it beside its own chunk
+(`loadPieceData()`, in the loaders of the game's board, the tutorial's and the start
+page's preview), and `pieceData()` throws if a piece is built before it has. After changing a piece's shape (anything in `three/pieces/`,
 or the bake in `scene/occlusion.ts`), run `npm run bake:pieces` in `client/`;
 `knightData.test.ts` and `occlusionData.test.ts` fail while either file is stale, and
 `golden.test.ts` pins the medium and low sets' geometry by hash (the medium set as built
@@ -1648,7 +1653,7 @@ Everything 3D is a chunk the entry loads lazily, shared by the start page's prev
 (`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
 the tutorial's (`screens/learn/LearnCanvas.tsx`):
-three.js, the scene and the set's precomputed parts, about 330 KB (gzip; the benchmark report's "Bundle"). The start page asks for
+three.js, the scene and the king's precomputed occlusion, about 265 KB (gzip; the benchmark report's "Bundle"; the set's other precomputed parts follow in a chunk of their own, above). The start page asks for
 it at once and shows its title and button without waiting for it; on the side choice
 (`/new`, `/computer`), a game's address (`/game/:id`, `/computer/:id`) and the tutorial
 (`/learn`) the built page preloads it from the start, with each page's own chunks (a

@@ -13,10 +13,13 @@ import { cardBeside } from './learnLayout';
 import { backToGame } from './learnBack';
 import './learn.css';
 import { autoFocusRef } from '../../lib/focus';
+import { loadPieceData } from '../../three/pieces/pieceData';
 
 // The board (three.js, the scene) is a chunk of its own, the one the game's
 // board loads: the menu and the lesson's words show without waiting for it
-const learnCanvas = lazyChunk(() => import('./LearnCanvas'));
+const learnCanvas = lazyChunk(() =>
+  Promise.all([import('./LearnCanvas'), loadPieceData()]).then(([m]) => m),
+);
 learnCanvas.preload();
 
 /** The address of a lesson. */

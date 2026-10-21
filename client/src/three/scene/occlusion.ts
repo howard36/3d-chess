@@ -4,7 +4,8 @@ import { PieceType } from '../../engine/pieces';
 import { PIECE_PARTS, partsGeometry, pieceSet } from '../pieces';
 import type { PiecePart, PieceParts, PieceSet } from '../pieces';
 import { decodeOcclusion } from './occlusionData';
-import { OCCLUSION_MEDIUM } from './occlusion.medium';
+import { loadPieceData, pieceData } from '../pieces/pieceData';
+import { OCCLUSION_KING } from './occlusion.king';
 
 // The game's copy of the Staunton set: the same shapes, with two
 // numbers baked into every vertex's uv, so one small shader can paint and
@@ -239,13 +240,17 @@ export const occlusionOfPiece = (parts: PieceParts): Float32Array[] => {
   return present.map((part) => occlusionOf(parts[part]!, solid));
 };
 
-// The medium set's occlusion, precomputed (occlusion.medium.ts), decoded on first use
-let stored: Record<PieceType, Float32Array[]> | null = null;
+// The medium set's occlusion, precomputed, decoded on first use: the king's
+// (occlusion.king.ts), and the rest's, which must have loaded (pieceData.ts)
+let king: Float32Array[] | null = null;
+let rest: Partial<Record<PieceType, Float32Array[]>> | null = null;
 
 /** The stored occlusion for a piece, if made for parts of these sizes. */
 const storedOcclusion = (type: PieceType, parts: BufferGeometry[]): Float32Array[] | null => {
-  stored ??= decodeOcclusion(OCCLUSION_MEDIUM);
-  const ao = stored[type];
+  const ao =
+    type === PieceType.King
+      ? (king ??= decodeOcclusion(OCCLUSION_KING).King!)
+      : (rest ??= decodeOcclusion(pieceData().occlusion))[type]!;
   const fits =
     ao.length === parts.length &&
     ao.every((a, i) => a.length === parts[i].getAttribute('position').count);
@@ -313,19 +318,26 @@ const whenIdle = (run: () => void) => {
 
 /**
  * Builds and bakes the set's pieces while the browser is idle, one piece per
- * idle moment, so the first board does not wait for them. Outside a browser
- * it does nothing (the unit tests' setup also holds its idle callback back):
+ * idle moment, so the first board does not wait for them: the king first,
+ * the others once their precomputed parts have loaded. Outside a browser it
+ * does nothing (the unit tests' setup also holds its idle callback back):
  * each piece is then built when first drawn.
  */
 export const preloadBakedSet = () => {
   if (typeof window === 'undefined') return;
   const built = bakedSet();
-  const pending = Object.values(PieceType);
-  const next = () => {
-    const type = pending.shift();
-    if (!type) return;
-    void built[type];
+  const bakeAtIdle = (pending: PieceType[]) => {
+    const next = () => {
+      const type = pending.shift();
+      if (!type) return;
+      void built[type];
+      whenIdle(next);
+    };
     whenIdle(next);
   };
-  whenIdle(next);
+  bakeAtIdle([PieceType.King]);
+  loadPieceData().then(
+    () => bakeAtIdle(Object.values(PieceType).filter((t) => t !== PieceType.King)),
+    () => {}, // whatever draws the other pieces asks again, and says when it fails
+  );
 };

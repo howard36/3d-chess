@@ -114,8 +114,9 @@ export const placeLandingPictureEarly = (): Plugin => ({
  * page starts fetching (with the chunks they import) alongside the entry,
  * instead of after the entry has loaded and run. First the page itself (a
  * game's address waits for it before it first renders: pageReady), then, at
- * low priority so they never hold it up, its canvases: three.js, the scene
- * and the set's precomputed parts load in a chunk of their own, the one the
+ * low priority so they never hold it up, its canvases: three.js and the
+ * scene load in a chunk of their own (the set's precomputed parts but the
+ * king's occlusion follow in another: three/pieces/pieceData.ts), the one the
  * lobby's canvas (LobbyCanvas.tsx), the game's board (GameCanvas.tsx), the
  * tutorial's board (LearnCanvas.tsx) and the start page's preview share. The
  * lobby's pages are the side choice (/new, /computer) and the games it goes on

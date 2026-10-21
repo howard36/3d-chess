@@ -1,7 +1,8 @@
 // Writes the medium set's precomputed parts, so the game can load their bytes
 // instead of working them out in the browser:
 //   src/three/pieces/knight.medium.ts   the sculpted knight (head, mane, eyes)
-//   src/three/scene/occlusion.medium.ts every piece's baked occlusion
+//   src/three/scene/occlusion.king.ts   the king's baked occlusion
+//   src/three/scene/occlusion.medium.ts every other piece's
 // Run it after changing a piece's shape (anything in src/three/pieces, or
 // the occlusion bake in scene/occlusion.ts); knightData.test.ts and
 // occlusionData.test.ts fail while either file is stale.
@@ -44,19 +45,31 @@ export const KNIGHT_MEDIUM: KnightData = {
 const set = buildPieceSet('medium', () => decodeKnight(k));
 const occlusion = {} as Record<PieceType, Float32Array[]>;
 for (const type of Object.values(PieceType)) occlusion[type] = occlusionOfPiece(set[type]);
-const o = encodeOcclusion(occlusion);
-write(
-  '../src/three/scene/occlusion.medium.ts',
-  `${header("the medium set's baked occlusion", 'occlusionData.test.ts')}import type { OcclusionData } from './occlusionData';
+// The king's apart (occlusion.king.ts), in the scene's own chunk: the lobby
+// draws only kings, so its first frame never waits for the rest, which load
+// in a chunk of their own with the knight (three/pieces/pieceData.ts)
+const occlusionFile = (file: string, name: string, what: string, types: PieceType[]) => {
+  const o = encodeOcclusion(occlusion, types);
+  write(
+    `../src/three/scene/${file}`,
+    `${header(what, 'occlusionData.test.ts')}import type { OcclusionData } from './occlusionData';
 
-export const OCCLUSION_MEDIUM: OcclusionData = {
+export const ${name}: OcclusionData = {
   counts: {
-${Object.values(PieceType)
-  .map((t) => `    ${t}: [${o.counts[t].join(', ')}],`)
-  .join('\n')}
+${types.map((t) => `    ${t}: [${o.counts[t]!.join(', ')}],`).join('\n')}
   },
   base64:
     '${o.base64}',
 };
 `,
+  );
+};
+occlusionFile('occlusion.king.ts', 'OCCLUSION_KING', "the medium king's baked occlusion", [
+  PieceType.King,
+]);
+occlusionFile(
+  'occlusion.medium.ts',
+  'OCCLUSION_MEDIUM',
+  "the medium set's baked occlusion, but the king's",
+  Object.values(PieceType).filter((t) => t !== PieceType.King),
 );

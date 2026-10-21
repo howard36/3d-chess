@@ -10,6 +10,7 @@ import { PieceType } from '../engine/pieces';
 import { learnScreen } from './learn/learnChunk';
 import { LandingPicture } from './LandingPicture';
 import { glassRim } from './turningRim';
+import { loadPieceData } from '../three/pieces/pieceData';
 
 /** The tiles' rim turns while the pointer is on them. */
 const tileRim = glassRim((_, pointed) => pointed);
@@ -22,7 +23,7 @@ const tileRim = glassRim((_, pointed) => pointed);
 // all the page shows
 let previewArrived = false;
 const { Component: LandingPreview } = lazyChunk(() =>
-  import('./LandingPreview').then((m) => {
+  Promise.all([import('./LandingPreview'), loadPieceData()]).then(([m]) => {
     previewArrived = true;
     return { default: m.LandingPreview };
   }),
