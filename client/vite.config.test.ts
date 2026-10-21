@@ -151,17 +151,20 @@ test('the link preview’s picture is the size its tags say, as the browser’s 
   expect(tag('twitter:image')).toBe(tag('og:image'));
 });
 
-test('the build runs the start page’s scripts', () => {
+test('the build runs every plugin this file defines', () => {
   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
-  expect(names).toEqual(
-    expect.arrayContaining([
-      'preload-landing-picture',
-      'place-landing-picture-early',
-      'version-landing-pictures',
-      'keep-hashed-files',
-    ]),
-  );
+  // Each plugin's tests call it directly, so only this catches one left out of `plugins`.
+  // 'early-picture' is the start page's script's own sub-build.
+  const defined = [
+    ...readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8').matchAll(
+      /^\s+name: '([\w-]+)',$/gm,
+    ),
+  ]
+    .map((m) => m[1])
+    .filter((name) => name !== 'early-picture');
+  expect(defined.length).toBeGreaterThanOrEqual(10);
+  expect(names).toEqual(expect.arrayContaining(defined));
 });
 
 /** Runs keepHashedFiles' build step on a build of these files, in a folder of its own. */
