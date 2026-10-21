@@ -1639,12 +1639,47 @@ async function joinViaUI(browser, scope) {
   };
 }
 
+/**
+ * A shared game's link opened on a phone on a mobile network (4× CPU, Fast
+ * 4G), a first visit: a socket creates the game as White, and the page opens
+ * its link until its Join button shows; then, left alone until the network is
+ * quiet, what it downloaded before any click.
+ */
+async function joinScreenOnPhone(browser, scope) {
+  const white = scope.sock(await Sock.open(WS_URL));
+  white.send({ type: 'create_game', clientId: `bench-${Date.now()}-white`, color: 'white' });
+  await white.waitType('game_created');
+  const { gameId } = white.last.game_created;
+  const ctx = scope.ctx(await newBenchContext(browser, 'phone'));
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await cdp.send('Network.enable');
+  await cdp.send('Network.emulateNetworkConditions', FAST_4G);
+  await page.goto(`${BASE}/game/${gameId}`, { waitUntil: 'commit' });
+  await page.getByRole('button', { name: /^Join game\b/i }).waitFor({ timeout: 60000 });
+  const b = await snap(page);
+  await page.waitForLoadState('networkidle', { timeout: 60000 });
+  const bytes = await page.evaluate(() => {
+    const [nav] = performance.getEntriesByType('navigation');
+    const res = performance.getEntriesByType('resource');
+    return {
+      transfer: nav.transferSize + res.reduce((s, r) => s + (r.transferSize || 0), 0),
+      jsTransfer: res
+        .filter((r) => /\.js$/.test(r.name))
+        .reduce((s, r) => s + (r.transferSize || 0), 0),
+      requests: 1 + res.filter((r) => r.transferSize > 0).length,
+    };
+  });
+  return { joinButton: b.firsts.joinButton - b.timeOrigin, ...bytes };
+}
+
 async function setupSection(browser, shared) {
   await section(
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
+      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1652,6 +1687,7 @@ async function setupSection(browser, shared) {
     async (sec) => {
       const created = [];
       const joined = [];
+      const onPhone = [];
       for (let i = 0; i < CFG.setupRuns; i++) {
         // Turn about, so drift weighs on both alike
         const scope = new Scope();
@@ -1659,6 +1695,12 @@ async function setupSection(browser, shared) {
           joined.push(await joinViaUI(browser, scope));
         } finally {
           await scope.close();
+        }
+        const phoneScope = new Scope();
+        try {
+          onPhone.push(await joinScreenOnPhone(browser, phoneScope));
+        } finally {
+          await phoneScope.close();
         }
         const last = i === CFG.setupRuns - 1;
         // The last creator's game is kept for the move-latency section
@@ -1671,9 +1713,10 @@ async function setupSection(browser, shared) {
           if (!last) await runScope.close();
         }
       }
-      raw.setup = { created, joined };
+      raw.setup = { created, joined, onPhone };
       const c = (k) => created.map((r) => r[k]);
       const j = (k) => joined.map((r) => r[k]);
+      const ph = (k) => onPhone.map((r) => r[k]);
       sec.addAll([
         stat(
           'Creating: server confirms the game',
@@ -1719,7 +1762,29 @@ async function setupSection(browser, shared) {
           j('firstRenderLinks'),
           'count',
         ),
+        stat(
+          'Joining on a phone (4× CPU, Fast 4G): Join button shown',
+          ph('joinButton'),
+          'from opening the link; a first visit',
+        ),
+        countStat(
+          'Joining on a phone (4× CPU, Fast 4G): requests to the server',
+          ph('requests'),
+          'before any click, until the network is quiet',
+        ),
       ]);
+      sec.add(
+        [
+          'Joining on a phone (4× CPU, Fast 4G): bytes downloaded (all / JS)',
+          `${fmtBytes(median(ph('transfer')))} / ${fmtBytes(median(ph('jsTransfer')))}`,
+          '',
+          '',
+          String(onPhone.length),
+          'before any click, until the network is quiet',
+        ],
+        metric(median(ph('transfer')), 'bytes'),
+        'Joining on a phone (4× CPU, Fast 4G): bytes downloaded',
+      );
     },
   );
 }
