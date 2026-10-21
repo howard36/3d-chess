@@ -7,14 +7,15 @@ import { expect, test, vi } from 'vitest';
 import { picturePlacement } from './src/three/landingLens';
 import { parseHeaders } from './bench/preview.config';
 import config, {
-  GAME_SCREEN_PATH,
   KEEP_A_YEAR,
   keepHashedFiles,
   keepSceneOutOfEntry,
   landingVersion,
   placeLandingPictureEarly,
+  PRELOADS,
   preloadLandingPictureOnStartPage,
-  SCENE_PATH,
+  preloadSceneOnGamePages,
+  preloadScript,
   versionLandingPictures,
 } from './vite.config';
 
@@ -219,11 +220,12 @@ test('the build fails on a file under assets/ with no hash in its name', () => {
   expect(() => keepFiles(['assets/a-B2x9_kQe.js', 'assets/b.js'])).toThrow(/assets\/b.js/);
 });
 
-test('the build fails past the host’s 100 rules', () => {
+test('the build fails past the host’s 100 rules, and not at them', () => {
   // (one past the limit, with the host's own rules: public/_headers)
   const own = parseHeaders(readFileSync(resolve(process.cwd(), 'public/_headers'), 'utf8')).length;
   const many = Array.from({ length: 101 - own }, (_, i) => `assets/c${i}-B2x9_kQe.js`);
   expect(() => keepFiles(many)).toThrow(/101 rules/);
+  expect(() => keepFiles(many.slice(1))).not.toThrow();
 });
 
 // The gate that keeps three.js, r3f, the scene and the search out of the
@@ -289,6 +291,17 @@ test('the build keeps the scene and the search out of the start page and the pag
       p['index.js'].moduleIds = ['/src/main.tsx', '/src/screens/learn/LearnScreen.tsx'];
     }),
   ).toThrow(/LearnScreen.tsx is in the entry/);
+  // Nor the game's page, nor what it imports statically
+  expect(() =>
+    sceneGate((p) => {
+      p['index.js'].moduleIds = ['/src/main.tsx', '/src/screens/GameScreen.tsx'];
+    }),
+  ).toThrow(/GameScreen.tsx is in the entry/);
+  expect(() =>
+    sceneGate((p) => {
+      p['game.js'].imports = ['scene.js'];
+    }),
+  ).toThrow(/scene.js loads before the scene/);
 });
 
 test('the build fails past the start page’s budget, and on an entry with no styles', () => {
@@ -306,37 +319,136 @@ test('the build fails past the start page’s budget, and on an entry with no st
   ).toThrow(/imports no CSS/);
 });
 
-test('the built page preloads the scene on every page the app draws it on, from App.tsx', () => {
-  const app = readFileSync(resolve(import.meta.dirname, 'src/App.tsx'), 'utf8');
-  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]);
-  expect(routes).toContain('/game/:gameId');
-  // Each route's address, its parameters filled in (and left out where optional)
-  const addresses = routes.flatMap((r) => [
-    r.replace(/:\w+\??/g, 'ABC123'),
-    r.replace(/\/:\w+\?/g, ''),
-  ]);
-  for (const address of new Set(addresses)) {
-    // The start page loads the scene itself; any other address is no page's
-    if (address === '/' || address === '*')
-      expect([address, SCENE_PATH.test(address)]).toEqual([address, false]);
-    else expect([address, SCENE_PATH.test(address)]).toEqual([address, true]);
-  }
-  expect(SCENE_PATH.test('/nope')).toBe(false);
-});
-
-test("the built page preloads the game's page and board on the lobby's pages alone, from App.tsx", () => {
+/** Each of App.tsx's routes, with its address (parameters filled in, and left out where optional) and the element it renders. */
+const appRoutes = () => {
   const app = readFileSync(resolve(import.meta.dirname, 'src/App.tsx'), 'utf8');
   // The routes under LobbyLayout: the side choice and the games it goes on to
   const lobby = app.match(/<Route element={<LobbyLayout \/>}>([\s\S]*?)<\/Route>/)?.[1];
   expect(lobby).toBeTruthy();
   const inLobby = new Set([...lobby!.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]));
   expect(inLobby).toContain('/game/:gameId');
-  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]);
-  for (const route of routes) {
-    for (const address of new Set([
-      route.replace(/:\w+\??/g, 'ABC123'),
-      route.replace(/\/:\w+\?/g, ''),
-    ]))
-      expect([address, GAME_SCREEN_PATH.test(address)]).toEqual([address, inLobby.has(route)]);
+  const routes = [...app.matchAll(/<Route\s+path="([^"]+)"\s+element={<(\w+)/g)];
+  expect(routes.length).toBeGreaterThan(5);
+  return routes.flatMap(([, route, element]) =>
+    [...new Set([route.replace(/:\w+\??/g, 'ABC123'), route.replace(/\/:\w+\?/g, '')])].map(
+      (address) => ({ route, address, element, lobby: inLobby.has(route) }),
+    ),
+  );
+};
+const preloadsOf = (address: string) => {
+  const row = PRELOADS.find(([path]) => path.test(address));
+  return row && [...row[1], ...row[2]];
+};
+
+test('the built page preloads what each page the app draws the scene on needs, from App.tsx', () => {
+  for (const { address, element, lobby } of appRoutes()) {
+    const modules = preloadsOf(address);
+    // The start page loads the scene itself; any other address is no page's
+    if (address === '/' || address === '*')
+      expect([address, modules]).toEqual([address, undefined]);
+    // The lobby's pages: the game's page, the lobby's canvas and the game's
+    // board (and a game against the computer's own page); the tutorial's,
+    // its page and board
+    else if (lobby)
+      expect([address, modules]).toEqual([
+        address,
+        expect.arrayContaining(['GameScreen.tsx', 'lobby/LobbyCanvas.tsx', 'GameCanvas.tsx']),
+      ]);
+    else
+      expect([address, modules]).toEqual([
+        address,
+        ['learn/LearnScreen.tsx', 'learn/LearnCanvas.tsx'],
+      ]);
+    // A page from a chunk of its own has it preloaded
+    if (element === 'ComputerGameRoute') expect(modules).toContain('ComputerGameScreen.tsx');
   }
+  expect(preloadsOf('/nope')).toBeUndefined();
+});
+
+test('the preload script links, on each page, what its chunks need beyond the entry', () => {
+  const chunk = (fileName: string, ids: string[], imports: string[] = [], isEntry = false) => ({
+    fileName,
+    moduleIds: ids.map((id) => `/app/src/screens/${id}`),
+    imports,
+    isEntry,
+  });
+  const chunks = [
+    chunk('index.js', ['../main.tsx'], ['shared.js'], true),
+    chunk('shared.js', ['../lib/focus.ts']),
+    chunk('game.js', ['GameScreen.tsx'], ['shared.js', 'history.js']),
+    chunk('history.js', ['../game/history.ts']),
+    chunk('computer.js', ['ComputerGameScreen.tsx'], ['game.js']),
+    chunk('lobby.js', ['lobby/LobbyCanvas.tsx'], ['three.js']),
+    chunk('board.js', ['GameCanvas.tsx'], ['three.js', 'history.js']),
+    chunk('learn.js', ['learn/LearnScreen.tsx'], ['shared.js']),
+    chunk('learnBoard.js', ['learn/LearnCanvas.tsx'], ['three.js']),
+    chunk('three.js', ['../../node_modules/three/build/three.module.js']),
+  ];
+  const script = preloadScript(chunks);
+  /** The files linked at `pathname`, a low priority one marked so. */
+  const linked = (pathname: string) => {
+    const links: { rel: string; href: string; fetchPriority?: string }[] = [];
+    const document = {
+      createElement: () => ({}),
+      head: { appendChild: (l: (typeof links)[number]) => links.push(l) },
+    };
+    new Function('location', 'document', script)({ pathname }, document);
+    expect(links.every((l) => l.rel === 'modulepreload')).toBe(true);
+    return links.map((l) => (l.fetchPriority === 'low' ? `${l.href} (low)` : l.href));
+  };
+  const lobby = ['/lobby.js (low)', '/three.js (low)', '/board.js (low)'];
+  const game = ['/game.js', '/history.js', ...lobby];
+  expect(linked('/game/ABC123')).toEqual(game);
+  expect(linked('/new')).toEqual(game);
+  const computer = ['/computer.js', '/game.js', '/history.js', ...lobby];
+  expect(linked('/computer')).toEqual(computer);
+  expect(linked('/computer/abc123')).toEqual(computer);
+  const learn = ['/learn.js', '/learnBoard.js (low)', '/three.js (low)'];
+  expect(linked('/learn')).toEqual(learn);
+  expect(linked('/learn/rook')).toEqual(learn);
+  expect(linked('/')).toEqual([]);
+  expect(linked('/nope')).toEqual([]);
+  // A page whose chunk the build does not have fails the build
+  expect(() => preloadScript(chunks.filter((c) => c.fileName !== 'learn.js'))).toThrow(
+    /no chunk holds learn\/LearnScreen.tsx/,
+  );
+});
+
+test("each page's preload script runs right ahead of the stylesheet, after the start page's own scripts", async () => {
+  const { handler } = preloadSceneOnGamePages().transformIndexHtml as {
+    handler: (html: string, ctx: unknown) => string;
+  };
+  const chunk = (fileName: string, file: string, isEntry = false) => ({
+    type: 'chunk',
+    fileName,
+    moduleIds: [`/app/src/screens/${file}`],
+    imports: [],
+    isEntry,
+  });
+  const bundle = Object.fromEntries(
+    [
+      chunk('index.js', '../main.tsx', true),
+      chunk('game.js', 'GameScreen.tsx'),
+      chunk('computer.js', 'ComputerGameScreen.tsx'),
+      chunk('lobby.js', 'lobby/LobbyCanvas.tsx'),
+      chunk('board.js', 'GameCanvas.tsx'),
+      chunk('learn.js', 'learn/LearnScreen.tsx'),
+      chunk('learnBoard.js', 'learn/LearnCanvas.tsx'),
+    ].map((c) => [c.fileName, c]),
+  );
+  const stylesheet = '<link rel="stylesheet" crossorigin href="/assets/index.css">';
+  const html = [
+    '<meta name="viewport" content="width=device-width">',
+    '<script>picture()</script>',
+    '<script type="module" crossorigin src="/assets/index.js"></script>',
+    stylesheet,
+  ].join('\n');
+  const built = handler(html, { bundle });
+  const script = built.indexOf("l.rel='modulepreload'");
+  expect(script).toBeGreaterThan(built.indexOf('picture()'));
+  // Nothing between it and the stylesheet, which it must precede
+  expect(built.slice(built.indexOf('</script>', script) + '</script>'.length).trimStart()).toMatch(
+    /^<link rel="stylesheet"/,
+  );
+  expect(() => handler(html.replace(stylesheet, ''), { bundle })).toThrow(/no stylesheet link/);
 });
