@@ -9,7 +9,7 @@ import { LANDING_VIEW, landingFrameRings, landingViewDirection } from '../three/
 import { LANDING_CAMERAS, LANDING_PICTURES, landingLens } from '../three/landingLens';
 import { LANDING_BANDS } from './landingLayout';
 import type { PictureName } from '../three/landingLens';
-import { layout } from '../three/scene/palette';
+import { CAMERA_FOV, layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { demoFrame, demoLog, demoOrder } from '../game/demo';
 import type { DemoFrame } from '../game/demo';
@@ -189,7 +189,7 @@ export function LandingPreview({
       <Canvas
         data-testid="landing-canvas"
         style={{ height: '100%', width: '100%', pointerEvents: 'none' }}
-        camera={{ position: landingViewDirection, fov: 36 }}
+        camera={{ position: landingViewDirection, fov: CAMERA_FOV }}
         dpr={picture ? window.devicePixelRatio : pixelRatio}
         gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
         // The turn and the demo ask for their own frames; until they set

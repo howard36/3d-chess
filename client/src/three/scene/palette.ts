@@ -177,6 +177,11 @@ export const PIECE_SCALE = 0.8;
 const tower = towerLayout({ pieceHeight: 0.87 * PIECE_SCALE, minElevation: -14 });
 /** The tower, framed with its labels as the grid draws them. */
 export const layout = { ...tower, frameRings: towerFrameRings(tower) };
+/**
+ * Every canvas's vertical field of view, in degrees: the lobby comes to rest
+ * on exactly the game's first frame (lobbyMotion's gameOpening).
+ */
+export const CAMERA_FOV = 36;
 export const FRAME = towerFrame(layout);
 
 /** How far each level's glass reaches past its outer squares. */
