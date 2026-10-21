@@ -14,7 +14,7 @@ import config, {
   placeLandingPictureEarly,
   PRELOADS,
   preloadLandingPictureOnStartPage,
-  preloadSceneOnGamePages,
+  preloadRouteChunks,
   preloadScript,
   versionLandingPictures,
 } from './vite.config';
@@ -419,7 +419,9 @@ test('the preload script links, on each page, what its chunks need beyond the en
     chunk('board.js', ['GameCanvas.tsx'], ['three.js', 'history.js']),
     chunk('learn.js', ['learn/LearnScreen.tsx'], ['shared.js']),
     chunk('learnBoard.js', ['learn/LearnCanvas.tsx'], ['three.js']),
-    chunk('three.js', ['../../node_modules/three/build/three.module.js']),
+    chunk('three.js', ['../../node_modules/three/build/three.module.js'], ['vendor.js']),
+    // Two levels down: fetched with the rest, not once three.js has run
+    chunk('vendor.js', ['../../node_modules/three/src/math/MathUtils.js']),
   ];
   const script = preloadScript(chunks);
   /** The files linked at `pathname`, a low priority one marked so. */
@@ -433,14 +435,14 @@ test('the preload script links, on each page, what its chunks need beyond the en
     expect(links.every((l) => l.rel === 'modulepreload')).toBe(true);
     return links.map((l) => (l.fetchPriority === 'low' ? `${l.href} (low)` : l.href));
   };
-  const lobby = ['/lobby.js (low)', '/three.js (low)', '/board.js (low)'];
+  const lobby = ['/lobby.js (low)', '/three.js (low)', '/vendor.js (low)', '/board.js (low)'];
   const game = ['/game.js', '/history.js', ...lobby];
   expect(linked('/game/ABC123')).toEqual(game);
   expect(linked('/new')).toEqual(game);
   const computer = ['/computer.js', '/game.js', '/history.js', ...lobby];
   expect(linked('/computer')).toEqual(computer);
   expect(linked('/computer/abc123')).toEqual(computer);
-  const learn = ['/learn.js', '/learnBoard.js (low)', '/three.js (low)'];
+  const learn = ['/learn.js', '/learnBoard.js (low)', '/three.js (low)', '/vendor.js (low)'];
   expect(linked('/learn')).toEqual(learn);
   expect(linked('/learn/rook')).toEqual(learn);
   expect(linked('/')).toEqual([]);
@@ -452,7 +454,7 @@ test('the preload script links, on each page, what its chunks need beyond the en
 });
 
 test("each page's preload script runs right ahead of the stylesheet, after the start page's own scripts", async () => {
-  const { handler } = preloadSceneOnGamePages().transformIndexHtml as {
+  const { handler } = preloadRouteChunks().transformIndexHtml as {
     handler: (html: string, ctx: unknown) => string;
   };
   const chunk = (fileName: string, file: string, isEntry = false) => ({
