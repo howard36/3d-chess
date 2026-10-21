@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { cardBeside, learnBottom, learnGutter, learnLeft } from './learnLayout';
 
@@ -21,6 +23,12 @@ test("keeps the card's room clear where the card stands, by layout", () => {
 });
 
 test("sets the card in by the home page's gutter", () => {
-  // index.css, --landing-gutter: clamp(24px, 6vw, 112px)
+  // index.css, --landing-gutter: clamp(24px, 6vw, 112px), which
+  // landingLayout.test pins landingGutter to
   expect([300, 1000, 1920, 2560].map(learnGutter)).toEqual([24, 60, 112, 112]);
+  const value = (file: string, property: string) =>
+    readFileSync(join(process.cwd(), file), 'utf8').match(new RegExp(`${property}: ([^;]+);`))?.[1];
+  expect(value('src/screens/learn/learn.css', '--learn-gutter')).toBe(
+    value('src/index.css', '--landing-gutter'),
+  );
 });

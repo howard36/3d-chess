@@ -28,9 +28,9 @@ export type LandingLayout = 'phone' | 'tablet' | 'wide';
 export const landingLayoutOf = (width: number, height: number): LandingLayout =>
   !upright(width, height) ? 'wide' : tablet(width, height) ? 'tablet' : 'phone';
 /** The page's side margin (index.css: --landing-gutter). */
-const gutter = (width: number): number => clamp(24, 0.06 * width, 112);
+export const landingGutter = (width: number): number => clamp(24, 0.06 * width, 112);
 /** The room under an upright window's menu (index.css: --landing-under). */
-const under = (width: number): number => Math.max(24, gutter(width));
+const under = (width: number): number => Math.max(24, landingGutter(width));
 /** The menu's column beside the tower (index.css: --landing-column). */
 const column = (width: number, height: number): number =>
   short(height) ? clamp(300, 0.38 * width, 340) : clamp(340, 0.3 * width, 440);
@@ -58,5 +58,5 @@ export const LANDING_BANDS: LandingBands = {
         GAP +
         (tablet(w, h) ? Math.max(title(clamp(64, 0.11 * w, 112)) + RULE, TABLET_MENU) : PHONE_MENU),
   // Beside the tower, the menu's column
-  left: (w, h) => (upright(w, h) ? 0 : gutter(w) + column(w, h) + GAP),
+  left: (w, h) => (upright(w, h) ? 0 : landingGutter(w) + column(w, h) + GAP),
 };

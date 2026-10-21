@@ -5,6 +5,7 @@
 // (a phone on its side) too, so the tower takes the whole height under Home.
 
 import { SHORT_WINDOW_PX } from '../../lib/shortWindow';
+import { landingGutter } from '../landingLayout';
 
 /** CSS px at the top kept for Home (index.css, .lobby-top, where the lobby has it: 14 px, the 32 px link, 10 px). */
 export const LEARN_TOP_PX = 56;
@@ -36,7 +37,7 @@ export const learnBottom = (height: number, width: number): number =>
  * window (learn.css, --learn-gutter): the home page's (index.css,
  * --landing-gutter).
  */
-export const learnGutter = (width: number): number => Math.min(Math.max(0.06 * width, 24), 112);
+export const learnGutter = landingGutter;
 
 /**
  * CSS px at the left the card takes where it stands beside the tower, with
