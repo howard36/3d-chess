@@ -553,6 +553,8 @@ const BENCH_INIT = () => {
       f.joinButton = t;
       performance.mark('join-shown');
     }
+    // The game's entrance over (the board takes input from here)
+    if (!f.introDone && document.querySelector('[data-intro="done"]')) f.introDone = t;
     if (!f.sideChoice && document.querySelector('[aria-label="Choose your side"] button')) {
       f.sideChoice = t;
     }
@@ -1591,9 +1593,12 @@ async function createViaUI(browser, scope, { keep = true } = {}) {
 
 /**
  * The joiner's side: a socket creates the game as White; the page opens its
- * link, joins with “Join game” and its board comes up.
+ * link, joins with “Join game” and its board comes up. With `pauseMs`, the
+ * player reads the invitation that long before clicking, as a person would
+ * (the lobby's opening has played by then); without, Playwright clicks the
+ * moment the button is stable.
  */
-async function joinViaUI(browser, scope) {
+async function joinViaUI(browser, scope, pauseMs = 0) {
   const white = scope.sock(await Sock.open(WS_URL));
   white.send({ type: 'create_game', clientId: `bench-${Date.now()}-white`, color: 'white' });
   await white.waitType('game_created');
@@ -1601,8 +1606,13 @@ async function joinViaUI(browser, scope) {
   const ctx = scope.ctx(await newBenchContext(browser, 'desktop'));
   const page = await ctx.newPage();
   await page.goto(`${BASE}/game/${gameId}`);
-  await page.getByRole('button', { name: /^Join game\b/i }).click();
-  await waitFirstFrame(page);
+  const join = page.getByRole('button', { name: /^Join game\b/i });
+  if (pauseMs) {
+    await join.waitFor();
+    await sleep(pauseMs);
+  }
+  await join.click();
+  await waitBoard(page);
   const b = await snap(page);
   const click = b.clicks.find((c) => /^Join game$/i.test(c[1]))?.[0];
   const frame = firstFrameEnd(b);
@@ -1612,6 +1622,7 @@ async function joinViaUI(browser, scope) {
     joinButton: b.firsts.joinButton - b.timeOrigin,
     joinStart: b.rx.find((r) => r[1] === 'game_start')?.[0] - click,
     joinerFrame: frame - click,
+    joinerIntroDone: b.firsts.introDone - click,
     firstRenderCpu: first[1],
     joinerLongest: maxOf([0, ...tasksIn(b.lt, click, frame).map((l) => l[1])]),
     joinerLongTotal: sum(tasksIn(b.lt, click, frame).map((l) => l[1])),
@@ -1674,12 +1685,15 @@ async function joinScreenOnPhone(browser, scope) {
   return { joinButton: b.firsts.joinButton - b.timeOrigin, ...bytes };
 }
 
+/** How long the paused joiner reads the invitation before clicking Join. */
+const JOIN_PAUSE_MS = 1500;
+
 async function setupSection(browser, shared) {
   await section(
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
+      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”, once the moment the button shows and once after a ${JOIN_PAUSE_MS / 1000} s pause, as a person reading the invitation would; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1687,6 +1701,7 @@ async function setupSection(browser, shared) {
     async (sec) => {
       const created = [];
       const joined = [];
+      const paused = [];
       const onPhone = [];
       for (let i = 0; i < CFG.setupRuns; i++) {
         // Turn about, so drift weighs on both alike
@@ -1695,6 +1710,12 @@ async function setupSection(browser, shared) {
           joined.push(await joinViaUI(browser, scope));
         } finally {
           await scope.close();
+        }
+        const pausedScope = new Scope();
+        try {
+          paused.push(await joinViaUI(browser, pausedScope, JOIN_PAUSE_MS));
+        } finally {
+          await pausedScope.close();
         }
         const phoneScope = new Scope();
         try {
@@ -1713,10 +1734,11 @@ async function setupSection(browser, shared) {
           if (!last) await runScope.close();
         }
       }
-      raw.setup = { created, joined, onPhone };
+      raw.setup = { created, joined, paused, onPhone };
       const c = (k) => created.map((r) => r[k]);
       const j = (k) => joined.map((r) => r[k]);
       const ph = (k) => onPhone.map((r) => r[k]);
+      const pj = (k) => paused.map((r) => r[k]);
       sec.addAll([
         stat(
           'Creating: server confirms the game',
@@ -1735,6 +1757,21 @@ async function setupSection(browser, shared) {
         stat(
           'Joining: board’s first picture handed to the GPU',
           j('joinerFrame'),
+          'from the click on Join',
+        ),
+        stat(
+          'Joining: the game’s entrance over',
+          j('joinerIntroDone'),
+          'from the click on Join; the board takes input from here',
+        ),
+        stat(
+          `Joining after a ${JOIN_PAUSE_MS / 1000} s pause: board’s first picture handed to the GPU`,
+          pj('joinerFrame'),
+          'from the click on Join, made that long after the button showed',
+        ),
+        stat(
+          `Joining after a ${JOIN_PAUSE_MS / 1000} s pause: the game’s entrance over`,
+          pj('joinerIntroDone'),
           'from the click on Join',
         ),
         stat(
