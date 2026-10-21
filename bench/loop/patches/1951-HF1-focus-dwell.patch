@@ -1,0 +1,62 @@
+diff --git a/client/src/three/Board.tsx b/client/src/three/Board.tsx
+index 6a0107f..d0ff523 100644
+--- a/client/src/three/Board.tsx
++++ b/client/src/three/Board.tsx
+@@ -35,7 +35,7 @@ import type { FloorSquare } from './hover';
+ import { CaptureFx, Celebration } from './scene/fx';
+ import { KNOCK_STRIKE_MS } from './pieceMotion';
+ import { fallAway } from './mate';
+-import { focusLevelOf } from './scene/focus';
++import { focusLevelOf, useDwelledLevel } from './scene/focus';
+ import { Grid } from './scene/grid';
+ import { Better, Capture, Check, LastMove, Quiet } from './scene/markers';
+ import { knightFacing, layout, MARK_HOVER_GROW, MARK_RADIUS, PIECE_SCALE } from './scene/palette';
+@@ -576,7 +576,7 @@ const Board = (props: BoardProps) => {
+   });
+ 
+   const selectedLevel = selected?.z ?? null;
+-  const hoveredLevel = hoveredCell ? fromZXY(hoveredCell).z : null;
++  const hoveredLevel = useDwelledLevel(hoveredCell ? fromZXY(hoveredCell).z : null);
+   const focus = useMemo<LevelFocus>(
+     () => ({ selected: selectedLevel, hovered: hoveredLevel }),
+     [selectedLevel, hoveredLevel],
+diff --git a/client/src/three/scene/focus.ts b/client/src/three/scene/focus.ts
+index a6452d1..b8948f2 100644
+--- a/client/src/three/scene/focus.ts
++++ b/client/src/three/scene/focus.ts
+@@ -1,4 +1,4 @@
+-import { useEffect, useRef } from 'react';
++import { useEffect, useRef, useState } from 'react';
+ import { useFrame, useThree } from '@react-three/fiber';
+ import type { LevelFocus } from '../types';
+ import { toward } from './ease';
+@@ -67,3 +67,29 @@ export const useLevelFocus = (
+     else settled.current = true;
+   });
+ };
++
++/** How long the pointer rests on a level before the others step back, ms (r3f's clock). */
++export const FOCUS_DWELL_MS = 200;
++
++/**
++ * The level the pointer has rested on for FOCUS_DWELL_MS (or none, once it
++ * has been off the levels that long): a pointer passing over, or a click
++ * straight after it arrives, steps no level back, so the picture of a pick
++ * or a move does not carry the whole tower's change of focus.
++ */
++export const useDwelledLevel = (level: number | null): number | null => {
++  const invalidate = useThree((s) => s.invalidate);
++  const [shown, setShown] = useState(level);
++  const since = useRef(0);
++  useEffect(() => {
++    since.current = 0;
++    invalidate();
++  }, [level, invalidate]);
++  useFrame((_, delta) => {
++    if (level === shown) return;
++    since.current += Math.min(delta, 1 / 20) * 1000;
++    if (since.current >= FOCUS_DWELL_MS) setShown(level);
++    else invalidate();
++  });
++  return shown;
++};
