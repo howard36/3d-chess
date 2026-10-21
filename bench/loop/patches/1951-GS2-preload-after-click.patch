@@ -1,0 +1,43 @@
+From 303a863c9943aff4125e70e3dccf58ad8de53e68 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 21 Oct 2026 03:32:59 +0000
+Subject: [PATCH] perf(client): the side choice asks for the game screen after
+ the click's commit
+
+GS1's preload ran in ChooseSide's effect, which React flushes in the click's
+own commit, so the side choice waited on the chunk request. A 0 ms timeout
+leaves the click's answer alone.
+
+Evidence: against 037cb09, cold-load, 4 pairs (bench/loop/ab-20261020-1951-gs2.md;
+scoreboard change 1951:GS2): the throttled phone's first click 49.2 -> 40.6 ms
+(x0.83, called better), the unthrottled phone's x0.88 (not called); no primary
+row called either way.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011SfWVyoMjkEfNUzxfLRC8S
+---
+ client/src/screens/lobby/ChooseSide.tsx | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/client/src/screens/lobby/ChooseSide.tsx b/client/src/screens/lobby/ChooseSide.tsx
+index a0e0a93..016a42d 100644
+--- a/client/src/screens/lobby/ChooseSide.tsx
++++ b/client/src/screens/lobby/ChooseSide.tsx
+@@ -78,9 +78,13 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
+   const [gone, setGone] = React.useState(false);
+   // Its page's code, while the player chooses
+   React.useEffect(() => {
+-    gameScreen.preload();
+     if (computer) computerGame.preload();
+   }, [computer]);
++  // (and the game's page once the click that opened this one is answered)
++  React.useEffect(() => {
++    const later = window.setTimeout(gameScreen.preload);
++    return () => window.clearTimeout(later);
++  }, []);
+   const { messages, status } = gameSocket;
+   const [hover, setHover] = React.useState<Choice | null>(null);
+   const [picked, setPicked] = React.useState<{ choice: Choice; side: Side } | null>(null);
+-- 
+2.43.0
+
