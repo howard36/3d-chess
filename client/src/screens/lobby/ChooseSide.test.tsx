@@ -11,6 +11,13 @@ import { getStoredRole } from '../../lib/playerRole';
 import { isArriving } from '../../lib/computerGames';
 import { fakeSocket } from '../testSupport';
 
+// The game's page is a chunk of its own; the side choice goes on only once
+// it is here (gameScreen.ready), which a test can hold back
+let chunkHere: Promise<void> = Promise.resolve();
+vi.mock('../gameScreenChunk', () => ({
+  gameScreen: { preload: () => {}, ready: () => chunkHere },
+}));
+
 // The lobby's stage (a WebGL canvas) is LobbyLayout's; here the page runs
 // under a stand-in that keeps the latest view it was shown, so a test can
 // look at the picture and play the scene's part (onSettled).
@@ -58,6 +65,7 @@ const black = () => screen.getByRole('button', { name: 'Black' });
 beforeEach(() => {
   localStorage.clear();
   view = null;
+  chunkHere = Promise.resolve();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -199,6 +207,21 @@ describe('choosing a side', () => {
 
     settle();
     // Replacing the side choice in history
+    expect(await screen.findByText('game page ABC123 by REPLACE')).toBeInTheDocument();
+  });
+
+  it("waits for the game's page to arrive before going on to it", async () => {
+    let arrive = () => {};
+    chunkHere = new Promise((resolve) => (arrive = resolve));
+    const send = vi.fn(() => true);
+    const { rerender } = render(at(fakeSocket([], send)));
+    await userEvent.click(black());
+    rerender(at(fakeSocket([created('black')], send)));
+    settle();
+    await act(async () => {});
+    expect(screen.getByTestId('choose-side')).toBeInTheDocument();
+
+    await act(async () => arrive());
     expect(await screen.findByText('game page ABC123 by REPLACE')).toBeInTheDocument();
   });
 

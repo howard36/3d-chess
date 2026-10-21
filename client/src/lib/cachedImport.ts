@@ -63,6 +63,12 @@ export const lazyChunk = <C extends ComponentType<any>>(load: () => Promise<{ de
       return component;
     },
     preload: () => void track().catch(() => {}),
+    /** The chunk has arrived (or failed to: the component then says so). */
+    ready: () =>
+      track().then(
+        () => {},
+        () => {},
+      ),
     retry: () => {
       component = make();
     },

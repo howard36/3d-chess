@@ -1638,16 +1638,21 @@ the shapes change), and `datamodel-code-generator`, pinned exactly, whose update
 `messages.py` regenerated. `@types/node` majors are ignored: they move with `.nvmrc`.
 
 The client's entry (with its CSS, kept under `ENTRY_GZIP_BUDGET` gzipped in `vite.config.ts`:
-the build fails above it, raised only on purpose) holds the start screen, the side choice and the game
-screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
-lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
+the build fails above it, raised only on purpose) holds the start screen and the side choice.
+The game screen (the invitation, the HUD, the move record, the review) is a chunk of its own
+(`screens/gameScreenChunk.ts`): a game's address preloads it from the HTML and waits for it
+before the app first renders (`main.tsx`), and the side choice asks for it as it shows and
+goes on to the game only once it is in, so the page never renders empty under the lobby.
+Everything 3D is a chunk the entry loads lazily, shared by the start page's preview
+(`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
 the tutorial's (`screens/learn/LearnCanvas.tsx`):
 three.js, the scene and the set's precomputed parts, about 330 KB (gzip; the benchmark report's "Bundle"). The start page asks for
 it at once and shows its title and button without waiting for it; on the side choice
 (`/new`, `/computer`), a game's address (`/game/:id`, `/computer/:id`) and the tutorial
 (`/learn`) the built page preloads it from the start (a
-`modulepreload` added by a small plugin in `vite.config.ts`), so a shared link shows its
+`modulepreload` added by a small plugin in `vite.config.ts`; the game screen and the game's
+board only on the lobby's pages, `GAME_SCREEN_PATH`), so a shared link shows its
 invitation without waiting for three.js, and does not wait for the entry before asking
 for the scene. Should the chunk fail to load (a dropped connection, a deploy that replaced
 it), only the canvas is left out: each is loaded with `lazyChunk` (`src/lib/cachedImport.ts`)

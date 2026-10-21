@@ -24,6 +24,13 @@ vi.mock('./lib/cachedImport', async (importOriginal) => {
   };
 });
 
+// ...but for the game's page, which is a chunk of its own that holds no scene
+vi.mock('./screens/gameScreenChunk', async () => {
+  const { lazyChunk } =
+    await vi.importActual<typeof import('./lib/cachedImport')>('./lib/cachedImport');
+  return { gameScreen: lazyChunk(() => import('./screens/GameScreen')) };
+});
+
 beforeAll(() => {
   // React reports each error a boundary catches
   vi.spyOn(console, 'error').mockImplementation(() => {});

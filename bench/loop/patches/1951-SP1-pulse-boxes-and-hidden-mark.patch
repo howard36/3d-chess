@@ -1,0 +1,300 @@
+diff --git a/client/src/three/scene/damage.ts b/client/src/three/scene/damage.ts
+index e821fac..43c1ff0 100644
+--- a/client/src/three/scene/damage.ts
++++ b/client/src/three/scene/damage.ts
+@@ -46,6 +46,8 @@ interface Seen {
+   rect: Rect | null;
+   /** Its rect could not be found (behind the camera): any change is a full frame. */
+   unbounded: boolean;
++  /** Where its parts covered the screen, for an object that names them (DamageBoxes): rect is their union. */
++  parts?: Rect[];
+ }
+ 
+ export interface DamageState {
+@@ -224,6 +226,14 @@ const scratch: number[] = [];
+  */
+ export type DamageBox = (out: Box3) => Box3 | null;
+ 
++/**
++ * An object's `userData.damageBoxes`: the parts of its geometry it draws in
++ * now (local space; their union holds every pixel it draws), or null where it
++ * draws nothing. A change to it redraws each part's rect, not their union:
++ * for a long, thin mark across the screen (the last move's line).
++ */
++export type DamageBoxes = () => readonly Box3[] | null;
++
+ const litBox = new Box3();
+ 
+ const projector: Projector = { minX: 0, minY: 0, maxX: 0, maxY: 0, near: 0, behind: false };
+@@ -265,6 +275,18 @@ const screenRect = (
+       p.minY = Math.min(p.minY, y);
+       p.maxY = Math.max(p.maxY, y);
+     }
++  } else if (o.userData.damageBoxes) {
++    const boxes = (o.userData.damageBoxes as DamageBoxes)();
++    if (!boxes) return null;
++    let union: Rect | null = null;
++    for (const box of boxes) {
++      const r = boxRect(o, box, width, height);
++      if (r === 'unbounded') return 'unbounded';
++      if (!r) continue;
++      union = unite(union, r);
++      partsFound.push(r);
++    }
++    return union;
+   } else {
+     const g = (o as Mesh).geometry as BufferGeometry | undefined;
+     // (an object that lights only part of its geometry says which: DamageBox)
+@@ -298,7 +320,30 @@ const screenRect = (
+   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+ };
+ 
+-const unite = (a: Rect | null, b: Rect | null): Rect | null => {
++/** Where a box of an object's own space covers the screen (device px), as screenRect finds it. */
++const boxRect = (o: Object3D, box: Box3, width: number, height: number) => {
++  if (box.isEmpty()) return null;
++  const p = projector;
++  startProjector(p);
++  for (let i = 0; i < 8; i++) {
++    corner
++      .set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z)
++      .applyMatrix4(o.matrixWorld);
++    projectWorld(p, corner, width, height);
++  }
++  if (p.behind) return 'unbounded';
++  const x0 = Math.max(0, Math.floor(p.minX - PAD));
++  const y0 = Math.max(0, Math.floor(p.minY - PAD));
++  const x1 = Math.min(width, Math.ceil(p.maxX + PAD));
++  const y1 = Math.min(height, Math.ceil(p.maxY + PAD));
++  if (x1 <= x0 || y1 <= y0) return null;
++  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
++};
++
++/** The parts screenRect found for an object that names them (DamageBoxes). */
++const partsFound: Rect[] = [];
++
++function unite(a: Rect | null, b: Rect | null): Rect | null {
+   if (!a) return b;
+   if (!b) return a;
+   const x = Math.min(a.x, b.x);
+@@ -309,7 +354,7 @@ const unite = (a: Rect | null, b: Rect | null): Rect | null => {
+     w: Math.max(a.x + a.w, b.x + b.w) - x,
+     h: Math.max(a.y + a.h, b.y + b.h) - y,
+   };
+-};
++}
+ 
+ /**
+  * The part of the screen this frame must redraw: the rect of every drawn
+@@ -338,6 +383,10 @@ export const damage = (
+     rect = unite(rect, r);
+     parts.push(r);
+   };
++  const addSeen = (seen: Seen) => {
++    if (seen.parts) for (const r of seen.parts) add(r);
++    else add(seen.rect);
++  };
+   const visit = (o: Object3D) => {
+     if (!o.visible || skip.has(o)) return;
+     if (isDrawable(o) && o.layers.test(camera.layers)) {
+@@ -350,17 +399,19 @@ export const damage = (
+         // (a frame drawn whole may have moved the camera: every rect anew)
+         if (!changed && !full && last) entry = last;
+         else {
++          partsFound.length = 0;
+           const r = screenRect(o, camera, width, height);
+           entry = {
+             sig: changed || !last ? sig.slice() : last.sig,
+             rect: r === 'unbounded' ? null : r,
+             unbounded: r === 'unbounded',
+           };
++          if (o.userData.damageBoxes && r !== 'unbounded') entry.parts = partsFound.slice();
+           if (!whole && changed) {
+             if (entry.unbounded || last?.unbounded) whole = true;
+             else {
+-              add(last ? last.rect : null);
+-              add(entry.rect);
++              if (last) addSeen(last);
++              addSeen(entry);
+             }
+           }
+         }
+@@ -375,7 +426,7 @@ export const damage = (
+     for (const [o, last] of seen)
+       if (!next.has(o)) {
+         if (last.unbounded) whole = true;
+-        else add(last.rect);
++        else addSeen(last);
+       }
+   state.seen = next;
+   state.next = seen;
+diff --git a/client/src/three/scene/markers.frames.test.tsx b/client/src/three/scene/markers.frames.test.tsx
+index 6c69c6c..1cbc40e 100644
+--- a/client/src/three/scene/markers.frames.test.tsx
++++ b/client/src/three/scene/markers.frames.test.tsx
+@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
+ import React from 'react';
+ import ReactThreeTestRenderer from '@react-three/test-renderer';
+ import { useThree } from '@react-three/fiber';
+-import { Better, Quiet } from './markers';
++import type { Mesh, ShaderMaterial } from 'three';
++import { Better, LastMove, Quiet } from './markers';
+ 
+ // A mark asks for a frame when what it draws changes, and only then: the
+ // board renders for things no mark shows (a move on its way to the server,
+@@ -61,4 +62,25 @@ describe('a mark', () => {
+     expect(invalidate).not.toHaveBeenCalled();
+     expect(r.scene.findAll((n) => n.props.name === 'better-move')).toHaveLength(1);
+   });
++
++  it('a fresh move\'s destination circle is not drawn while it waits to draw in', async () => {
++    // (a frame of the move would redraw its square for a quad that draws nothing)
++    const r = await ReactThreeTestRenderer.create(
++      <LastMove from={{ floor: [1, 0.5, -1] }} to={{ floor: [0, 0.5, -1] }} fresh glideMs={500} />,
++    );
++    const circles = () =>
++      r.scene
++        .findAll((n) => n.type === 'Mesh')
++        .map((n) => n.instance as Mesh)
++        .filter((m) => (m.material as ShaderMaterial).uniforms?.uKind?.value === 2);
++    const destination = () => circles().find((m) => m.position.x === 0)!;
++    expect(circles()).toHaveLength(2);
++    expect(destination().visible).toBe(false);
++    // Its draw-in starts at 0.8 of the glide (400 ms)
++    await ReactThreeTestRenderer.act(async () => r.advanceFrames(20, 0.016));
++    expect(destination().visible).toBe(false);
++    await ReactThreeTestRenderer.act(async () => r.advanceFrames(10, 0.016));
++    expect(destination().visible).toBe(true);
++    expect(circles().find((m) => m.position.x === 1)!.visible).toBe(true);
++  });
+ });
+diff --git a/client/src/three/scene/markers.tsx b/client/src/three/scene/markers.tsx
+index f5e6cb9..5e3215d 100644
+--- a/client/src/three/scene/markers.tsx
++++ b/client/src/three/scene/markers.tsx
+@@ -1,8 +1,8 @@
+-import { useEffect, useMemo, useRef } from 'react';
++import { useEffect, useMemo, useRef, useState } from 'react';
+ import { useFrame, useThree } from '@react-three/fiber';
+ import { AdditiveBlending, Box3, Color, DoubleSide, PlaneGeometry, Vector3 } from 'three';
+-import type { IUniform } from 'three';
+-import type { DamageBox } from './damage';
++import type { IUniform, Mesh } from 'three';
++import type { DamageBoxes } from './damage';
+ import { prefersReducedMotion } from '../motion';
+ import { LAYER } from './layers';
+ import { LastMoveLine, tubeGeometry, tubeVertex } from './line';
+@@ -362,6 +362,10 @@ const Mark = ({
+     ],
+   );
+ 
++  // A mark that waits to draw in is not drawn until then: nothing for a
++  // picture to redraw while it waits (damage.ts), as a fresh move's first finds it
++  const mesh = useRef<Mesh>(null);
++  const [waits] = useState(() => drawMs > 0 && delayMs > 0);
+   const age = useRef(0);
+   const hover = useRef(0);
+   const back = useRef(dim ? 1 : 0);
+@@ -398,6 +402,7 @@ const Mark = ({
+     }
+     if (drawMs > 0 && u.uReveal.value < 1) {
+       u.uReveal.value = easeOutQuad(clamp01((age.current - delayMs) / drawMs));
++      if (mesh.current && !mesh.current.visible && age.current >= delayMs) mesh.current.visible = true;
+       moving = true;
+     }
+     if (settle && u.uSettle.value < 1) {
+@@ -425,6 +430,8 @@ const Mark = ({
+ 
+   return (
+     <mesh
++      ref={mesh}
++      visible={!waits}
+       geometry={planeFor(quad)}
+       material={material}
+       position={[floor[0], floor[1] + 0.012, floor[2]]}
+@@ -671,6 +678,7 @@ export const shimmerMaterial = () =>
+ 
+ const pathStart = new Vector3();
+ const pathEnd = new Vector3();
++const pathPoint = new Vector3();
+ 
+ /**
+  * The part of a shimmer's straight tube (`from` to `to`, `radius` thick) its
+@@ -687,6 +695,26 @@ export const shimmerLit = (
+   u: Record<string, IUniform>,
+   out: Box3,
+ ): Box3 | null => {
++  const pulses = shimmerPulses(from, to, radius, u);
++  if (!pulses) return null;
++  out.makeEmpty();
++  for (const box of pulses) out.union(box);
++  return out;
++};
++
++const pulseBoxes: Box3[] = [];
++
++/**
++ * shimmerLit pulse by pulse: a box for each pulse it lights (each fragment
++ * belongs to the pulse nearest it), or null for none. Shared: read it before
++ * the next call.
++ */
++export const shimmerPulses = (
++  from: Vec3,
++  to: Vec3,
++  radius: number,
++  u: Record<string, IUniform>,
++): Box3[] | null => {
+   const level = u.uPeak.value * u.uFade.value;
+   const { falloff, cut } = SHIMMER_GLOW;
+   if (!(level >= cut)) return null;
+@@ -703,26 +731,18 @@ export const shimmerLit = (
+   const first = (u.uTime.value as number) * (u.uSpeed.value as number) - length;
+   const kMin = Math.ceil((lo - half - first) / spacing);
+   const kMax = Math.floor((hi + half - first) / spacing);
+-  if (kMin > kMax) return null;
+-  const a0 = Math.max(lo, first + kMin * spacing - half);
+-  const a1 = Math.min(hi, first + kMax * spacing + half);
+-  if (a1 < a0) return null;
+   const k = total > 0 ? 1 / total : 0;
+-  out.makeEmpty();
+-  out.expandByPoint(
+-    pathEnd
+-      .clone()
+-      .sub(pathStart)
+-      .multiplyScalar(a0 * k)
+-      .add(pathStart),
+-  );
+-  out.expandByPoint(
+-    pathEnd
+-      .sub(pathStart)
+-      .multiplyScalar(a1 * k)
+-      .add(pathStart),
+-  );
+-  return out.expandByScalar(radius);
++  pulseBoxes.length = 0;
++  for (let n = kMin; n <= kMax; n++) {
++    const a0 = Math.max(lo, first + n * spacing - half);
++    const a1 = Math.min(hi, first + n * spacing + half);
++    if (a1 < a0) continue;
++    const box = new Box3();
++    box.expandByPoint(pathPoint.copy(pathEnd).sub(pathStart).multiplyScalar(a0 * k).add(pathStart));
++    box.expandByPoint(pathPoint.copy(pathEnd).sub(pathStart).multiplyScalar(a1 * k).add(pathStart));
++    pulseBoxes.push(box.expandByScalar(radius));
++  }
++  return pulseBoxes.length ? pulseBoxes : null;
+ };
+ 
+ const Shimmer = ({
+@@ -751,10 +771,10 @@ const Shimmer = ({
+   const [geometry, damageBox] = useMemo(() => {
+     const [a, b] = tracePath(from, to, { lift });
+     const thick = radius * 2.4;
+-    const lit: DamageBox = (out) => shimmerLit(a, b, thick, material.uniforms, out);
++    const lit: DamageBoxes = () => shimmerPulses(a, b, thick, material.uniforms);
+     return [
+       tubeGeometry([a, b], { radius: thick, radialSegments: 8, capSegments: 2 }),
+-      { damageBox: lit },
++      { damageBoxes: lit },
+     ] as const;
+     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values themselves
+   }, [key]);

@@ -1,0 +1,108 @@
+diff --git a/client/src/three/Board.tsx b/client/src/three/Board.tsx
+index 6a0107f..6c05b2e 100644
+--- a/client/src/three/Board.tsx
++++ b/client/src/three/Board.tsx
+@@ -230,6 +230,10 @@ const Board = (props: BoardProps) => {
+   // while the position before the last move waits for it)
+   const kingsWait = landing || !!replay;
+   const glideToKey = glide ? toZXY(glide.to) : null;
++  // Each piece that has glided keeps its wrapper (settled) until it moves
++  // or leaves: unwrapping it would mount it anew, a new object for the
++  // next move's picture to draw where nothing changed
++  const settled = useRef(new Map<string, { arrival: number; glide: Glide }>());
+   const revealKey = glide?.back && glide.captured ? toZXY(glide.from) : null;
+ 
+   // State for selected piece and its legal moves
+@@ -303,6 +307,10 @@ const Board = (props: BoardProps) => {
+     const piece = board.getPiece(coord);
+     return piece ? [{ ...piece, coord }] : [];
+   });
++  // (a piece that moved or was taken has left its wrapper)
++  const standing = new Set(pieces.map(({ type, color, coord }) => `${type}-${color}-${toZXY(coord)}`));
++  for (const pieceKey of settled.current.keys())
++    if (!standing.has(pieceKey)) settled.current.delete(pieceKey);
+ 
+   // Whether the player may pick up the piece on this cell right now.
+   const canPick = (coord: Coord) => {
+@@ -645,11 +653,12 @@ const Board = (props: BoardProps) => {
+         })}
+         {pieces.map(({ type, color, coord }) => {
+           const key = toZXY(coord);
++          const pieceKey = `${type}-${color}-${key}`;
+           const inCheck = type === PieceType.King && checked.includes(color);
+           const isMated = type === PieceType.King && color === matedColor;
+           const mesh = (
+             <PieceMesh
+-              key={`${type}-${color}-${key}`}
++              key={pieceKey}
+               type={type}
+               color={color}
+               position={worldOf(coord)}
+@@ -675,6 +684,7 @@ const Board = (props: BoardProps) => {
+           // by arrival: every new one mounts a fresh tween, superseding one
+           // still in flight.
+           if (glide && key === glideToKey) {
++            settled.current.set(pieceKey, { arrival: arrivalKey, glide });
+             return (
+               <MoveGlide
+                 key={`anim-${arrivalKey}`}
+@@ -697,6 +707,20 @@ const Board = (props: BoardProps) => {
+               </Reveal>
+             );
+           }
++          const kept = settled.current.get(pieceKey);
++          if (kept) {
++            return (
++              <MoveGlide
++                key={`anim-${kept.arrival}`}
++                plan={kept.glide.plan}
++                fromLevel={kept.glide.from.z}
++                toLevel={coord.z}
++                settled
++              >
++                {mesh}
++              </MoveGlide>
++            );
++          }
+           return mesh;
+         })}
+       </group>
+diff --git a/client/src/three/moveAnimation.tsx b/client/src/three/moveAnimation.tsx
+index 44a0a31..1ff034f 100644
+--- a/client/src/three/moveAnimation.tsx
++++ b/client/src/three/moveAnimation.tsx
+@@ -36,6 +36,7 @@ export const MoveGlide = ({
+   toLevel,
+   onLanded,
+   landsEarlyMs = 0,
++  settled = false,
+ }: {
+   plan: GlidePlan;
+   children: React.ReactNode;
+@@ -53,6 +54,11 @@ export const MoveGlide = ({
+   onLanded?: () => void;
+   /** Report the landing this much before the piece comes to rest (ms). */
+   landsEarlyMs?: number;
++  /**
++   * The move is over (a newer one has come): the piece stands on its square
++   * at once, as unwrapped, and the wrapper only keeps it mounted.
++   */
++  settled?: boolean;
+ }) => {
+   const group = useRef<Group>(null);
+   const progress = useRef(0);
+@@ -79,6 +85,14 @@ export const MoveGlide = ({
+   }, []);
+ 
+   useEffect(() => invalidate(), [invalidate]);
++  useLayoutEffect(() => {
++    if (!settled || done.current) return;
++    done.current = true;
++    reported.current = true;
++    apply(touchdownMs(plan));
++    invalidate();
++    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when it settles
++  }, [settled]);
+   const landed = useRef(onLanded);
+   landed.current = onLanded;
+ 

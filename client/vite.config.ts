@@ -110,6 +110,8 @@ export const placeLandingPictureEarly = (): Plugin => ({
 
 /** The pages that draw the scene, but for the start page (which loads it itself). */
 export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
+/** Of those, the lobby's: the pages that show a game's screen, or go on to it. */
+export const GAME_SCREEN_PATH = /^\/(game\/|new$|computer(\/|$))/;
 
 /**
  * three.js, the scene and the set's precomputed parts load in a chunk of
@@ -120,12 +122,16 @@ export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
  * is a chunk too, LearnScreen.tsx) the page needs it at once, so the
  * built page starts fetching it (and the chunks it imports) alongside the
  * entry, instead of after the entry has loaded and run; the start page leaves
- * it for later. The build fails if a chunk is not found, rather than quietly
- * shipping a page without the preload.
+ * it for later. The game's page (GameScreen.tsx, a chunk of its own) and
+ * board (GameCanvas.tsx, which imports chunks of the page's) are preloaded
+ * on the lobby's pages alone. The build fails if a chunk is not found,
+ * rather than quietly shipping a page without the preload.
  */
+const GAME_ONLY = ['/src/screens/GameScreen.tsx', '/src/screens/GameCanvas.tsx'];
 const PRELOADED = [
+  GAME_ONLY[0],
   '/src/screens/lobby/LobbyCanvas.tsx',
-  '/src/screens/GameCanvas.tsx',
+  GAME_ONLY[1],
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/learn/LearnCanvas.tsx',
 ];
@@ -149,16 +155,18 @@ const preloadSceneOnGamePages = (): Plugin => ({
       // (loading anyway: the page links those itself)
       const entry = chunks.find((c) => c.isEntry);
       const loading = new Set(entry ? [entry.fileName, ...entry.imports] : []);
-      const files = [
-        ...new Set(PRELOADED.map(from).flatMap((c) => [c.fileName, ...c.imports])),
-      ].filter((f) => !loading.has(f));
-      const preload = (f: string) =>
-        `{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';l.href='/${f}';document.head.appendChild(l)}`;
+      const files = (modules: string[]) =>
+        [...new Set(modules.map(from).flatMap((c) => [c.fileName, ...c.imports]))].filter(
+          (f) => !loading.has(f),
+        );
+      const lobby = JSON.stringify(files(PRELOADED));
+      const learn = JSON.stringify(files(PRELOADED.filter((m) => !GAME_ONLY.includes(m))));
+      const preload = `f=>{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';l.href='/'+f;document.head.appendChild(l)}`;
       return [
         {
           tag: 'script',
           injectTo: 'head',
-          children: `if(${SCENE_PATH}.test(location.pathname)){${files.map(preload).join('')}}`,
+          children: `{const p=${preload},a=location.pathname;if(${GAME_SCREEN_PATH}.test(a))${lobby}.forEach(p);else if(${SCENE_PATH}.test(a))${learn}.forEach(p)}`,
         },
       ];
     },
@@ -254,8 +262,9 @@ const SCENE_MODULE =
  * or a dependency's update that adds to them says so; raise it on purpose,
  * naming the cost in the PR. A tripwire for growth, not the host's size.
  */
-const ENTRY_GZIP_BUDGET = 121_000;
+const ENTRY_GZIP_BUDGET = 100_000;
 const SHOWN_BEFORE_SCENE = [
+  '/src/screens/GameScreen.tsx',
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/ComputerGameScreen.tsx',
 ];
