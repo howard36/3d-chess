@@ -1695,7 +1695,8 @@ in the report and exits 1.
 
 **The primary rows** (`bench/primary.mjs`) are one number for each moment a player waits
 on (CLAUDE.md "Performance"): the start page usable and answering its first click, a shared
-game's first screen (on desktop, and on a phone on a mobile network), the first board frame
+game's first screen (on desktop, and on a phone on a mobile network), the side choice's
+scene opened on such a phone, the first board frame
 (joining a game, playing the computer), a game reopened (a long one, and one against the
 computer on a phone), a finished game's review (from "Review" to every mark in, its marks
 checked the same in every run), a move landing (the player's and the opponent's), a piece
