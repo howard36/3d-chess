@@ -1638,8 +1638,10 @@ the shapes change), and `datamodel-code-generator`, pinned exactly, whose update
 `messages.py` regenerated. `@types/node` majors are ignored: they move with `.nvmrc`.
 
 The client's entry (with its CSS, kept under `ENTRY_GZIP_BUDGET` gzipped in `vite.config.ts`:
-the build fails above it, raised only on purpose) holds the start screen, the side choice and the game
-screen (the invitation, the HUD, the move record). Everything 3D is a chunk the entry loads
+the build fails above it, raised only on purpose) holds the start screen and the side choice.
+The game screen (the invitation, the HUD, the move record, the review) is a chunk of its own
+(`screens/gameScreenChunk.ts`): a game's address preloads it from the HTML and waits for it
+before the app first renders (`main.tsx`), and the side choice asks for it as it shows. Everything 3D is a chunk the entry loads
 lazily, shared by the start page's preview (`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
 the tutorial's (`screens/learn/LearnCanvas.tsx`):

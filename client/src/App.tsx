@@ -1,7 +1,6 @@
 import { Routes, Route, matchPath, useLocation, useParams } from 'react-router';
 import StartScreen from './screens/StartScreen';
-// Small: the game's 3D board (GameCanvas) and the lobby's canvas are its lazily loaded parts
-import GameScreen from './screens/GameScreen';
+import { gameScreen } from './screens/gameScreenChunk';
 import LobbyLayout from './screens/lobby/LobbyLayout';
 import ChooseSide from './screens/lobby/ChooseSide';
 import { computerGame } from './screens/computerGameChunk';
@@ -31,12 +30,17 @@ function GameRoute({
 }) {
   const { gameId } = useParams<{ gameId: string }>();
   if (gameId !== readyGameId) return null;
-  return <GameScreen key={gameId} gameSocket={gameSocket} />;
+  const Screen = gameScreen.Component;
+  return (
+    <ChunkFailed key={gameId}>
+      <Screen gameSocket={gameSocket} />
+    </ChunkFailed>
+  );
 }
 
-// A game against the computer (/computer/:gameId), from its own chunk; should
-// that fail to load, the lobby's page says so with a way to try again
-function ComputerGameRoute() {
+// A page from a chunk of its own; should that fail to load, the lobby's page
+// says so with a way to try again
+function ChunkFailed({ children }: { children: React.ReactNode }) {
   const [failed, setFailed] = React.useState(false);
   if (failed) {
     return (
@@ -50,13 +54,20 @@ function ComputerGameRoute() {
       </div>
     );
   }
-  const Screen = computerGame.Component;
   return (
     <ChunkBoundary onFail={() => setFailed(true)}>
-      <React.Suspense fallback={null}>
-        <Screen />
-      </React.Suspense>
+      <React.Suspense fallback={null}>{children}</React.Suspense>
     </ChunkBoundary>
+  );
+}
+
+// A game against the computer (/computer/:gameId), from its own chunk
+function ComputerGameRoute() {
+  const Screen = computerGame.Component;
+  return (
+    <ChunkFailed>
+      <Screen />
+    </ChunkFailed>
   );
 }
 

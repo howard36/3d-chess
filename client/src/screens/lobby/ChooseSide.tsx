@@ -17,6 +17,7 @@ import { DIFFICULTIES, DIFFICULTY_NAME } from '../../ai/levels';
 import type { Difficulty } from '../../ai/levels';
 import { createComputerGame, markArriving } from '../../lib/computerGames';
 import { computerGame } from '../computerGameChunk';
+import { gameScreen } from '../gameScreenChunk';
 import { prefersReducedMotion } from '../../three/motion';
 import { autoFocusRef } from '../../lib/focus';
 import { glassRim } from '../turningRim';
@@ -77,6 +78,7 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   const [gone, setGone] = React.useState(false);
   // Its page's code, while the player chooses
   React.useEffect(() => {
+    gameScreen.preload();
     if (computer) computerGame.preload();
   }, [computer]);
   const { messages, status } = gameSocket;

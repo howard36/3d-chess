@@ -124,6 +124,7 @@ export const SCENE_PATH = /^\/(game\/|new$|computer(\/|$)|learn(\/|$))/;
  * shipping a page without the preload.
  */
 const PRELOADED = [
+  '/src/screens/GameScreen.tsx',
   '/src/screens/lobby/LobbyCanvas.tsx',
   '/src/screens/GameCanvas.tsx',
   '/src/screens/learn/LearnScreen.tsx',
@@ -254,8 +255,9 @@ const SCENE_MODULE =
  * or a dependency's update that adds to them says so; raise it on purpose,
  * naming the cost in the PR. A tripwire for growth, not the host's size.
  */
-const ENTRY_GZIP_BUDGET = 121_000;
+const ENTRY_GZIP_BUDGET = 100_000;
 const SHOWN_BEFORE_SCENE = [
+  '/src/screens/GameScreen.tsx',
   '/src/screens/learn/LearnScreen.tsx',
   '/src/screens/ComputerGameScreen.tsx',
 ];

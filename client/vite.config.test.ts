@@ -248,6 +248,7 @@ const sceneGate = (change: (parts: Record<string, Part>) => void = () => {}) => 
     'shared.js': chunk('shared.js', ['/src/lib/focus.ts']),
     'learn.js': chunk('learn.js', ['/src/screens/learn/LearnScreen.tsx']),
     'computer.js': chunk('computer.js', ['/src/screens/ComputerGameScreen.tsx']),
+    'game.js': chunk('game.js', ['/src/screens/GameScreen.tsx']),
     'scene.js': chunk('scene.js', [
       '/node_modules/three/build/three.module.js',
       '/src/ai/search.ts',
