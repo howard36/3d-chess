@@ -1698,7 +1698,8 @@ async function joinScreenOnPhone(browser, scope) {
 /**
  * A game against the computer reopened on a phone on a mobile network (4×
  * CPU, Fast 4G), a first visit to the page with the game in its storage (as
- * a player coming back to it): until its turn indicator shows.
+ * a player coming back to it): until its turn indicator shows, and on until
+ * the board's first picture has been handed to the GPU.
  */
 async function computerReopenOnPhone(browser, scope) {
   const id = `bench${Date.now().toString(36)}`;
@@ -1719,8 +1720,15 @@ async function computerReopenOnPhone(browser, scope) {
   await cdp.send('Network.emulateNetworkConditions', FAST_4G);
   await page.goto(`${BASE}/computer/${id}`, { waitUntil: 'commit' });
   await page.getByTestId('turn-indicator').waitFor({ timeout: 60000 });
+  await page.waitForFunction(() => window.__bench.renders.length > 0, null, {
+    polling: 50,
+    timeout: 60000,
+  });
   const b = await snap(page);
-  return { turnShown: b.firsts.turnIndicator - b.timeOrigin };
+  return {
+    turnShown: b.firsts.turnIndicator - b.timeOrigin,
+    boardFrame: firstFrameEnd(b) - b.timeOrigin,
+  };
 }
 
 /**
@@ -1759,7 +1767,7 @@ async function setupSection(browser, shared) {
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”, once the moment the button shows and once after a ${JOIN_PAUSE_MS / 1000} s pause, as a person reading the invitation would; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows, reopens a game against the computer kept in its storage, until its turn shows, and opens the side choice (\`/new\`), until the lobby’s scene has drawn its first frame. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
+      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”, once the moment the button shows and once after a ${JOIN_PAUSE_MS / 1000} s pause, as a person reading the invitation would; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows, reopens a game against the computer kept in its storage, until its turn shows and its board’s first picture has been handed to the GPU, and opens the side choice (\`/new\`), until the lobby’s scene has drawn its first frame. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1887,6 +1895,11 @@ async function setupSection(browser, shared) {
         stat(
           'Reopening a game against the computer on a phone (4× CPU, Fast 4G): turn shown',
           computerOnPhone.map((r) => r.turnShown),
+          'from opening its address; a first visit, the game in storage',
+        ),
+        stat(
+          'Reopening a game against the computer on a phone (4× CPU, Fast 4G): board’s first picture handed to the GPU',
+          computerOnPhone.map((r) => r.boardFrame),
           'from opening its address; a first visit, the game in storage',
         ),
         stat(
