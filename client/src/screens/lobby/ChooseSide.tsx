@@ -78,9 +78,13 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   const [gone, setGone] = React.useState(false);
   // Its page's code, while the player chooses
   React.useEffect(() => {
-    gameScreen.preload();
     if (computer) computerGame.preload();
   }, [computer]);
+  // (and the game's page once the click that opened this one is answered)
+  React.useEffect(() => {
+    const later = window.setTimeout(gameScreen.preload);
+    return () => window.clearTimeout(later);
+  }, []);
   const { messages, status } = gameSocket;
   const [hover, setHover] = React.useState<Choice | null>(null);
   const [picked, setPicked] = React.useState<{ choice: Choice; side: Side } | null>(null);
