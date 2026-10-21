@@ -1,0 +1,137 @@
+{
+  "title": "Perf run 20261020-1951",
+  "eyebrow": "3D chess · perf-iteration · run 20261020-1951 · speed run, breakthrough",
+  "heading": "The start page is usable about 7% sooner on a phone and 17% sooner on a desktop",
+  "meta": "<p>This speed run moved the game screen (the invitation, the HUD, the move record and the review) out of the start page's entry, into a chunk of its own. The start page now downloads and runs about 21 KB less code (gzipped) before a player can use it. Eight other ideas were measured and rejected. The work is on branch <code>improve/20261020-1951</code>, from base <code>8260314</code>; main did not move during the run. Every figure is from software rendering (SwiftShader) on a 4-vCPU VM, and each names the commits it compares.</p>",
+  "needs": {
+    "intro": "<p>Nothing here blocks the merge. All three items are information.</p>",
+    "items": [
+      {
+        "title": "Information: a shared game's first screen leans slower in one A/B of three",
+        "body": "<p>A player who opens a game's link now waits for the game screen's chunk before the page first renders. The HTML asks for that chunk alongside the entry, so it arrives in parallel. The row \"A shared game's page, first screen\" was measured three times on the same code path:</p><ul><li>GS1's A/B, 7 pairs: ×0.980 (<code>ab-20261020-1951-gs1.md</code>).</li><li>The final A/B, 10 pairs: 88.6 → 98.2 ms, ×1.110, pairs 1.15 0.91 1.27 1.32 0.89 1.07 1.16 0.92 1.02 1.19 (<code>ab-20261020-1951-final.md</code>).</li><li>A re-check, 10 pairs: 85.7 → 88.3 ms, ×1.029, pairs 1.02 0.77 1.06 0.94 1.19 1.07 1.11 1.01 1.04 0.94 (<code>ab-20261020-1951-join.md</code>).</li></ul><p>No A/B called it. A/As of identical code gave this row ×1.063 (run 1303) and ×1.017 (this run's step 2). Joining's first board picture, the moment that follows, was ×0.991 and ×0.993.</p>",
+        "recommend": "No decision needed. If the lean is real, it is a few milliseconds on an unthrottled desktop. Ledger 1951:JB1 adds a throttled-phone row for a game's address, so the next run can see this on the device GS1 was meant to help."
+      },
+      {
+        "title": "Information: the player's move leans 3.6% slower at the median, not called",
+        "body": "<p>Final A/B: 150 → 155 ms, ×1.036, 5 of 10 pairs worse (pairs 0.98 0.88 1.09 0.97 0.77 0.89 1.09 1.10 1.12 1.13). This run changed nothing on the move's path: the game screen's code is the same, only loaded from another file. In this run's step-2 A/A of identical code, the same row leaned ×1.066.</p>",
+        "recommend": "No decision needed. The next run's step 2 reads it again."
+      },
+      {
+        "title": "Information: the target (every primary row 1.2× faster) is not met",
+        "body": "<p>Only the start page's rows moved: desktop usable ×0.829 is past 1.2×; phone usable ×0.930 and returning ×0.931 are not. The other 13 rows are on paths this run did not change. The breakthrough bets aimed at the move, the pick and the search (CC1, BL1, CF1, MB1) were stopped by their measurements. The largest measured leads left are waiting on your earlier taste calls: HF1, the level focus after a dwell, and PR1 road (d), one canvas for the lobby and the game.</p>",
+        "recommend": "No decision needed here. The earlier questions on HF1 and PR1 still stand."
+      }
+    ]
+  },
+  "scoreboard": {
+    "intro": "<p>The headline rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Each bar is a row's median change, head divided by base; below 1 means faster. The dashed line is the target, 1.2× faster than the base. The long view against the first recorded run was not re-measured.</p>",
+    "items": [
+      {
+        "title": "Final A/B: the branch's final code against the base, all 16 primary rows",
+        "body": "<p><code>1fb375d</code> (app code as at <code>303a863</code>) against <code>8260314</code>, 10 pairs, 70 minutes (<code>ab-20261020-1951-final.md</code>): ×1.051 over 16 rows. Two rows are called better: start page usable on the phone, 686 → 638 ms (×0.930, pairs 0.92–0.94), and on the desktop, 65.3 → 55.3 ms (×0.829, pairs 0.80–0.91). The returning phone went 414 → 387 ms (×0.931), better in all 10 pairs but not called because the pairs spread too widely. No row is called worse. Memory is flat: JavaScript heap after reopening −0.9%, geometries +10 on both sides.</p><p>The desktop row deserves caution both ways: this run's step-2 A/A of identical code called it 7.7% worse (ledger 1951:AA2). The phone row is the steadier result: GS1's own A/B called it too, at ×0.925.</p>",
+        "charts": [
+          {
+            "rows": { "change": "final: 1fb375d vs 8260314, --primary, 10 pairs", "only": "PRIMARY" },
+            "caption": "1fb375d against 8260314, 10 pairs (ab-20261020-1951-final.md).",
+            "target": 1.2
+          }
+        ]
+      }
+    ]
+  },
+  "changed": {
+    "intro": "<p>One change in two commits, measured together on the final commit.</p>",
+    "items": [
+      {
+        "title": "The game screen is no longer in the start page's entry (GS1, 037cb09; GS2, 303a863)",
+        "body": "<p>The start page's entry used to carry the game screen: the invitation, the HUD, the move record and the review. A player on the start page never sees any of it. GS1 makes it a chunk of its own (<code>screens/gameScreenChunk.ts</code>). A game's address asks for the chunk from the HTML and waits for it before the app first renders, so the page still shows in its first frame. The side choice asks for it as it opens. If the chunk fails to load, the page says \"Couldn't load the game\" with a Retry button, as the computer's game page already did.</p><p>The entry plus its CSS went from 119,804 to 98,567 bytes gzipped (the build's own budget check), and <code>ENTRY_GZIP_BUDGET</code> went from 121,000 to 100,000.</p><p>GS1's A/B (7 pairs, 11 of the 16 primary rows; <code>ab-20261020-1951-gs1.md</code>) called phone usable ×0.925 and returning ×0.905. It also made the start page's first click slower: the unthrottled phone's 11.1 → 15.3 ms (called worse, a diagnostic) and the desktop's ×1.064 (not called). GS2 delays the side choice's request for the chunk by one task, so it no longer runs inside the click's work. Against GS1, the throttled phone's first click went 49.2 → 40.6 ms (called better, 4 pairs; <code>ab-20261020-1951-gs2.md</code>). On the final commit the desktop's first click is ×0.880 against the base, so GS1's cost is gone.</p><p>Trade-offs: a cold visit makes 25 requests instead of 18 and downloads 6 KiB more (+1%), because split chunks compress less well together. The returning visit fetches 19.8 KiB on the way to the side choice instead of 0.3 KiB, because the game chunk is no longer part of the cached entry. The tutorial's HTML now also preloads the game chunk, which it does not use (ledger 1009-0411:P7).</p><p>Checks: <code>/check</code> passes on the final code, including e2e (54 passed, 1 skipped by design). The build fails if three.js ever enters the game screen's chunk (<code>SHOWN_BEFORE_SCENE</code>).</p>",
+        "charts": [
+          {
+            "rows": { "change": "1951:GS1", "only": "PRIMARY" },
+            "caption": "GS1 against 8260314, 7 pairs, the 11 primary rows of the cold-load, setup, computer and reopen sections (ab-20261020-1951-gs1.md).",
+            "target": 1.2
+          }
+        ]
+      }
+    ]
+  },
+  "removed": {
+    "intro": "<p>Nothing removed. The diff outside bench/loop is +70 and −21 lines over 9 files: app code, two tests, the build config and ARCHITECTURE.md.</p>",
+    "items": []
+  },
+  "rejected": {
+    "intro": "<p>Each result names its A/B report or patch in <code>bench/loop/</code>. A row counts only when the A/B calls it: every pair moves the same way, by more than 5% and by more than the pairs disagree.</p>",
+    "items": [
+      {
+        "title": "IE1: the entry inlined in the HTML",
+        "body": "<p>The entry as <code>data:</code> modules behind an import map, so its code arrives with the HTML. Every start-page row was worse in every pair: phone usable 701 ms → 1.10 s (×1.565), desktop ×2.911. The browser parses and compiles an inline module on the main thread, without streaming or a code cache. 3 pairs (<code>ab-20261020-1951-ie1.md</code>, <code>patches/1951-IE1-inline-entry.patch</code>).</p>",
+        "charts": [
+          { "rows": { "change": "IE1", "only": "PRIMARY" }, "caption": "IE1 against 8260314, 3 pairs (ab-20261020-1951-ie1.md)." }
+        ]
+      },
+      {
+        "title": "CF1: hold the click's picture until the move's echo",
+        "body": "<p>The player's move 137 → 122 ms (×0.860, pairs 0.68–1.23), not called; 10 pairs (<code>ab-20261020-1951-cf1.md</code>). A probe showed the idea's premise is false: at the click, a frame begun 40–60 ms earlier is still on the GPU, so the click's own picture is rarely drawn and the hold engaged at 1 of 8 clicks. Patch: <code>patches/1951-CF1-click-picture-hold.patch</code>.</p>"
+      },
+      {
+        "title": "MB1 and LL2: less redrawn in the opponent's move",
+        "body": "<p>MB1 (LL2, settled glide wrappers, the new mark hidden until it draws in), 12 pairs: the opponent's move 71.2 → 53.1 ms, ×0.775, 10 of 12 pairs better, not called (<code>ab-20261020-1951-mb1.md</code>). LL2 alone, 10 pairs: ×0.966, 5 of 10 better (<code>ab-20261020-1951-ll2.md</code>). This row's pairs range from 0.57 to 1.14 across these A/Bs, wider than the change. LL2 is parked until the row is steadier.</p>"
+      },
+      {
+        "title": "CC1: draw only the visible parts of a partly covered piece",
+        "body": "<p>A count-only probe found that a pass could skip 13.5% of a pick's triangles and 19.2% of a move's, under the 20% kill line, and only with about 3 draws per piece. Stopped before an A/B; the probe was not kept.</p>"
+      },
+      {
+        "title": "BL1 and KM1: faster search through layout and caching",
+        "body": "<p>BL1, branchless slider rays on a bordered board: ×1.005 to ×1.066 in a node probe, so slower. KM1, the mobility cache kept between a review worker's searches: 0.06% fewer calls, time ×1.001. Both node probes are described in the run record; their scripts were not kept.</p>"
+      }
+    ]
+  },
+  "choices": {
+    "intro": "",
+    "items": [
+      {
+        "title": "GS2 kept as part of GS1",
+        "body": "<p>GS2 alone moves no primary row. It removes a cost GS1 added (the first click), and the final A/B measures the two together against the base. Its commit message explains the effect with a mechanism the review doubts: the router navigates inside a transition, so the old request probably ran in a scheduled task rather than in the click itself. The fix stands; the reason is ledger 1951:GM1.</p>"
+      },
+      {
+        "title": "A shared game's first screen re-checked rather than traded away",
+        "body": "<p>One A/B showed ×1.110 on this row. A second, 10-pair A/B of the setup section showed ×1.029. GS1 stays in the PR, and the row is reported above as information.</p>"
+      },
+      {
+        "title": "Review items that do not block the merge went to the ledger",
+        "body": "<p>New rows: 1951:GI1 (fetch the game chunk once the start page is usable), NH1 (wait for the chunk before moving from the side choice to the game), JB1 (throttled-phone rows for a game's address), GT1 (tests for the chunk failing, <code>ready()</code> and the wait in <code>main.tsx</code>), GM1 and PO1. 0008:EN1 and 0930:T9 left the ledger because GS1 does what they proposed.</p>"
+      },
+      {
+        "title": "Figures corrected after the review",
+        "body": "<p>LL2 alone was 5 of 10 pairs better, not 6, and the pair ranges belong to separate A/Bs. GS1's scoreboard rows now name the head as it was measured: <code>d7cac93</code> with uncommitted changes, which differ from <code>037cb09</code> only in a prop used on a failed load.</p>"
+      }
+    ]
+  },
+  "notConfirmed": {
+    "intro": "",
+    "items": [
+      {
+        "title": "Probe figures with no saved output",
+        "body": "<p>CC1's triangle shares, BL1's ranges, KM1's call counts, SP1's triangles per frame and CF1's pacer log come from temporary probes that were reverted. They are written in the run record but no file holds their raw output (ledger 1951:PO1).</p>"
+      },
+      {
+        "title": "The tutorial's cost from the extra preload",
+        "body": "<p>The tutorial's HTML now preloads the game chunk (about 20 KB). No bench row measures a cold visit to /learn, so the cost is not measured.</p>"
+      },
+      {
+        "title": "HF1, the level focus after a dwell",
+        "body": "<p>Built as a prototype patch only (<code>patches/1951-HF1-focus-dwell.patch</code>), not measured and not in the PR, because it changes what a player sees and waits on your call.</p>"
+      }
+    ]
+  },
+  "next": {
+    "intro": "<p>The top of the ledger:</p>",
+    "items": [
+      { "title": "1951:GI1: fetch the game chunk once the start page is usable", "body": "<p>Should win back the returning visit's bytes and the first click while keeping GS1's faster start page.</p>" },
+      { "title": "1951:SM1: the start page's menu built into the HTML", "body": "<p>Estimated phone usable 699 → about 450 ms. It changes how the start page first appears, so it needs your call.</p>" },
+      { "title": "1303:HF1 and LL2", "body": "<p>The move and pick rows' largest leads: HF1 waits on your call; LL2 waits on a steadier opponent's-move row.</p>" },
+      { "title": "1951:GT1 and JB1 (general run)", "body": "<p>Tests for GS1's new paths, and phone rows for a game's address.</p>" }
+    ]
+  }
+}
