@@ -109,6 +109,13 @@ export const PRIMARY = [
     what: 'move record shown · 2000 plies',
   },
   {
+    moment: 'Reopening a game against the computer, phone (4× CPU, Fast 4G)',
+    tier: 'browser',
+    section: 'setup',
+    where: 'Game setup',
+    what: 'Reopening a game against the computer on a phone (4× CPU, Fast 4G): turn shown',
+  },
+  {
     moment: 'A finished game’s review, every mark in',
     tier: 'browser',
     section: 'review',

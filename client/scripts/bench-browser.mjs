@@ -1685,6 +1685,34 @@ async function joinScreenOnPhone(browser, scope) {
   return { joinButton: b.firsts.joinButton - b.timeOrigin, ...bytes };
 }
 
+/**
+ * A game against the computer reopened on a phone on a mobile network (4×
+ * CPU, Fast 4G), a first visit to the page with the game in its storage (as
+ * a player coming back to it): until its turn indicator shows.
+ */
+async function computerReopenOnPhone(browser, scope) {
+  const id = `bench${Date.now().toString(36)}`;
+  const game = { id, color: 'white', difficulty: 'easy', started: true, moves: [] };
+  const ctx = scope.ctx(await newBenchContext(browser, 'phone'));
+  await ctx.addInitScript(
+    ([key, value, roleKey]) => {
+      if (!location.protocol.startsWith('http')) return;
+      localStorage.setItem(key, value);
+      localStorage.setItem(roleKey, 'white');
+    },
+    [`3dchess:computer:${id}`, JSON.stringify(game), `3dchess:role:${id}`],
+  );
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await cdp.send('Network.enable');
+  await cdp.send('Network.emulateNetworkConditions', FAST_4G);
+  await page.goto(`${BASE}/computer/${id}`, { waitUntil: 'commit' });
+  await page.getByTestId('turn-indicator').waitFor({ timeout: 60000 });
+  const b = await snap(page);
+  return { turnShown: b.firsts.turnIndicator - b.timeOrigin };
+}
+
 /** How long the paused joiner reads the invitation before clicking Join. */
 const JOIN_PAUSE_MS = 1500;
 
@@ -1693,7 +1721,7 @@ async function setupSection(browser, shared) {
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”, once the moment the button shows and once after a ${JOIN_PAUSE_MS / 1000} s pause, as a person reading the invitation would; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
+      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”, once the moment the button shows and once after a ${JOIN_PAUSE_MS / 1000} s pause, as a person reading the invitation would; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows, and reopens a game against the computer kept in its storage, until its turn shows. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1703,6 +1731,7 @@ async function setupSection(browser, shared) {
       const joined = [];
       const paused = [];
       const onPhone = [];
+      const computerOnPhone = [];
       for (let i = 0; i < CFG.setupRuns; i++) {
         // Turn about, so drift weighs on both alike
         const scope = new Scope();
@@ -1723,6 +1752,12 @@ async function setupSection(browser, shared) {
         } finally {
           await phoneScope.close();
         }
+        const computerScope = new Scope();
+        try {
+          computerOnPhone.push(await computerReopenOnPhone(browser, computerScope));
+        } finally {
+          await computerScope.close();
+        }
         const last = i === CFG.setupRuns - 1;
         // The last creator's game is kept for the move-latency section
         const runScope = last ? shared.scope : new Scope();
@@ -1734,7 +1769,7 @@ async function setupSection(browser, shared) {
           if (!last) await runScope.close();
         }
       }
-      raw.setup = { created, joined, paused, onPhone };
+      raw.setup = { created, joined, paused, onPhone, computerOnPhone };
       const c = (k) => created.map((r) => r[k]);
       const j = (k) => joined.map((r) => r[k]);
       const ph = (k) => onPhone.map((r) => r[k]);
@@ -1803,6 +1838,11 @@ async function setupSection(browser, shared) {
           'Joining on a phone (4× CPU, Fast 4G): Join button shown',
           ph('joinButton'),
           'from opening the link; a first visit',
+        ),
+        stat(
+          'Reopening a game against the computer on a phone (4× CPU, Fast 4G): turn shown',
+          computerOnPhone.map((r) => r.turnShown),
+          'from opening its address; a first visit, the game in storage',
         ),
         countStat(
           'Joining on a phone (4× CPU, Fast 4G): requests to the server',
