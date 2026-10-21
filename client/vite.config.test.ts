@@ -343,7 +343,8 @@ test('the built page preloads what each page the app draws the scene on needs, f
   for (const { address, element, lobby } of appRoutes()) {
     const modules = preloadsOf(address);
     // The start page loads the scene itself; any other address is no page's
-    if (address === '/' || address === '*') expect([address, modules]).toEqual([address, undefined]);
+    if (address === '/' || address === '*')
+      expect([address, modules]).toEqual([address, undefined]);
     // The lobby's pages: the game's page, the lobby's canvas and the game's
     // board (and a game against the computer's own page); the tutorial's,
     // its page and board
