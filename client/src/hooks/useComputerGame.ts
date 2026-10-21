@@ -215,6 +215,17 @@ export function useComputerGame(
       );
     };
     computerRef.current.assess(game.moves).then(reply, (cause) => {
+      // Its code is missing: it cannot weigh the offer up, and says why, as
+      // when it is to move (above), rather than seem to have declined it
+      if (cause instanceof ChunkLoadError) {
+        if (!live || gameRef.current !== game) return;
+        console.error('The computer’s search did not load; it waits for a reload.', cause);
+        apply({
+          game,
+          replies: [{ type: 'error', code: 'invalid_message', message: COMPUTER_UNLOADED }],
+        });
+        return;
+      }
       console.error('The computer could not weigh the position up; it declines.', cause);
       reply(null);
     });
