@@ -24,6 +24,15 @@ import type { Table } from './report';
 type SetModule = typeof import('../src/three/pieces/set');
 type OcclusionModule = typeof import('../src/three/scene/occlusion');
 
+// The medium set's knight and occlusion load on their own (pieceData.ts,
+// 1153:PD1), as the pages load them beside their canvases; a base from
+// before had them in the set's own modules, and nothing to load
+const pieceData = '/src/three/pieces/pieceData.ts'; // (a name, so a base without it still builds)
+await import(/* @vite-ignore */ pieceData).then(
+  (m: { loadPieceData: () => Promise<unknown> }) => m.loadPieceData(),
+  () => {},
+);
+
 const TYPES = Object.values(PieceType);
 const QUICK = process.argv.includes('--quick') || process.env.BENCH_QUICK === '1';
 let fresh = 0;

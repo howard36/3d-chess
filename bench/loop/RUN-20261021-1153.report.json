@@ -1,0 +1,189 @@
+{
+  "title": "Perf run 20261021-1153",
+  "eyebrow": "3D chess · perf-iteration · run 20261021-1153 · speed run",
+  "heading": "A reopened game against the computer opens in half the time on a phone",
+  "meta": "<p>This speed run kept two changes to the app. The first preloads each page's own code first and its 3D scene at low priority (P7, parked by the last run and landed here). The second moves the knight's meshes and six pieces' baked shading into a chunk of their own, so that the side choice's scene, which draws only kings, no longer downloads them (PD1). On the final commit, measured against the base <code>9ca180a</code> over 10 pairs, three primary rows are called better and none worse. On a throttled phone, reopening a game against the computer shows its turn in 741 ms instead of 1.39 s, a shared game's first screen shows in 713 ms instead of 875 ms, and the side choice's scene draws in 2.27 s instead of 2.41 s. The run also added two primary rows. PD1 comes with a build check that keeps its split in place and a fix to the one dev page it would have broken. The branch is <code>improve/20261021-1153</code>; main did not move during the run. Every figure comes from software rendering (SwiftShader) on a 4-vCPU VM, and each one names the commits it compares.</p>",
+  "needs": {
+    "intro": "<p>Nothing here needs a decision. The items are information that the speed rule asks for.</p>",
+    "items": [
+      {
+        "title": "Three primary rows lean worse, none is called",
+        "body": "<p>The speed rule lists any primary row that is more than 3% worse at the median pair. In the final A/B (<code>4f0d9e9</code> against <code>9ca180a</code>, 10 pairs, <code>ab-20261021-1153-final.md</code>) there are three:</p><ul><li>Start page answers its first click, desktop: ×1.066, 7 of 10 pairs worse, pairs 0.75–1.20. The branch does not change the start page's click path. On unchanged code, step 2's A/B gave ×1.045 for this row.</li><li>A shared game's page, first screen, desktop: ×1.062, 6 of 10 pairs worse, pairs 0.89–1.82. P7 changes this page's head. This run's three earlier A/Bs that measured P7 and PD1 gave ×1.003, ×0.988 and ×0.990.</li><li>The opponent's move appears: ×1.038, 7 of 10 pairs worse, pairs 0.84–1.41. No change in the branch touches the move path. A re-check of the move rows alone, 10 pairs (<code>ab-20261021-1153-moves.md</code>), gave medians of 72.3 ms against 72.7 ms (+1.2%), median pair ×1.040, 6 of 10 pairs worse, pairs 0.58–1.51. The page receives the move and hands its picture to the GPU no later than on the base; only the GPU's drawing time varies.</li></ul>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final: 4f0d9e9 vs 9ca180a, --primary, 10 pairs",
+              "only": "^(Cold load of the start screen · desktop · first click: side choice shown|Game setup · Joining: Join button shown|Move latency · Opponent’s move: picture drawn by the GPU)$"
+            },
+            "caption": "The three leaning rows, 4f0d9e9 against 9ca180a, 10 pairs (ab-20261021-1153-final.md)."
+          },
+          {
+            "rows": {
+              "change": "final re-check: 4f0d9e9 vs 9ca180a, move-latency, 10 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "The move rows alone, 4f0d9e9 against 9ca180a, 10 pairs (ab-20261021-1153-moves.md)."
+          }
+        ],
+        "recommend": "<p>Merge. The spread of each row's pairs is wider than its lean, and the two rows on paths this branch changes did not lean in this run's earlier A/Bs.</p>"
+      },
+      {
+        "title": "The 1.2× target is met on two rows of 20",
+        "body": "<p>Information, not a question. The target asks every primary row to be 1.2× faster than the base. Two rows are: the reopened computer game on a phone (×0.531) and a shared game's first screen on a phone (×0.807). Most of the other rows are bounded by work this run did not change: building the scene and linking its shaders in software rendering, and the search. The ledger's next speed leads (PD2, SL1, SH1) aim at the side choice's scene and the move frames.</p>"
+      }
+    ]
+  },
+  "scoreboard": {
+    "intro": "<p>The primary rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Each bar is a row's change, head divided by base, and each dot is one pair. Left of 1× is faster. The dashed line is the target, 1.2× faster than the base.</p>",
+    "items": [
+      {
+        "title": "The final commit against the base: all 20 primary rows",
+        "body": "<p><code>4f0d9e9</code> against <code>9ca180a</code>, 10 pairs, 80 minutes (<code>ab-20261021-1153-final.md</code>). The later commits change only the loop's records. Overall the head is ×1.047 as fast as the base. Called better: the reopened computer game on a phone, 1.39 s → 741 ms (×0.531, pairs 0.51–0.60); a shared game's first screen on a phone, 875 → 713 ms (×0.807, pairs 0.77–0.86); the side choice's scene on a phone, 2.41 → 2.27 s (×0.933, pairs 0.86–0.96). The new row for the reopened computer game's board on a phone went 2.50 → 2.41 s (×0.950), better in all 10 pairs but not called, because one pair is 0.99. Nothing is called worse. Memory is flat: the JS heap after reopening a 2,000-ply game went from 14,543.6 to 14,554.8 KiB (+0.5%, pairs 0.99–1.03), and live geometries and textures did not change.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "final: 4f0d9e9 vs 9ca180a, --primary, 10 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "4f0d9e9 against 9ca180a, 10 pairs, every primary row (ab-20261021-1153-final.md).",
+            "target": 1.2
+          }
+        ]
+      },
+      {
+        "title": "Step 2: the base against the last run's base",
+        "body": "<p><code>9ca180a</code> against <code>fc66e8a</code>, 12 pairs (<code>ab-20261021-1153-regress.md</code>). Nothing regressed: no primary row and none of 122 diagnostics is called. The review leaned ×1.043; a review-only re-check of 12 pairs gave ×1.014 (<code>ab-20261021-1153-review.md</code>).</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "regress: 9ca180a vs fc66e8a, --primary, 12 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "9ca180a against fc66e8a, 12 pairs (ab-20261021-1153-regress.md)."
+          }
+        ]
+      },
+      {
+        "title": "The long view: not re-measured this run",
+        "body": "<p>No A/B compared this branch with the first recorded run's base <code>92ce041</code>. The latest such A/B is run 20261018-1719's, charted below.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "vs first run: 8a3e922 vs 92ce041 (primary, 3 pairs)",
+              "only": "PRIMARY"
+            },
+            "caption": "8a3e922 against 92ce041, 3 pairs (run 20261018-1719)."
+          }
+        ]
+      }
+    ]
+  },
+  "changed": {
+    "intro": "<p>Each change is its own commit. A bench change runs on both sides of every A/B.</p>",
+    "items": [
+      {
+        "title": "Each page preloads its own code first (P7, bd3acf0)",
+        "body": "<p>A small script in the page's head looks at the address and preloads that page's chunks, then its 3D canvases at low priority. It sits right ahead of the stylesheet, so the start page keeps main's order. <code>/computer/:id</code> now waits for its page's chunk before it renders, as <code>/game/:id</code> already did. Against <code>9ca180a</code> it was called better twice: a shared game's first screen on a phone ×0.832 and ×0.817, and the reopened computer game on a phone ×0.565 and ×0.586 (<code>ab-20261021-1153-p7.md</code>, <code>-p7-setup.md</code>). A <code>vite.config.test</code> case checks each address's preloads against <code>App.tsx</code>'s routes, and another checks that the script stays ahead of the stylesheet.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "1009-0411:P7",
+              "variant": "P7(b), script ahead of the stylesheet; setup + cold-load, 10 pairs",
+              "only": "PRIMARY"
+            },
+            "caption": "P7 against 9ca180a, setup and cold load, 10 pairs (ab-20261021-1153-p7.md)."
+          }
+        ]
+      },
+      {
+        "title": "The lobby no longer downloads the other pieces' data (PD1: 3816233, ffe7170, 79799a4)",
+        "body": "<p>The knight's meshes and the baked shading of every piece but the king moved out of the scene's chunk into a chunk reached only by a dynamic import. The game's board, the tutorial and the start page's preview load it beside their own chunk. The scene's chunk went from 350.5 KB to 261.6 KB gzipped, and the new chunk is 88.6 KB. Against <code>45cee61</code>, 6 pairs (<code>ab-20261021-1153-pd1.md</code>): the reopened computer game on a phone was called better, 814 → 747 ms (×0.917). The side choice's scene on a phone went 2.39 → 2.23 s, better in 6 of 6 pairs but not called there; the final A/B calls it better for the whole branch. The baked data is byte-identical: <code>occlusionData.test</code> compares both halves with a fresh bake.</p><p>PD1 is three commits. The first is the change. The second (<code>ffe7170</code>) is its guard: one static import of the data would fold its 88.6 KB back into the lobby's download with every test still passing, so the build now walks from the lobby canvas's chunk and fails if it, or a chunk it imports statically, holds <code>knight.medium.ts</code> or <code>occlusion.medium.ts</code>. With <code>occlusion.ts</code> changed to import the data statically, the build stopped with \"loads with the lobby and holds …/occlusion.medium.ts\"; restored, it builds. The third (<code>79799a4</code>) fixes the one caller PD1 missed: the dev page that <code>scripts/landing-pictures.mjs</code> draws from rendered the whole set at once, before the data had loaded. With the data's request held for 3 s, that page throws \"The piece set's data has not loaded\" without the fix and draws without error with it. The base has no such bug, because it has no PD1. Commit <code>3816233</code>'s subject also names the side choice's row, 2.39 → 2.23 s, which its own A/B did not call; only the final A/B calls that row, for the whole branch.</p>",
+        "charts": [
+          {
+            "rows": {
+              "change": "1153:PD1",
+              "only": "PRIMARY"
+            },
+            "caption": "PD1 against 45cee61, setup and cold load, 6 pairs (ab-20261021-1153-pd1.md)."
+          }
+        ]
+      },
+      {
+        "title": "Two new primary rows (54d6601, 98d4e06)",
+        "body": "<p>\"The side choice opened on a phone, its scene\" times <code>/new</code> opened cold on a throttled phone until the lobby's first frame. \"The computer's game reopened on a phone, its board\" times the reopened game until the board's first picture is handed to the GPU. The phone rows used to stop at the HUD, so nothing timed what moving the piece data could cost the board on a slow link. On the final commit that row is 2.41 s against the base's 2.50 s.</p>"
+      }
+    ]
+  },
+  "removed": {
+    "intro": "<p>Nothing was removed. The app's code grew by a net 110 lines (212 added, 102 removed, leaving out tests and the generated piece data): the per-route preload table and its script, the piece data's loader, and the build check.</p>",
+    "items": []
+  },
+  "rejected": {
+    "intro": "<p>Ideas tried or probed and not kept:</p>",
+    "items": [
+      {
+        "title": "P7(d): start the canvases only after the page's own files",
+        "body": "<p>Rejected before building it. A Resource Timing probe on the throttled phone showed that the canvases never take one of HTTP/1.1's six sockets before the page's files arrive. The phone waits on request rounds, not on bandwidth, so there was nothing to win on the bench. The gap between the bench's HTTP/1.1 and production's HTTP/2 is ledger item 1153:H2.</p>"
+      },
+      {
+        "title": "A cheap lever on the side choice's phone path",
+        "body": "<p>A CPU profile of <code>/new</code> opened cold on the phone found no change that a short A/B could call: the scene's chunk arrives at about 1.14 s, then about 150 ms of evaluation, 100 ms of idle bakes, 550 ms of building the scene and 275 ms of waiting on shader links. PD1 later took the six non-king bakes and 88 KB off this path. The rest is ledger item 1153:SL1.</p>"
+      }
+    ]
+  },
+  "choices": {
+    "intro": "",
+    "items": [
+      {
+        "title": "Landed P7 in form (b)",
+        "body": "<p>The orchestrator's call on your standing rule: land it with the first-picture lean won back if possible, or as it is with the trade named. In this run, joining's first picture came out ×1.010 and ×1.015 and the computer's first picture ×1.007, so there is no trade left to name.</p>"
+      },
+      {
+        "title": "Kept PD1 against the drop rule set before trying it",
+        "body": "<p>The rule was to drop PD1 unless an 8-pair A/B called the side choice's phone row better. Its A/B had 6 pairs and called a different row better (the reopened computer game, ×0.917). It was kept on that row, which meets the speed run's rule. The final A/B then called the side choice's row better for the whole branch. The subject of commit 3816233 names the side-choice figure that its own A/B did not call. The PR's title and description lead with the called rows only.</p>"
+      },
+      {
+        "title": "Made the board's first picture on a phone a primary row",
+        "body": "<p>It is a moment a player waits on, and it is the one that PD1 could have made slower. It runs inside the existing reopen scenario.</p>"
+      },
+      {
+        "title": "Rejected P7(d) on a probe instead of an A/B",
+        "body": "<p>The probe showed that the bench's phone waits on HTTP/1.1 request rounds. Chasing request counts that only HTTP/1.1 rewards would fit the bench, not production.</p>"
+      },
+      {
+        "title": "Counted the guard and the dev-page fix as parts of PD1",
+        "body": "<p>Neither makes a row faster on its own, so neither is kept on its own. The guard keeps PD1's gain from quietly coming back, and the fix repairs a page that PD1 broke on a slow load. Pushed history is not rewritten; the squash merge makes the PR one commit.</p>"
+      }
+    ]
+  },
+  "notConfirmed": {
+    "intro": "",
+    "items": [
+      {
+        "title": "Production's HTTP/2 and 3",
+        "body": "<p>Every phone row runs over HTTP/1.1 from <code>vite preview</code>. Production serves HTTP/2 and 3, where the preload order may matter less. This was not measured (ledger 1153:H2).</p>"
+      }
+    ]
+  },
+  "next": {
+    "intro": "<p>The top of the ledger:</p>",
+    "items": [
+      {
+        "title": "1153:PD2: time the piece data per address",
+        "body": "<p>On <code>/new</code> and <code>/computer</code>, start the data chunk only once the scene has arrived. On game pages and <code>/learn</code>, link it from the head at low priority. Judge it by the two phone rows this run added.</p>"
+      },
+      {
+        "title": "1153:SL1: overlap the lobby's shader links with building its scene",
+        "body": "<p>About 275 ms of the side choice's 2.27 s on a phone is spent waiting on shader links.</p>"
+      },
+      {
+        "title": "1153:SH1 and 1153:CH1",
+        "body": "<p>Draw the at-rest shimmer over a copy of the frame, for the move and pick rows; retry V8 compile hints as the chunk's first bytes.</p>"
+      },
+      {
+        "title": "General run: 1153:DF1, ST1, UM1, CS1, H2",
+        "body": "<p>A failure case for the data chunk, tests that can see a missing data load, A/B reports that say which primary rows they did not measure and print chunk sizes, and serving the bench over HTTP/2.</p>"
+      }
+    ]
+  }
+}

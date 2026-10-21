@@ -619,24 +619,34 @@ const BENCH_INIT = () => {
     attributes: true,
     characterData: true,
   });
-  // The start page's preview's first draw (its canvas draws without a change
-  // to the DOM). Each canvas is looked up once: a game's frames make hundreds
-  // of draws, which must cost the page nothing
-  const landingCanvas = new WeakMap();
+  // The start page's preview's first draw, and the lobby's first frame (their
+  // canvases draw without a change to the DOM; the lobby's never publishes
+  // __r3fState): stamped once its task's draws are done. Each canvas is
+  // looked up once: a game's frames make hundreds of draws, which must cost
+  // the page nothing
+  const canvasKind = new WeakMap();
   for (const proto of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype]) {
     for (const name of ['drawElements', 'drawArrays']) {
       const draw = proto[name];
       proto[name] = function (...args) {
-        if (!b.landingDrawn) {
+        if (!b.landingDrawn || !b.lobbyDrawn) {
           const canvas = this.canvas;
-          let landing = landingCanvas.get(canvas);
-          if (landing === undefined) {
-            landing = !!canvas?.closest?.('[data-testid="landing-canvas"]');
-            landingCanvas.set(canvas, landing);
+          let kind = canvasKind.get(canvas);
+          if (kind === undefined) {
+            kind = canvas?.closest?.('[data-testid="landing-canvas"]')
+              ? 'landing'
+              : canvas?.closest?.('.lobby-stage')
+                ? 'lobby'
+                : null;
+            canvasKind.set(canvas, kind);
           }
-          if (landing) {
+          if (kind === 'landing' && !b.landingDrawn) {
             b.landingDrawn = true;
             check();
+          }
+          if (kind === 'lobby' && !b.lobbyDrawn) {
+            b.lobbyDrawn = true;
+            queueMicrotask(() => (b.lobbyFrame = now()));
           }
         }
         return draw.apply(this, args);
@@ -1688,7 +1698,8 @@ async function joinScreenOnPhone(browser, scope) {
 /**
  * A game against the computer reopened on a phone on a mobile network (4×
  * CPU, Fast 4G), a first visit to the page with the game in its storage (as
- * a player coming back to it): until its turn indicator shows.
+ * a player coming back to it): until its turn indicator shows, and on until
+ * the board's first picture has been handed to the GPU.
  */
 async function computerReopenOnPhone(browser, scope) {
   const id = `bench${Date.now().toString(36)}`;
@@ -1709,8 +1720,43 @@ async function computerReopenOnPhone(browser, scope) {
   await cdp.send('Network.emulateNetworkConditions', FAST_4G);
   await page.goto(`${BASE}/computer/${id}`, { waitUntil: 'commit' });
   await page.getByTestId('turn-indicator').waitFor({ timeout: 60000 });
+  await page.waitForFunction(() => window.__bench.renders.length > 0, null, {
+    polling: 50,
+    timeout: 60000,
+  });
   const b = await snap(page);
-  return { turnShown: b.firsts.turnIndicator - b.timeOrigin };
+  return {
+    turnShown: b.firsts.turnIndicator - b.timeOrigin,
+    boardFrame: firstFrameEnd(b) - b.timeOrigin,
+  };
+}
+
+/**
+ * The side choice (/new) opened on a phone on a mobile network (4× CPU, Fast
+ * 4G), a first visit (a reload, or a link to it): until the lobby's scene has
+ * drawn its first frame, the kings forming on the glass. The page's words
+ * wait for that frame to come in (data-scene; LobbyLayout gives up waiting
+ * after 1.5 s), and its buttons show once their kings have formed.
+ */
+async function sideChoiceOnPhone(browser, scope) {
+  const ctx = scope.ctx(await newBenchContext(browser, 'phone'));
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await cdp.send('Network.enable');
+  await cdp.send('Network.emulateNetworkConditions', FAST_4G);
+  await page.goto(`${BASE}/new`, { waitUntil: 'commit' });
+  await page.waitForFunction(() => !!window.__bench.lobbyFrame, null, {
+    polling: 50,
+    timeout: 60000,
+  });
+  const b = await snap(page);
+  const words = b.stage.find(([, path, , scene]) => path === '/new' && scene);
+  return {
+    sceneFrame: b.lobbyFrame - b.timeOrigin,
+    wordsIn: words ? words[0] - b.timeOrigin : null,
+    late: words?.[3] === 'late',
+  };
 }
 
 /** How long the paused joiner reads the invitation before clicking Join. */
@@ -1721,7 +1767,7 @@ async function setupSection(browser, shared) {
     'setup',
     {
       title: 'Game setup',
-      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”, once the moment the button shows and once after a ${JOIN_PAUSE_MS / 1000} s pause, as a person reading the invitation would; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows, and reopens a game against the computer kept in its storage, until its turn shows. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
+      intro: `Two players meet. Each side is timed on its own page, with the other player played by a socket from this script, because two pages in one browser would share its GPU process and wait on each other’s shaders, which players on two devices never do. The creator clicks “Play a friend” and then White, which asks the server for a game, and gets the share link; then the socket joins and the creator’s board comes up. The joiner opens the link of a game the socket created and clicks “Join game”, once the moment the button shows and once after a ${JOIN_PAUSE_MS / 1000} s pause, as a person reading the invitation would; in each run a phone on a mobile network (4× CPU, DevTools’ “Fast 4G”) also opens such a link, as a first visit, until its Join button shows, reopens a game against the computer kept in its storage, until its turn shows and its board’s first picture has been handed to the GPU, and opens the side choice (\`/new\`), until the lobby’s scene has drawn its first frame. Each run ends when the board’s first picture has been handed to the GPU and the game’s entrance is over. ${CFG.setupRuns} run(s) of each, on desktop. The first picture includes building the scene and its shaders. The browser drew a board before this section, so its shader cache is warm, as for a returning player. ${SW_NOTE}`,
       columns: ['Step', 'median', 'p95', 'max', 'n', 'Notes'],
       align: ['l', 'r', 'r', 'r', 'r', 'l'],
       timeoutMs: QUICK ? 150000 : 300000,
@@ -1732,6 +1778,7 @@ async function setupSection(browser, shared) {
       const paused = [];
       const onPhone = [];
       const computerOnPhone = [];
+      const choiceOnPhone = [];
       for (let i = 0; i < CFG.setupRuns; i++) {
         // Turn about, so drift weighs on both alike
         const scope = new Scope();
@@ -1758,6 +1805,12 @@ async function setupSection(browser, shared) {
         } finally {
           await computerScope.close();
         }
+        const choiceScope = new Scope();
+        try {
+          choiceOnPhone.push(await sideChoiceOnPhone(browser, choiceScope));
+        } finally {
+          await choiceScope.close();
+        }
         const last = i === CFG.setupRuns - 1;
         // The last creator's game is kept for the move-latency section
         const runScope = last ? shared.scope : new Scope();
@@ -1769,7 +1822,7 @@ async function setupSection(browser, shared) {
           if (!last) await runScope.close();
         }
       }
-      raw.setup = { created, joined, paused, onPhone, computerOnPhone };
+      raw.setup = { created, joined, paused, onPhone, computerOnPhone, choiceOnPhone };
       const c = (k) => created.map((r) => r[k]);
       const j = (k) => joined.map((r) => r[k]);
       const ph = (k) => onPhone.map((r) => r[k]);
@@ -1843,6 +1896,21 @@ async function setupSection(browser, shared) {
           'Reopening a game against the computer on a phone (4× CPU, Fast 4G): turn shown',
           computerOnPhone.map((r) => r.turnShown),
           'from opening its address; a first visit, the game in storage',
+        ),
+        stat(
+          'Reopening a game against the computer on a phone (4× CPU, Fast 4G): board’s first picture handed to the GPU',
+          computerOnPhone.map((r) => r.boardFrame),
+          'from opening its address; a first visit, the game in storage',
+        ),
+        stat(
+          'Opening the side choice on a phone (4× CPU, Fast 4G): the scene’s first frame',
+          choiceOnPhone.map((r) => r.sceneFrame),
+          'from opening /new, to the end of the task that drew it; a first visit',
+        ),
+        stat(
+          'Opening the side choice on a phone (4× CPU, Fast 4G): its words come in',
+          choiceOnPhone.map((r) => r.wordsIn),
+          `from opening /new (the scene’s first frame, or 1.5 s after the page; late in ${choiceOnPhone.filter((r) => r.late).length} of ${choiceOnPhone.length})`,
         ),
         countStat(
           'Joining on a phone (4× CPU, Fast 4G): requests to the server',

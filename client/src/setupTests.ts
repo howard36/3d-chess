@@ -1,5 +1,9 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, vi } from 'vitest';
+import { loadPieceData } from './three/pieces/pieceData';
+
+// The set's precomputed parts, which the pages load beside their canvases
+await loadPieceData();
 
 // Mock ResizeObserver (a class: it is constructed with new, which a mock
 // with an arrow function for its implementation refuses)

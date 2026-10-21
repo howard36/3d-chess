@@ -116,6 +116,20 @@ export const PRIMARY = [
     what: 'Reopening a game against the computer on a phone (4× CPU, Fast 4G): turn shown',
   },
   {
+    moment: 'The computer’s game reopened on a phone, its board (4× CPU, Fast 4G)',
+    tier: 'browser',
+    section: 'setup',
+    where: 'Game setup',
+    what: 'Reopening a game against the computer on a phone (4× CPU, Fast 4G): board’s first picture handed to the GPU',
+  },
+  {
+    moment: 'The side choice opened on a phone, its scene (4× CPU, Fast 4G)',
+    tier: 'browser',
+    section: 'setup',
+    where: 'Game setup',
+    what: 'Opening the side choice on a phone (4× CPU, Fast 4G): the scene’s first frame',
+  },
+  {
     moment: 'A finished game’s review, every mark in',
     tier: 'browser',
     section: 'review',

@@ -1027,8 +1027,13 @@ knight is not sculpted in the browser: its head, mane and eyes (a few hundred
 milliseconds of sculpting and decimating) ship precomputed, byte for byte, in
 `pieces/knight.medium.ts`. The gallery, the benches and the tests reach the other
 qualities through `sculptedPieceSet('low' | 'medium' | 'high')` (`pieces/sculpted.ts`),
-which sculpts their knights; the game's build holds none of that code. The medium set's baked occlusion (below) ships the same way, in
-`scene/occlusion.medium.ts`. After changing a piece's shape (anything in `three/pieces/`,
+which sculpts their knights; the game's build holds none of that code. The medium set's baked occlusion (below) ships the same way: the
+king's in `scene/occlusion.king.ts`, the rest in `scene/occlusion.medium.ts`. The knight
+and the rest's occlusion (about 90 KB gzip) are a chunk of their own that only a dynamic
+import reaches (`pieces/pieceData.ts`), so the lobby, which draws only kings, never waits
+for them; whatever draws the other pieces loads it beside its own chunk
+(`loadPieceData()`, in the loaders of the game's board, the tutorial's and the start
+page's preview), and `pieceData()` throws if a piece is built before it has. After changing a piece's shape (anything in `three/pieces/`,
 or the bake in `scene/occlusion.ts`), run `npm run bake:pieces` in `client/`;
 `knightData.test.ts` and `occlusionData.test.ts` fail while either file is stale, and
 `golden.test.ts` pins the medium and low sets' geometry by hash (the medium set as built
@@ -1640,19 +1645,21 @@ the shapes change), and `datamodel-code-generator`, pinned exactly, whose update
 The client's entry (with its CSS, kept under `ENTRY_GZIP_BUDGET` gzipped in `vite.config.ts`:
 the build fails above it, raised only on purpose) holds the start screen and the side choice.
 The game screen (the invitation, the HUD, the move record, the review) is a chunk of its own
-(`screens/gameScreenChunk.ts`): a game's address preloads it from the HTML and waits for it
-before the app first renders (`main.tsx`), and the side choice asks for it as it shows and
-goes on to the game only once it is in, so the page never renders empty under the lobby.
+(`screens/gameScreenChunk.ts`), as is a game against the computer: a game's address preloads
+its page from the HTML and waits for it before the app first renders (`pageReady`,
+`screens/pageChunk.ts`), and the side choice asks for it as it shows and goes on to the game
+only once it is in, so the page never renders empty under the lobby.
 Everything 3D is a chunk the entry loads lazily, shared by the start page's preview
 (`screens/LandingPreview.tsx`), the lobby's
 canvas (`screens/lobby/LobbyCanvas.tsx`), the game's board (`screens/GameCanvas.tsx`) and
 the tutorial's (`screens/learn/LearnCanvas.tsx`):
-three.js, the scene and the set's precomputed parts, about 330 KB (gzip; the benchmark report's "Bundle"). The start page asks for
+three.js, the scene and the king's precomputed occlusion, about 265 KB (gzip; the benchmark report's "Bundle"; the set's other precomputed parts follow in a chunk of their own, above). The start page asks for
 it at once and shows its title and button without waiting for it; on the side choice
 (`/new`, `/computer`), a game's address (`/game/:id`, `/computer/:id`) and the tutorial
-(`/learn`) the built page preloads it from the start (a
-`modulepreload` added by a small plugin in `vite.config.ts`; the game screen and the game's
-board only on the lobby's pages, `GAME_SCREEN_PATH`), so a shared link shows its
+(`/learn`) the built page preloads it from the start, with each page's own chunks (a
+`modulepreload` added by a small script in the head, ahead of the stylesheet, from
+`PRELOADS` in `vite.config.ts`: the game screen and the game's board on the lobby's pages,
+the tutorial's page and board on its own), so a shared link shows its
 invitation without waiting for three.js, and does not wait for the entry before asking
 for the scene. Should the chunk fail to load (a dropped connection, a deploy that replaced
 it), only the canvas is left out: each is loaded with `lazyChunk` (`src/lib/cachedImport.ts`)
@@ -1695,7 +1702,8 @@ in the report and exits 1.
 
 **The primary rows** (`bench/primary.mjs`) are one number for each moment a player waits
 on (CLAUDE.md "Performance"): the start page usable and answering its first click, a shared
-game's first screen (on desktop, and on a phone on a mobile network), the first board frame
+game's first screen (on desktop, and on a phone on a mobile network), the side choice's
+scene opened on such a phone, the first board frame
 (joining a game, playing the computer), a game reopened (a long one, and one against the
 computer on a phone), a finished game's review (from "Review" to every mark in, its marks
 checked the same in every run), a move landing (the player's and the opponent's), a piece
