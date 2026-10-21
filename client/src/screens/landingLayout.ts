@@ -3,6 +3,8 @@
 // nothing from three.js: three.js stays out of the entry, and the preview
 // (LandingPreview, a lazy chunk) hands these to its fit.
 
+import { SHORT_WINDOW_PX } from '../lib/shortWindow';
+
 interface LandingBands {
   top: (height: number, width: number) => number;
   bottom: (height: number, width: number) => number;
@@ -14,8 +16,8 @@ const clamp = (lo: number, v: number, hi: number) => Math.min(hi, Math.max(lo, v
 const upright = (width: number, height: number) => height >= width;
 /** An upright window this wide or wider is a tablet: the menu in a band along the bottom (index.css: min-width: 600px). */
 const tablet = (width: number, height: number) => upright(width, height) && width >= 600;
-/** A window this short (a phone on its side) sets the menu a size down (index.css: max-height: 480px). */
-const short = (height: number) => height <= 480;
+/** A window this short (a phone on its side) sets the menu a size down. */
+const short = (height: number) => height <= SHORT_WINDOW_PX;
 /**
  * The page's three layouts: an upright phone (the title above the tower, the
  * tiles under it), an upright tablet (the menu in a band along the bottom)

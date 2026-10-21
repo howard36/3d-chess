@@ -1,4 +1,5 @@
 import { MathUtils, Vector3 } from 'three';
+import { SHORT_WINDOW_PX } from '../lib/shortWindow';
 
 /**
  * How far the player may zoom, as fractions of the fitted distance: in until
@@ -85,7 +86,7 @@ export const CAPTURES_BAND_PX = 28;
  * only the pill's band remains.
  */
 export const hudTop = (height: number): number =>
-  HUD_TOP_PX + (height <= 480 ? 0 : CAPTURES_BAND_PX);
+  HUD_TOP_PX + (height <= SHORT_WINDOW_PX ? 0 : CAPTURES_BAND_PX);
 
 /**
  * Breathing room for the fit at the opening elevation, as a factor on the
