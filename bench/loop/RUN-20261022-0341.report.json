@@ -1,0 +1,201 @@
+{
+ "title": "Perf run 20261022-0341",
+ "eyebrow": "3D chess · perf-iteration · run 20261022-0341 · speed run",
+ "heading": "The side choice's scene on a phone 18% sooner, and the reopened computer game's board 8% sooner",
+ "meta": "<p>This speed run kept two changes. The build now asks V8 to compile the 3D scene's code as it downloads, off the main thread (CH1). The side choice now prepares its shaders before its first frame, with the page free meanwhile (SL1). On the final code (<code>17f97eb</code>), measured against the base <code>a2bac8d</code> over 10 pairs, two primary rows are called better and none worse: the side choice's scene on a phone went from 2.30 s to 1.88 s (×0.817), and the reopened computer game's board on a phone from 2.45 s to 2.24 s (×0.923). The cost is memory: the JS heap after reopening a 2,000-ply game is 3.7% larger, and that row leans 5% slower, though not called. Both are under &ldquo;Needs from me&rdquo;. The branch is <code>improve/20261022-0341</code>. Main did not move during the run. Every figure comes from software rendering (SwiftShader) on a 4-vCPU VM, and each one names the commits it compares.</p>",
+ "needs": {
+  "intro": "<p>No call of taste this run. The two items are information that the speed rule and the memory flag ask for.</p>",
+  "items": [
+   {
+    "title": "The compile hint costs 3.7% heap, and reopening a long game leans 5% slower",
+    "body": "<p>Information, not a question. In the final A/B (<code>ab-20261022-0341-final.md</code>), \"Reopening a long game (2,000 plies)\" is 116 → 119 ms, ×1.054 at the median pair, with 8 of 10 pairs worse (pairs 0.86–1.21). It is not called. The JS heap after that reopen went from 14,637 to 15,186 KiB (+3.7%), with every pair between 1.03 and 1.05. That is below the 5% memory flag.</p><p>An A/A of the base against itself on the same section, 12 pairs (<code>ab-20261022-0341-aa-reopen.md</code>), reads the long reopen ×0.954 and the heap +0.1%. So the heap rise comes from the change: code that V8 compiles up front stays on the heap. The long reopen leaned ×1.04–1.07 in all four A/Bs that included the hint, and not in the A/A. So the lean is likely the change too, about 3–6 ms on a 116 ms moment. In return, the side choice on a phone saves 420 ms and the reopened computer game's board on a phone saves 210 ms.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 17f97eb vs a2bac8d, --primary, 10 pairs",
+       "only": "^Reopening a long game · (move record shown|JavaScript memory in use)"
+      },
+      "caption": "The long reopen and its heap: 17f97eb against a2bac8d, 10 pairs (ab-20261022-0341-final.md)."
+     },
+     {
+      "rows": {
+       "change": "A/A: a2bac8d vs itself, reopen, 12 pairs",
+       "only": "^Reopening a long game · (move record shown|JavaScript memory in use)"
+      },
+      "caption": "The same two rows with identical code: a2bac8d against itself, 12 pairs (ab-20261022-0341-aa-reopen.md)."
+     }
+    ],
+    "recommend": "<p>Merge. The two phone moments gain far more than the long reopen may lose. If the heap matters more later, the hint can be narrowed to the three.js chunk alone (ledger 1153:CH1e and the run record list the forms measured).</p>"
+   },
+   {
+    "title": "Two more primary rows are over 3% worse at the median; neither is called",
+    "body": "<p>Information, not a question. In the final A/B:</p><ul><li>A picked-up piece appears: 75.0 → 78.8 ms, ×1.091, 6 of 10 pairs worse (pairs 0.83–1.40). Run 2131's A/A of identical code read this row ×1.048 with 8 of 12 pairs worse. Neither change runs on a pick: the code is compiled by then, and no program links (0 on both sides).</li><li>First board picture, playing the computer: 922 → 933 ms, ×1.033, 6 of 10 pairs worse (pairs 0.92–1.24). Its section's other rows did not move.</li></ul>",
+    "recommend": "<p>Merge. Ledger item 2131:NF1, a verdict that judges each row against its own A/A spread, would settle such leans.</p>"
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The primary rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Each bar is a row's change, head divided by base, and each dot is one pair. Left of 1× is faster. The dashed line is the target, 1.2× faster than the base.</p>",
+  "items": [
+   {
+    "title": "The final code against the base: all 20 primary rows",
+    "body": "<p><code>17f97eb</code> against <code>a2bac8d</code>, 10 pairs, 79 minutes (<code>ab-20261022-0341-final.md</code>). The later commits change only the loop's records. Overall the head is ×1.009 as fast as the base, against ×1.004 for identical code. Called better: the side choice's scene on a phone, 2.30 → 1.88 s (×0.817, pairs 0.80–0.86), and the computer's game reopened on a phone, its board, 2.45 → 2.24 s (×0.923, pairs 0.89–0.98). Nothing is called worse. Every load downloads the same bytes as on the base (+0.2 KiB, the hint's comment). Live geometries and textures did not change.</p><p>Five diagnostics are called better, none worse. The start page's first click now draws the lobby's scene in about half the time on a desktop (523 → 263 ms) and 24% sooner on a phone (1.43 → 1.08 s). The desktop start page spends 40 ms running script until it is ready, down from 94 ms. The side choice's words still come in with its scene, and the lobby never fell back to its 1.5 s timer.</p><p>The 1.2× target is met by one row only: the side choice on a phone (×0.817). The other rows wait mostly on the GPU or the network, which these changes don't touch.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 17f97eb vs a2bac8d, --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "17f97eb against a2bac8d, 10 pairs, every primary row (ab-20261022-0341-final.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "The base against the last run's base",
+    "body": "<p>Step 2: <code>a2bac8d</code> against <code>91b2081</code>, 10 pairs, 75 minutes (<code>ab-20261022-0341-regress.md</code>). Nothing is called better or worse, among the primary rows or the 123 diagnostics. The side choice on a phone leaned ×1.036 with all 10 pairs worse, but no app change reaches <code>/new</code>, and a re-check of the setup section alone (<code>ab-20261022-0341-regress-setup.md</code>) read it ×0.995. No regression to fix.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regression check: a2bac8d vs 91b2081, --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "a2bac8d against 91b2081, 10 pairs (ab-20261022-0341-regress.md)."
+     }
+    ]
+   },
+   {
+    "title": "The long view: against the first recorded run",
+    "body": "<p>Not measured again in this run. The last measurement, from run 20261018-1719, compares <code>8a3e922</code> with the first recorded run <code>92ce041</code> over 3 pairs.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: 8a3e922 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "8a3e922 against 92ce041, 3 pairs (run 20261018-1719)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>Each change is its own commit, measured by an interleaved A/B. The final A/B above measures both together on every primary row.</p>",
+  "items": [
+   {
+    "title": "V8 compiles the scene's code as it downloads (CH1, a2ecc5a)",
+    "body": "<p>V8 normally compiles a function on the main thread the first time it runs. A comment, <code>//# allFunctionsCalledOnLoad</code>, as a script's first line asks it to compile the whole file while it streams in, on a background thread. The build now puts that line on every chunk that no first screen loads statically: three.js, the canvases, the scene's parts, the piece data and the search's main-thread fallback. That is 11 chunks. The entry and the pages' own chunks don't get it, because on a fast network compiling them up front is what the first screen waits on (the rejected form below). A phone trace of <code>/new</code> shows the main thread's compiling falling from 260–280 ms to about 100 ms.</p><p>Against <code>a2bac8d</code>, setup, computer and reopen, 12 pairs (<code>ab-20261022-0341-ch1.md</code>): the reopened computer game's board on a phone, 2.41 → 2.23 s (×0.929), called better. That A/B measured 8 of the 20 primary rows. The final A/B measures all 20 with both changes. <code>vite.config.test.ts</code> checks the hint is line 1, after Vite's own first line, that no first screen's chunk gets it, and that the build fails if three.js lands in a first screen's chunk.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1153:CH1",
+       "variant": "scene's chunks (every chunk no first screen loads statically)",
+       "only": "PRIMARY"
+      },
+      "caption": "CH1 against a2bac8d, setup, computer and reopen, 12 pairs (ab-20261022-0341-ch1.md)."
+     }
+    ]
+   },
+   {
+    "title": "The side choice prepares its shaders before its first frame (SL1, a5341e3)",
+    "body": "<p>The lobby's canvas on the side choice (<code>/new</code>, <code>/computer</code>) now hands its shaders to the GPU before its first frame and waits for them with the page free, as the game's board and the start page's preview already do (<code>linkBeforeFirstFrame</code>). Before, the first frame linked them itself and held the page. A shared game's invitation keeps the old path, because its Join click would find the GPU still busy (run 0411's J1). The words still come in with the scene's first frame.</p><p>Against <code>a2ecc5a</code>, setup and computer, 8 pairs (<code>ab-20261022-0341-sl1.md</code>): the side choice's scene on a phone, 2.15 → 1.86 s (×0.864), called better. That A/B measured 7 of the 20 primary rows. The final A/B measures all 20. <code>showcase.mjs --lobby</code> on <code>17f97eb</code> shows the entrance as before: black at 0 s, then the words, platform and kings fading up together.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1153:SL1",
+       "variant": "side choice only (view.beat === 'choose'); base a2ecc5a",
+       "only": "PRIMARY"
+      },
+      "caption": "SL1 against a2ecc5a, setup and computer, 8 pairs (ab-20261022-0341-sl1.md)."
+     }
+    ]
+   },
+   {
+    "title": "ARCHITECTURE.md describes both changes (17f97eb)",
+    "body": "<p>One sentence names the side choice among the canvases that link ahead, and one paragraph says which chunks carry the compile hint and why the first screens' chunks don't. The plugin's comment now says the same.</p>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>Nothing was removed. The run adds 44 lines to <code>client/vite.config.ts</code> (the plugin), 51 to its test, and a net 12 to <code>LobbyCanvas.tsx</code>.</p>",
+  "items": []
+ },
+ "rejected": {
+  "intro": "<p>Each rejected form is in the ledger with its report or patch.</p>",
+  "items": [
+   {
+    "title": "The compile hint on every chunk, the entry and the worker included",
+    "body": "<p>Against <code>a2bac8d</code>, all primary rows, 8 pairs (<code>ab-20261022-0341-ch1-all.md</code>, patch <code>patches/0341-CH1-every-chunk.patch</code>). Two phone rows were called better: the side choice ×0.945 and the reopened computer game's turn ×0.940. But the desktop shared game's first screen read ×1.182 (7 of 8 pairs worse), and desktop DOMContentLoaded (+18%) and the JS heap (+5.7%) were called worse. On a fast network, compiling a first screen's chunk up front is what the page waits on. The kept form leaves those chunks out.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1153:CH1",
+       "variant": "every chunk, the entry and the worker included (rejected variant)",
+       "only": "PRIMARY"
+      },
+      "caption": "The every-chunk form against a2bac8d, 8 pairs (ab-20261022-0341-ch1-all.md)."
+     }
+    ]
+   },
+   {
+    "title": "The compile hint on the three.js chunk alone",
+    "body": "<p>Two exploratory A/Bs, not committed (8 and 12 pairs). The side choice on a phone read ×0.929 and ×0.949, and the reopened computer game's board ×0.952 and ×0.960, better in nearly every pair but never called. Widening the hint to every scene chunk made the board's row called (the kept form).</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "<p>Decisions made without you, to overrule if you disagree.</p>",
+  "items": [
+   {
+    "title": "The compile hint stays off the first screens' chunks",
+    "body": "<p>The every-chunk form helped two phone rows and hurt the desktop first screens. Trading a desktop first screen for a phone's is your kind of call, so it is parked as a patch, not proposed.</p>"
+   },
+   {
+    "title": "SL1 follows the lobby's beat, not the route",
+    "body": "<p>The canvas links ahead when it is created on the side choice's beat (<code>choose</code>), which covers <code>/new</code> and <code>/computer</code>. A shared game's invitation keeps today's path.</p>"
+   },
+   {
+    "title": "Commit messages left as written",
+    "body": "<p>Both perf commits say \"no primary row called worse\" from A/Bs that measured 8 and 7 of the 20 rows. Rewording them would mean rewriting pushed history. The final A/B measures all 20 rows and calls none worse, and the PR says which rows each A/B measured.</p>"
+   },
+   {
+    "title": "Review items logged, not fixed",
+    "body": "<p>This is a speed run, so the review's checks and cleanups went to the ledger: a test pinning SL1's beat split (0341:LT1), a check of the hint in the real build (HB1), the lobby's 1.5 s fallback on slow phones (LL1), the entrance's first step (FE1), the hint outside the chunk's hash (HC1) and one first-screen walk for two plugins (FW1).</p>"
+   }
+  ]
+ },
+ "notConfirmed": {
+  "intro": "<p>What the bench cannot see.</p>",
+  "items": [
+   {
+    "title": "Returning visitors and the compile hint",
+    "body": "<p>The hint is added after the build names each chunk by its content's hash, so it does not change the name. A returning browser that already holds an unchanged chunk keeps its cached copy without the hint until that chunk next changes. The bench builds a fresh cache on each side, so it cannot see this (ledger 0341:HC1).</p>"
+   },
+   {
+    "title": "Real phones and other browsers",
+    "body": "<p>The hint is a V8 feature: Firefox and Safari ignore the comment. Every figure is from Chromium's headless shell with software rendering and a throttled CPU, not a real phone's GPU.</p>"
+   }
+  ]
+ },
+ "next": {
+  "intro": "<p>The top of the ledger:</p>",
+  "items": [
+   {
+    "title": "0008:MS2's lobby half and 0341:IB1",
+    "body": "<p>One prop on the lobby's canvas (<code>resize={{ scroll: false, debounce: 0 }}</code>), and holding the piece set's idle bakes until the side choice's first frame (PD2's variant).</p>"
+   },
+   {
+    "title": "1153:H2: run the phone rows over HTTP/2",
+    "body": "<p>Serve the bench over TLS and HTTP/2, as production does, before more preload work.</p>"
+   },
+   {
+    "title": "SH1, NA1, GS3, RQ1, RV2",
+    "body": "<p>The speed leads this run did not reach.</p>"
+   },
+   {
+    "title": "General: 0341:LT1, HB1, 2131:NF1, 1153:UM1",
+    "body": "<p>Pin SL1's beat split and the hint's place in the built file, judge leans against each row's own A/A, and record how many primary rows each A/B measured.</p>"
+   }
+  ]
+ }
+}
