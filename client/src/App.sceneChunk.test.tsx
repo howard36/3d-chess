@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { WS_URL } from './hooks/useGameSocket';
+import { reloadPage } from './lib/cachedImport';
 
 // Every chunk made with lazyChunk (the preview, the lobby's canvas, the
 // game's board) is refused
@@ -104,6 +105,9 @@ test('the tutorial that fails to load says so, never the app’s crash screen', 
   await settle();
   expect(screen.getByTestId('learn-failed')).toHaveTextContent("Couldn't load the tutorial.");
   expect(screen.queryByText('Something went wrong')).toBeNull();
+  // A way to try again, as a game's page has
+  await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(reloadPage).toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: /Home/ }));
   expect(screen.getByRole('heading', { name: '3D Chess' })).toBeInTheDocument();
 });
