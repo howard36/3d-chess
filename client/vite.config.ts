@@ -354,10 +354,11 @@ export const keepSceneOutOfEntry = (): Plugin => ({
  * V8 compiles a script's functions lazily, on the main thread, the first time
  * each is called; `//# allFunctionsCalledOnLoad` as a file's first line asks it
  * to compile them all while the file streams in, off the main thread
- * (v8.dev/blog/explicit-compile-hints). The scene's chunk (three.js, r3f, the
- * scene) runs most of its code in the first frame it draws, so it carries the
- * hint: on a phone, about 160 ms less compiling on the main thread before the
- * side choice's first frame. Not the chunks a page's first screen waits on: on
+ * (v8.dev/blog/explicit-compile-hints). The scene's chunks (three.js, r3f, the
+ * canvases, the piece data, the search's main-thread fallback: every chunk no
+ * first screen loads statically) run most of their code once loaded, so they
+ * carry the hint: on a phone, about 160 ms less compiling on the main thread
+ * before the side choice's first frame. Not the chunks a page's first screen waits on: on
  * a fast network their eager compile is the wait. Vite writes its
  * `__vite__mapDeps` line at the top of a chunk in its own generateBundle, and
  * the hint counts only as the very first line, so this runs after it.

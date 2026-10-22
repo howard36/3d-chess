@@ -933,8 +933,9 @@ Rare events (`shootingStar.tsx`, `skyEvents.tsx`: a constellation tracing itself
 satellite, paired meteors; `horizonEvents.tsx`: a lighthouse's sweep) never wake the
 canvas: each starts only on a frame already being drawn while the player turns the view,
 keeps frames coming only while it lasts, runs on r3f's clock, and is drawn at no light
-from the first frame so no program links when it comes. On the game's page and in the start
-page's preview the garden's programs (all the scene's) are linked before that first frame, the
+from the first frame so no program links when it comes. On the game's page, in the start
+page's preview and on the lobby's side choice (not a shared game's invitation, whose Join click
+would meet a busy GPU) the garden's programs (all the scene's) are linked before that first frame, the
 page free meanwhile
 (`linkBeforeFirstFrame` in `rendererSetup.ts`, `linkAhead` in `scene/programs.ts`: handed
 to the GPU at once, a fence polled between tasks, the uniforms read back while it is idle),
@@ -1661,7 +1662,10 @@ it at once and shows its title and button without waiting for it; on the side ch
 `PRELOADS` in `vite.config.ts`: the game screen and the game's board on the lobby's pages,
 the tutorial's page and board on its own), so a shared link shows its
 invitation without waiting for three.js, and does not wait for the entry before asking
-for the scene. Should the chunk fail to load (a dropped connection, a deploy that replaced
+for the scene. Every chunk no first screen loads statically (the scene's) starts with
+`//# allFunctionsCalledOnLoad` (`compileSceneEagerly`), so V8 compiles it as it streams in,
+off the main thread; the entry and the pages' chunks don't, as on a fast network their
+eager compile is what the first screen waits on. Should the chunk fail to load (a dropped connection, a deploy that replaced
 it), only the canvas is left out: each is loaded with `lazyChunk` (`src/lib/cachedImport.ts`)
 inside a `ChunkBoundary` (`src/components/ChunkBoundary.tsx`), so the start page goes
 without its preview, the lobby's pages play on with no scene (`LobbyLayout` ends each of
