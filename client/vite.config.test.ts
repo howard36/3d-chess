@@ -9,6 +9,8 @@ import { parseHeaders } from './bench/preview.config';
 import { DEFAULT_WS_URL } from './src/lib/earlySocket';
 import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import config, {
+  COMPILE_HINT,
+  compileSceneEagerly,
   earlySocket,
   KEEP_A_YEAR,
   keepHashedFiles,
@@ -192,6 +194,55 @@ test('the build runs every plugin this file defines', () => {
     .filter((name) => name !== 'early-picture');
   expect(defined.length).toBeGreaterThanOrEqual(10);
   expect(names).toEqual(expect.arrayContaining(defined));
+});
+
+test('the scene’s chunks start with the compile hint, ahead of Vite’s own first line, and nothing a first screen loads', () => {
+  // V8 reads the hint only as a file's very first line: the step runs after
+  // Vite's import analysis, which puts `__vite__mapDeps` at a chunk's top in
+  // its own generateBundle
+  const plugin = compileSceneEagerly();
+  expect(plugin.enforce).toBe('post');
+  const step = plugin.generateBundle as {
+    order: string;
+    handler: (this: unknown, o: unknown, b: Record<string, unknown>) => void;
+  };
+  expect(step.order).toBe('post');
+  const chunk = (
+    fileName: string,
+    moduleIds: string[],
+    imports: string[] = [],
+    isEntry = false,
+  ) => ({
+    type: 'chunk',
+    fileName,
+    code: 'const __vite__mapDeps=(i)=>i;\nf();',
+    moduleIds,
+    imports,
+    isEntry,
+  });
+  const shared = chunk('shared.js', ['/app/src/game/history.ts']);
+  const entry = chunk('index.js', ['/app/src/main.tsx'], ['shared.js'], true);
+  const pages = ['GameScreen', 'learn/LearnScreen', 'ComputerGameScreen'].map((p) =>
+    chunk(`${p}.js`, [`/app/src/screens/${p}.tsx`], ['shared.js']),
+  );
+  const scene = chunk('scene.js', ['/app/node_modules/three/build/three.core.js'], ['shared.js']);
+  const canvas = chunk('GameCanvas.js', ['/app/src/screens/GameCanvas.tsx'], ['scene.js']);
+  const bundle = Object.fromEntries(
+    [shared, entry, ...pages, scene, canvas].map((c) => [c.fileName, c]),
+  );
+  const context = {
+    error: (message: string) => {
+      throw new Error(message);
+    },
+  };
+  step.handler.call(context, {}, { ...bundle, 'index.css': { type: 'asset' } });
+  expect(COMPILE_HINT).toBe('//# allFunctionsCalledOnLoad\n');
+  for (const c of [scene, canvas])
+    expect(c.code).toBe(`${COMPILE_HINT}const __vite__mapDeps=(i)=>i;\nf();`);
+  for (const c of [shared, entry, ...pages]) expect(c.code).not.toContain(COMPILE_HINT);
+  // three.js where a first screen would load it: no chunk of the scene's own
+  const loaded = { ...bundle, 'shared.js': chunk('shared.js', scene.moduleIds) };
+  expect(() => step.handler.call(context, {}, loaded)).toThrow(/not in a chunk of the scene's own/);
 });
 
 /** Runs keepHashedFiles' build step on a build of these files, in a folder of its own. */

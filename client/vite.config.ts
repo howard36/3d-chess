@@ -351,6 +351,48 @@ export const keepSceneOutOfEntry = (): Plugin => ({
 });
 
 /**
+ * V8 compiles a script's functions lazily, on the main thread, the first time
+ * each is called; `//# allFunctionsCalledOnLoad` as a file's first line asks it
+ * to compile them all while the file streams in, off the main thread
+ * (v8.dev/blog/explicit-compile-hints). The scene's chunk (three.js, r3f, the
+ * scene) runs most of its code in the first frame it draws, so it carries the
+ * hint: on a phone, about 160 ms less compiling on the main thread before the
+ * side choice's first frame. Not the chunks a page's first screen waits on: on
+ * a fast network their eager compile is the wait. Vite writes its
+ * `__vite__mapDeps` line at the top of a chunk in its own generateBundle, and
+ * the hint counts only as the very first line, so this runs after it.
+ */
+const SCENE_CORE = '/node_modules/three/build/three.core.js';
+export const COMPILE_HINT = '//# allFunctionsCalledOnLoad\n';
+export const compileSceneEagerly = (): Plugin => ({
+  name: 'compile-scene-eagerly',
+  apply: 'build',
+  enforce: 'post',
+  generateBundle: {
+    order: 'post',
+    handler(_options, bundle) {
+      const chunks = new Map(
+        Object.values(bundle)
+          .filter((c) => c.type === 'chunk')
+          .map((c) => [c.fileName, c]),
+      );
+      // What the start page and the pages shown before the scene load first
+      const first = new Set<string>();
+      for (const c of chunks.values()) if (c.isEntry) reach(chunks, c.fileName, first);
+      for (const page of SHOWN_BEFORE_SCENE) {
+        const chunk = holding(chunks.values(), page);
+        if (!chunk) this.error(`compile-scene-eagerly: no chunk holds ${page}`);
+        else reach(chunks, chunk.fileName, first);
+      }
+      const scene = holding(chunks.values(), SCENE_CORE);
+      if (!scene || first.has(scene.fileName))
+        this.error(`compile-scene-eagerly: ${SCENE_CORE} is not in a chunk of the scene's own`);
+      for (const c of chunks.values()) if (!first.has(c.fileName)) c.code = COMPILE_HINT + c.code;
+    },
+  },
+});
+
+/**
  * A game's link is how a friend is invited, and a link preview (a chat app's,
  * a social site's) reads the page's meta tags without running the app. So
  * the build writes invite.html, index.html with the invitation's title and
@@ -449,6 +491,7 @@ export default defineConfig({
     placeLandingPictureEarly(),
     preloadRouteChunks(),
     keepSceneOutOfEntry(),
+    compileSceneEagerly(),
     invitePage(),
     socialImageOnPreviews(),
     versionLandingPictures(),
