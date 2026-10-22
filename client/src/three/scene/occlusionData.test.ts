@@ -18,6 +18,8 @@ describe('the precomputed medium occlusion', () => {
   });
 
   it('holds the king apart from the rest', () => {
+    // The lobby draws only kings: another piece here grows the scene's chunk
+    expect(WITH_SCENE).toEqual([PieceType.King]);
     expect(Object.keys(OCCLUSION_KING.counts)).toEqual(WITH_SCENE);
     expect(Object.keys(OCCLUSION_MEDIUM.counts)).toEqual(WITH_DATA);
   });
