@@ -14,7 +14,7 @@ import { buildKnight } from '../src/three/pieces/knight';
 import { decodeKnight, encodeKnight } from '../src/three/pieces/knightData';
 import { DETAIL, buildPieceSet } from '../src/three/pieces/set';
 import { occlusionOfPiece } from '../src/three/scene/occlusion';
-import { encodeOcclusion } from '../src/three/scene/occlusionData';
+import { encodeOcclusion, WITH_DATA, WITH_SCENE } from '../src/three/scene/occlusionData';
 
 const write = (path: string, text: string) => {
   const out = fileURLToPath(new URL(path, import.meta.url));
@@ -48,7 +48,7 @@ for (const type of Object.values(PieceType)) occlusion[type] = occlusionOfPiece(
 // The king's apart (occlusion.king.ts), in the scene's own chunk: the lobby
 // draws only kings, so its first frame never waits for the rest, which load
 // in a chunk of their own with the knight (three/pieces/pieceData.ts)
-const occlusionFile = (file: string, name: string, what: string, types: PieceType[]) => {
+const occlusionFile = (file: string, name: string, what: string, types: readonly PieceType[]) => {
   const o = encodeOcclusion(occlusion, types);
   write(
     `../src/three/scene/${file}`,
@@ -64,12 +64,15 @@ ${types.map((t) => `    ${t}: [${o.counts[t]!.join(', ')}],`).join('\n')}
 `,
   );
 };
-occlusionFile('occlusion.king.ts', 'OCCLUSION_KING', "the medium king's baked occlusion", [
-  PieceType.King,
-]);
+occlusionFile(
+  'occlusion.king.ts',
+  'OCCLUSION_KING',
+  "the medium king's baked occlusion",
+  WITH_SCENE,
+);
 occlusionFile(
   'occlusion.medium.ts',
   'OCCLUSION_MEDIUM',
   "the medium set's baked occlusion, but the king's",
-  Object.values(PieceType).filter((t) => t !== PieceType.King),
+  WITH_DATA,
 );
