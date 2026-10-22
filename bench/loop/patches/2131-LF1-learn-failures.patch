@@ -1,0 +1,264 @@
+diff --git a/client/src/screens/learn/LearnScreen.test.tsx b/client/src/screens/learn/LearnScreen.test.tsx
+index 8fc4371..d920cee 100644
+--- a/client/src/screens/learn/LearnScreen.test.tsx
++++ b/client/src/screens/learn/LearnScreen.test.tsx
+@@ -5,15 +5,21 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+ import LearnScreen from './LearnScreen';
+ import type { LearnCanvasProps } from './LearnCanvas';
+ import { toZXY } from '../../engine/coords';
+-import { ChunkLoadError } from '../../lib/cachedImport';
++import { ChunkLoadError, reloadPage } from '../../lib/cachedImport';
+ 
+-const canvas = vi.hoisted(() => ({ fails: false }));
++vi.mock('../../lib/cachedImport', async (importOriginal) => ({
++  ...(await importOriginal<typeof import('../../lib/cachedImport')>()),
++  reloadPage: vi.fn(),
++}));
++
++const canvas = vi.hoisted(() => ({ fails: false as false | 'chunk' | 'webgl' }));
+ 
+ // The board is a WebGL canvas, which jsdom can't provide: a stand-in that
+ // shows what it was handed and plays what the player would tap
+ vi.mock('./LearnCanvas', () => ({
+   default: ({ practice, boardKey, onMove, onChoosePromotion, disabled }: LearnCanvasProps) => {
+-    if (canvas.fails) throw new ChunkLoadError(new Error('Failed to fetch'));
++    if (canvas.fails === 'chunk') throw new ChunkLoadError(new Error('Failed to fetch'));
++    if (canvas.fails === 'webgl') throw new Error('Error creating WebGL context.');
+     const moves = practice.focus ? practice.board.generateLegalMoves(practice.focus) : [];
+     return (
+       <div
+@@ -263,21 +269,64 @@ test('stands the card beside the tower in a wide window, under it in a narrow on
+   vi.unstubAllGlobals();
+ });
+ 
+-test('goes without its board, its lessons still there to read', async () => {
+-  canvas.fails = true;
++const renderLesson = (path = '/learn/unicorn') =>
++  render(
++    <MemoryRouter initialEntries={[path]}>
++      <Routes>
++        <Route path="/learn/:lesson?" element={<LearnScreen />} />
++      </Routes>
++    </MemoryRouter>,
++  );
++
++test('goes without its board, its lessons still there to read, and says so', async () => {
++  canvas.fails = 'chunk';
+   vi.spyOn(console, 'error').mockImplementation(() => {});
+   try {
+-    render(
+-      <MemoryRouter initialEntries={['/learn/unicorn']}>
+-        <Routes>
+-          <Route path="/learn/:lesson?" element={<LearnScreen />} />
+-        </Routes>
+-      </MemoryRouter>,
+-    );
++    renderLesson();
+     expect(await screen.findByText('8 lines')).toBeInTheDocument();
+-    await vi.waitFor(() => expect(screen.queryByTestId('learn-count')).toBeNull());
++    const notice = await screen.findByTestId('board-failed');
++    expect(notice).toHaveAttribute('role', 'alert');
++    expect(notice).toHaveTextContent("Couldn't load the board");
++    expect(screen.queryByTestId('learn-count')).toBeNull();
+     await userEvent.click(screen.getByRole('button', { name: 'Queen' }));
+     expect(screen.getByRole('heading', { level: 1, name: 'Queen' })).toBeInTheDocument();
++    // A retry that brings it: the board, and the move count back
++    canvas.fails = false;
++    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
++    expect(await screen.findByTestId('board')).toBeInTheDocument();
++    expect(screen.queryByTestId('board-failed')).toBeNull();
++    expect(screen.getByTestId('learn-count')).toBeInTheDocument();
++    expect(reloadPage).not.toHaveBeenCalled();
++  } finally {
++    canvas.fails = false;
++    vi.mocked(console.error).mockRestore();
++  }
++});
++
++test('loads the page afresh when a retry of its board fails too', async () => {
++  canvas.fails = 'chunk';
++  vi.spyOn(console, 'error').mockImplementation(() => {});
++  vi.mocked(reloadPage).mockClear();
++  try {
++    renderLesson();
++    await screen.findByTestId('board-failed');
++    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
++    await vi.waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1));
++  } finally {
++    canvas.fails = false;
++    vi.mocked(console.error).mockRestore();
++  }
++});
++
++test('says when there is no WebGL for its board, with nothing to retry', async () => {
++  canvas.fails = 'webgl';
++  vi.spyOn(console, 'error').mockImplementation(() => {});
++  try {
++    renderLesson();
++    expect(await screen.findByTestId('board-failed')).toHaveTextContent(
++      'No 3D board: WebGL is off in this browser',
++    );
++    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+   } finally {
+     canvas.fails = false;
+     vi.mocked(console.error).mockRestore();
+diff --git a/client/src/screens/learn/LearnScreen.tsx b/client/src/screens/learn/LearnScreen.tsx
+index 5278493..15863c0 100644
+--- a/client/src/screens/learn/LearnScreen.tsx
++++ b/client/src/screens/learn/LearnScreen.tsx
+@@ -1,7 +1,8 @@
+ import React from 'react';
+ import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
+-import { lazyChunk } from '../../lib/cachedImport';
++import { lazyChunk, reloadPage } from '../../lib/cachedImport';
+ import { ChunkBoundary } from '../../components/ChunkBoundary';
++import type { ChunkFailure } from '../../components/ChunkBoundary';
+ import { LESSONS, lessonById, practise, reachable, startPractice } from '../../game/lessons';
+ import type { Lesson } from '../../game/lessons';
+ import type { Move } from '../../engine';
+@@ -87,7 +88,21 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
+         ? 'Back to game'
+         : 'Play a game';
+ 
+-  const [noBoard, setNoBoard] = React.useState(false);
++  // Why the board did not come (its chunk or the piece data, or no WebGL),
++  // said where the move count stands; each retry mounts a fresh try
++  const [board, setBoard] = React.useState<{ attempt: number; failed: ChunkFailure | null }>({
++    attempt: 0,
++    failed: null,
++  });
++  const boardFailed = (why: ChunkFailure) => {
++    // A retry that fails too: only a fresh page gets the board (as the game's)
++    if (why === 'chunk' && board.attempt > 0) return reloadPage();
++    setBoard((b) => ({ ...b, failed: why }));
++  };
++  const retryBoard = () => {
++    learnCanvas.retry();
++    setBoard((b) => ({ attempt: b.attempt + 1, failed: null }));
++  };
+   const beside = useCardBeside();
+   const LearnCanvas = learnCanvas.Component;
+   const count = reachable(practice);
+@@ -95,7 +110,7 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
+   return (
+     <main className="learn" data-testid="learn" data-card={beside ? 'beside' : 'below'}>
+       <div className="learn-stage">
+-        <ChunkBoundary canvas onFail={() => setNoBoard(true)}>
++        <ChunkBoundary key={board.attempt} canvas onFail={boardFailed}>
+           <React.Suspense fallback={null}>
+             <LearnCanvas
+               practice={practice}
+@@ -168,7 +183,19 @@ const LessonView = ({ lesson, back }: { lesson: Lesson; back: string | null }) =
+           </div>
+         </div>
+         <div className="learn-foot">
+-          {!noBoard && practice.focus && (
++          {board.failed && (
++            <p className="learn-count learn-failed" role="alert" data-testid="board-failed">
++              {board.failed === 'webgl'
++                ? 'No 3D board: WebGL is off in this browser'
++                : "Couldn't load the board"}
++            </p>
++          )}
++          {board.failed === 'chunk' && (
++            <button className="button-link learn-again" onClick={retryBoard}>
++              <span className="caps">Retry</span>
++            </button>
++          )}
++          {!board.failed && practice.focus && (
+             <p
+               className="learn-count"
+               data-testid="learn-count"
+diff --git a/client/src/screens/learn/learn.css b/client/src/screens/learn/learn.css
+index 6c27348..e65bbb3 100644
+--- a/client/src/screens/learn/learn.css
++++ b/client/src/screens/learn/learn.css
+@@ -263,6 +263,11 @@
+   font-size: 13px;
+   white-space: nowrap;
+ }
++/* Why the board did not come: its words wrap, in the narrow card too */
++.learn-failed {
++  min-width: 0;
++  white-space: normal;
++}
+ .learn-count b {
+   color: #f8c970;
+   font-size: 17px;
+diff --git a/client/src/App.sceneChunk.test.tsx b/client/src/App.sceneChunk.test.tsx
+index 6f7ec59..10fad49 100644
+--- a/client/src/App.sceneChunk.test.tsx
++++ b/client/src/App.sceneChunk.test.tsx
+@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router';
+ import App from './App';
+ import { ErrorBoundary } from './components/ErrorBoundary';
+ import { WS_URL } from './hooks/useGameSocket';
++import { reloadPage } from './lib/cachedImport';
+ 
+ // Every chunk made with lazyChunk (the preview, the lobby's canvas, the
+ // game's board) is refused
+@@ -104,6 +105,9 @@ test('the tutorial that fails to load says so, never the app’s crash screen',
+   await settle();
+   expect(screen.getByTestId('learn-failed')).toHaveTextContent("Couldn't load the tutorial.");
+   expect(screen.queryByText('Something went wrong')).toBeNull();
++  // A way to try again, as a game's page has
++  await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
++  expect(reloadPage).toHaveBeenCalled();
+   await userEvent.click(screen.getByRole('button', { name: /Home/ }));
+   expect(screen.getByRole('heading', { name: '3D Chess' })).toBeInTheDocument();
+ });
+diff --git a/client/src/screens/learn/LearnRoute.tsx b/client/src/screens/learn/LearnRoute.tsx
+index 53eeb9c..42998b0 100644
+--- a/client/src/screens/learn/LearnRoute.tsx
++++ b/client/src/screens/learn/LearnRoute.tsx
+@@ -3,10 +3,12 @@ import { Arrow } from '../Arrow';
+ import { useNavigate } from 'react-router';
+ import { ChunkBoundary } from '../../components/ChunkBoundary';
+ import { learnScreen } from './learnChunk';
++import { reloadPage } from '../../lib/cachedImport';
+ 
+ /**
+  * The tutorial's page (/learn), a chunk of its own: the start page and a
+- * game's page carry none of it. Should it fail to load, the page says so.
++ * game's page carry none of it. Should it fail to load, the page says so,
++ * with a way to try again, as a game's page does (App.tsx, ChunkFailed).
+  */
+ const LearnRoute = () => {
+   const [failed, setFailed] = React.useState(false);
+@@ -24,6 +26,11 @@ const LearnRoute = () => {
+         <div className="lobby-heading">
+           <p role="alert">Couldn't load the tutorial.</p>
+         </div>
++        <p className="lobby-foot">
++          <button className="button-secondary button-small" onClick={reloadPage}>
++            <span className="caps">Retry</span>
++          </button>
++        </p>
+       </main>
+     );
+   }
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 914eb3b..b21cf63 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -1531,7 +1531,7 @@ up (on mount and in each new position, once a live move has landed). The lessons
+ kings, which the engine needs to tell a legal move; `LessonBoard` (a `Board` of the
+ engine's) lets a piece without its king make every move it has, and keeps the rules of
+ check where one stands. The page is a chunk of its own (`LearnRoute.tsx`, which says so
+-should it fail to load), so the start page carries none of it; the start page's link asks
++should it fail to load, with a Retry that reloads), so the start page carries none of it; the start page's link asks
+ for it as the pointer or focus reaches it, and `/learn` preloads it. The canvas
+ (`screens/learn/LearnCanvas.tsx`, in the chunk the game's board shares, preloaded on
+ `/learn` like `/new`) frames the tower under Home
+@@ -1671,8 +1671,10 @@ keeps its first failure for good) and, should that fail too, reloads the page: C
+ keeps a module that failed to fetch failed for the rest of the page's life, and a
+ replaced chunk is gone. A browser that gives a canvas no WebGL (turned off, a blocklisted GPU,
+ no GPU) leaves it out the same way (`ChunkBoundary`'s `canvas`): the start page without its
+-preview, the lobby without its scene, the tutorial without its board, and the game says
++preview, the lobby without its scene, and the game says
+ "No 3D board: WebGL is off in this browser", with no Retry and its move box in sight to play by.
++The tutorial's card says the same in its foot, where the move count stands: the game's
++words for either failure, and the same Retry for a chunk that failed.
+ In the build, r3f's `Canvas` is handed only the three.js classes the scene
+ writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole namespace, so the
+ rest of three.js is left out; a new element's class must be added there

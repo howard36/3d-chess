@@ -263,11 +263,6 @@
   font-size: 13px;
   white-space: nowrap;
 }
-/* Why the board did not come: its words wrap, in the narrow card too */
-.learn-failed {
-  min-width: 0;
-  white-space: normal;
-}
 .learn-count b {
   color: #f8c970;
   font-size: 17px;
