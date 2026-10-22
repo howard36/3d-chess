@@ -195,7 +195,7 @@ export const preloadRouteChunks = (): Plugin => ({
  * back. Build only: the dev server's StrictMode mounts the app's socket twice
  * (closing the first), which would rejoin the seat a second time.
  */
-const earlySocket = (): Plugin => {
+export const earlySocket = (): Plugin => {
   let url = DEFAULT_WS_URL;
   return {
     name: 'early-socket',

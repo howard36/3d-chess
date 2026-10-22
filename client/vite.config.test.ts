@@ -6,7 +6,10 @@ import type { UserConfig } from 'vite';
 import { expect, test, vi } from 'vitest';
 import { picturePlacement } from './src/three/landingLens';
 import { parseHeaders } from './bench/preview.config';
+import { DEFAULT_WS_URL } from './src/lib/earlySocket';
+import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import config, {
+  earlySocket,
   KEEP_A_YEAR,
   keepHashedFiles,
   keepSceneOutOfEntry,
@@ -490,4 +493,72 @@ test("each page's preload script runs right ahead of the stylesheet, after the s
     /^<link rel="stylesheet"/,
   );
   expect(() => handler(html.replace(stylesheet, ''), { bundle })).toThrow(/no stylesheet link/);
+});
+
+// The built page's first request goes out from its head (src/lib/earlySocket.ts):
+// e2e runs the dev server, which skips the plugin, and the app quietly opens
+// its own socket when the inline script fails, so run the built script here
+test("the built page's early socket asks for its game from the head, and nothing where there is none", async () => {
+  const plugin = earlySocket();
+  (plugin.configResolved as (c: unknown) => void)({ env: {} });
+  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+  const built = await (plugin.transformIndexHtml as (h: string) => Promise<string>)(html);
+  const charset = built.search(/<meta charset[^>]*>/i);
+  const start = built.indexOf('<script>', charset) + '<script>'.length;
+  const end = built.indexOf('</script>', start);
+  // Right after the charset, which must stand in the first 1024 bytes
+  expect(built.slice(charset, start)).toMatch(/^<meta charset[^>]*>\s*<script>$/);
+  expect(charset).toBeLessThan(1024);
+  const script = built.slice(start, end);
+  const run = (pathname: string, local: Record<string, string> = {}) => {
+    const sockets: { url: string; sent: unknown[]; onopen?: () => void }[] = [];
+    class FakeSocket {
+      url: string;
+      sent: unknown[] = [];
+      onopen?: () => void;
+      constructor(url: string) {
+        this.url = url;
+        sockets.push(this);
+      }
+      send(message: string) {
+        this.sent.push(JSON.parse(message));
+      }
+    }
+    const storage = (items: Record<string, string>) => ({
+      getItem: (key: string) => items[key] ?? null,
+      setItem: (key: string, value: string) => void (items[key] = value),
+    });
+    new Function(
+      'location',
+      'WebSocket',
+      'localStorage',
+      'sessionStorage',
+      'window',
+      'crypto',
+      script,
+    )({ pathname }, FakeSocket, storage(local), storage({}), {}, { randomUUID: () => 'a-client' });
+    sockets[0]?.onopen?.();
+    return sockets.map((s) => ({ url: s.url, sent: s.sent }));
+  };
+  const socket = (sent: unknown[]) => [{ url: DEFAULT_WS_URL, sent }];
+  expect(run('/game/ABC123', { [`${ROLE_KEY_PREFIX}ABC123`]: 'black' })).toEqual(
+    socket([
+      {
+        type: 'rejoin_game',
+        gameId: 'ABC123',
+        color: 'black',
+        clientId: 'a-client',
+        takeover: true,
+      },
+    ]),
+  );
+  expect(run('/game/ABC123')).toEqual(socket([{ type: 'look_game', gameId: 'ABC123' }]));
+  // Opened to have it ready, nothing asked: the start page, the side choice,
+  // and an address that is no game's
+  expect(run('/')).toEqual(socket([]));
+  expect(run('/new')).toEqual(socket([]));
+  expect(run('/game/abc123')).toEqual(socket([]));
+  // Never on the pages that do without the server
+  expect(run('/computer/abc123')).toEqual([]);
+  expect(run('/learn')).toEqual([]);
 });
