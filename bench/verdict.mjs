@@ -69,3 +69,33 @@ export function chanceOfCall(ratios) {
   );
   return v?.real ? 2 ** (1 - sizes.length) : 0;
 }
+
+/**
+ * The skill's speed rule over the primary rows, as the A/B report's sentence,
+ * worked out here so nobody counts pairs by hand: a measured row worse in every
+ * pair, or more than 3% worse at its median pair (not the pairs' geometric
+ * mean), is the owner's to see, called or not. `measured` holds each measured
+ * row's `moment`, `ratios` (head/base) and `better`; a narrowed A/B claims
+ * nothing for the `total - measured.length` rows it did not measure.
+ */
+export function speedRule(measured, total) {
+  const flagged = measured.flatMap(({ moment, ratios, better }) => {
+    const worse = ratios.map((x) => (better === 'higher' ? 1 / x : x));
+    const mid = median(worse);
+    const over = worse.filter((x) => x > 1).length;
+    if (over < worse.length && mid <= 1.03) return [];
+    return [`${moment}: median pair ×${mid.toFixed(3)}, ${over} of ${worse.length} pairs worse`];
+  });
+  const unmeasured = total - measured.length;
+  if (flagged.length)
+    return (
+      `**For "Needs from me"** (worse in every pair, or more than 3% worse at the median pair): ` +
+      `${flagged.join('; ')}.`
+    );
+  if (unmeasured)
+    return (
+      `No measured primary row is worse in every pair or more than 3% worse at its median ` +
+      `pair; ${unmeasured} of ${total} were not measured, and nothing is claimed for them.`
+    );
+  return 'No primary row is worse in every pair or more than 3% worse at its median pair.';
+}

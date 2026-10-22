@@ -1,5 +1,5 @@
 // The A/B's rule (bench/verdict.mjs): what it calls and what it leaves alone.
-import { chanceOfCall, verdict } from '../../bench/verdict.mjs';
+import { chanceOfCall, speedRule, verdict } from '../../bench/verdict.mjs';
 
 describe('verdict', () => {
   it('calls a change every pair agrees on, beyond 5% and the pairs’ spread', () => {
@@ -161,5 +161,42 @@ describe('chanceOfCall', () => {
     expect(chanceOfCall([1.02, 1.03, 0.97])).toBe(0);
     expect(chanceOfCall([0.8, 1, 0.8])).toBe(0);
     expect(chanceOfCall([0.8])).toBe(0);
+  });
+});
+
+describe('speedRule', () => {
+  const row = (moment, ratios, better = 'lower') => ({ moment, ratios, better });
+
+  it('claims nothing for the rows a narrowed A/B did not measure', () => {
+    // 1153:UM1: an A/B of one engine case read "No primary row is worse" over 20 it never ran
+    expect(speedRule([], 20)).toBe(
+      'No measured primary row is worse in every pair or more than 3% worse at its median ' +
+        'pair; 20 of 20 were not measured, and nothing is claimed for them.',
+    );
+    expect(speedRule([row('A move lands', [0.98, 1.01, 0.99])], 3)).toContain(
+      '2 of 3 were not measured',
+    );
+  });
+
+  it('speaks for every row only when every row was measured', () => {
+    expect(speedRule([row('A move lands', [0.98, 1.01, 0.99])], 1)).toBe(
+      'No primary row is worse in every pair or more than 3% worse at its median pair.',
+    );
+  });
+
+  it('flags a row worse in every pair, or over 3% worse at its median pair, called or not', () => {
+    const s = speedRule(
+      [
+        row('Every pair', [1.01, 1.02, 1.01]),
+        row('Median', [1.05, 0.9, 1.06]),
+        row('A rate', [0.9, 0.95, 1.1], 'higher'),
+        row('Fine', [1.05, 0.95, 1.0]),
+      ],
+      5,
+    );
+    expect(s).toContain('Every pair: median pair ×1.010, 3 of 3 pairs worse');
+    expect(s).toContain('Median: median pair ×1.050, 2 of 3 pairs worse');
+    expect(s).toContain('A rate: median pair ×1.053, 2 of 3 pairs worse');
+    expect(s).not.toContain('Fine');
   });
 });
