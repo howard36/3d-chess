@@ -44,9 +44,10 @@ export const setUpRenderer = ({ gl }: Pick<RootState, 'gl'>) => {
  * program it needs that the scene did not foresee is linked in it, as before.
  * The game's board (GameCanvas), whose page shows the HUD and the record
  * before the board by design, its entrance fading the board up from the
- * dark from that frame on, and the start page's preview, which nothing on
- * the page waits for; not the lobby, whose words come in with their
- * canvas's first frame, which a page left free would show first.
+ * dark from that frame on, the start page's preview, which nothing on the
+ * page waits for, and the lobby's side choice (LobbyCanvas), whose words
+ * come in with that first frame; not a shared game's invitation, whose Join
+ * click would find the GPU still busy with the links.
  */
 export const linkBeforeFirstFrame = ({
   gl,
