@@ -103,6 +103,30 @@ test('the built page’s preload asks for the very addresses its early picture s
   }
 });
 
+test('the early pictures’ scripts go in as written, whatever `$` patterns the minifier makes', async () => {
+  // `$&&` is ordinary minified code; as a replace() string it would put the tag in again
+  const code = "$&&$'";
+  vi.doMock('vite', async (original) => ({
+    ...(await original<typeof import('vite')>()),
+    build: async () => ({ output: [{ code }] }),
+  }));
+  vi.resetModules();
+  try {
+    const plugins = await import('./vite.config');
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    for (const plugin of [
+      plugins.preloadLandingPictureOnStartPage(),
+      plugins.placeLandingPictureEarly(),
+    ]) {
+      const built = await (plugin.transformIndexHtml as (h: string) => Promise<string>)(html);
+      expect(built).toContain(`<script>${code}</script>`);
+    }
+  } finally {
+    vi.doUnmock('vite');
+    vi.resetModules();
+  }
+});
+
 test('the pictures’ version changes with any of them, and the host keeps them a year', () => {
   const dir = mkdtempSync(join(tmpdir(), 'landing-'));
   try {
