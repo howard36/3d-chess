@@ -6,7 +6,10 @@ import type { UserConfig } from 'vite';
 import { expect, test, vi } from 'vitest';
 import { picturePlacement } from './src/three/landingLens';
 import { parseHeaders } from './bench/preview.config';
+import { DEFAULT_WS_URL } from './src/lib/earlySocket';
+import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import config, {
+  earlySocket,
   KEEP_A_YEAR,
   keepHashedFiles,
   keepSceneOutOfEntry,
@@ -14,7 +17,7 @@ import config, {
   placeLandingPictureEarly,
   PRELOADS,
   preloadLandingPictureOnStartPage,
-  preloadSceneOnGamePages,
+  preloadRouteChunks,
   preloadScript,
   versionLandingPictures,
 } from './vite.config';
@@ -100,6 +103,30 @@ test('the built page’s preload asks for the very addresses its early picture s
   }
 });
 
+test('the early pictures’ scripts go in as written, whatever `$` patterns the minifier makes', async () => {
+  // `$&&` is ordinary minified code; as a replace() string it would put the tag in again
+  const code = "$&&$'";
+  vi.doMock('vite', async (original) => ({
+    ...(await original<typeof import('vite')>()),
+    build: async () => ({ output: [{ code }] }),
+  }));
+  vi.resetModules();
+  try {
+    const plugins = await import('./vite.config');
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    for (const plugin of [
+      plugins.preloadLandingPictureOnStartPage(),
+      plugins.placeLandingPictureEarly(),
+    ]) {
+      const built = await (plugin.transformIndexHtml as (h: string) => Promise<string>)(html);
+      expect(built).toContain(`<script>${code}</script>`);
+    }
+  } finally {
+    vi.doUnmock('vite');
+    vi.resetModules();
+  }
+});
+
 test('the pictures’ version changes with any of them, and the host keeps them a year', () => {
   const dir = mkdtempSync(join(tmpdir(), 'landing-'));
   try {
@@ -151,17 +178,20 @@ test('the link preview’s picture is the size its tags say, as the browser’s 
   expect(tag('twitter:image')).toBe(tag('og:image'));
 });
 
-test('the build runs the start page’s scripts', () => {
+test('the build runs every plugin this file defines', () => {
   const flat = (p: unknown): unknown[] => (Array.isArray(p) ? p.flatMap(flat) : [p]);
   const names = flat((config as UserConfig).plugins).map((p) => (p as { name?: string })?.name);
-  expect(names).toEqual(
-    expect.arrayContaining([
-      'preload-landing-picture',
-      'place-landing-picture-early',
-      'version-landing-pictures',
-      'keep-hashed-files',
-    ]),
-  );
+  // Each plugin's tests call it directly, so only this catches one left out of `plugins`.
+  // 'early-picture' is the start page's script's own sub-build.
+  const defined = [
+    ...readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8').matchAll(
+      /^\s+name: '([\w-]+)',$/gm,
+    ),
+  ]
+    .map((m) => m[1])
+    .filter((name) => name !== 'early-picture');
+  expect(defined.length).toBeGreaterThanOrEqual(10);
+  expect(names).toEqual(expect.arrayContaining(defined));
 });
 
 /** Runs keepHashedFiles' build step on a build of these files, in a folder of its own. */
@@ -416,7 +446,9 @@ test('the preload script links, on each page, what its chunks need beyond the en
     chunk('board.js', ['GameCanvas.tsx'], ['three.js', 'history.js']),
     chunk('learn.js', ['learn/LearnScreen.tsx'], ['shared.js']),
     chunk('learnBoard.js', ['learn/LearnCanvas.tsx'], ['three.js']),
-    chunk('three.js', ['../../node_modules/three/build/three.module.js']),
+    chunk('three.js', ['../../node_modules/three/build/three.module.js'], ['vendor.js']),
+    // Two levels down: fetched with the rest, not once three.js has run
+    chunk('vendor.js', ['../../node_modules/three/src/math/MathUtils.js']),
   ];
   const script = preloadScript(chunks);
   /** The files linked at `pathname`, a low priority one marked so. */
@@ -430,14 +462,14 @@ test('the preload script links, on each page, what its chunks need beyond the en
     expect(links.every((l) => l.rel === 'modulepreload')).toBe(true);
     return links.map((l) => (l.fetchPriority === 'low' ? `${l.href} (low)` : l.href));
   };
-  const lobby = ['/lobby.js (low)', '/three.js (low)', '/board.js (low)'];
+  const lobby = ['/lobby.js (low)', '/three.js (low)', '/vendor.js (low)', '/board.js (low)'];
   const game = ['/game.js', '/history.js', ...lobby];
   expect(linked('/game/ABC123')).toEqual(game);
   expect(linked('/new')).toEqual(game);
   const computer = ['/computer.js', '/game.js', '/history.js', ...lobby];
   expect(linked('/computer')).toEqual(computer);
   expect(linked('/computer/abc123')).toEqual(computer);
-  const learn = ['/learn.js', '/learnBoard.js (low)', '/three.js (low)'];
+  const learn = ['/learn.js', '/learnBoard.js (low)', '/three.js (low)', '/vendor.js (low)'];
   expect(linked('/learn')).toEqual(learn);
   expect(linked('/learn/rook')).toEqual(learn);
   expect(linked('/')).toEqual([]);
@@ -449,7 +481,7 @@ test('the preload script links, on each page, what its chunks need beyond the en
 });
 
 test("each page's preload script runs right ahead of the stylesheet, after the start page's own scripts", async () => {
-  const { handler } = preloadSceneOnGamePages().transformIndexHtml as {
+  const { handler } = preloadRouteChunks().transformIndexHtml as {
     handler: (html: string, ctx: unknown) => string;
   };
   const chunk = (fileName: string, file: string, isEntry = false) => ({
@@ -485,4 +517,72 @@ test("each page's preload script runs right ahead of the stylesheet, after the s
     /^<link rel="stylesheet"/,
   );
   expect(() => handler(html.replace(stylesheet, ''), { bundle })).toThrow(/no stylesheet link/);
+});
+
+// The built page's first request goes out from its head (src/lib/earlySocket.ts):
+// e2e runs the dev server, which skips the plugin, and the app quietly opens
+// its own socket when the inline script fails, so run the built script here
+test("the built page's early socket asks for its game from the head, and nothing where there is none", async () => {
+  const plugin = earlySocket();
+  (plugin.configResolved as (c: unknown) => void)({ env: {} });
+  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+  const built = await (plugin.transformIndexHtml as (h: string) => Promise<string>)(html);
+  const charset = built.search(/<meta charset[^>]*>/i);
+  const start = built.indexOf('<script>', charset) + '<script>'.length;
+  const end = built.indexOf('</script>', start);
+  // Right after the charset, which must stand in the first 1024 bytes
+  expect(built.slice(charset, start)).toMatch(/^<meta charset[^>]*>\s*<script>$/);
+  expect(charset).toBeLessThan(1024);
+  const script = built.slice(start, end);
+  const run = (pathname: string, local: Record<string, string> = {}) => {
+    const sockets: { url: string; sent: unknown[]; onopen?: () => void }[] = [];
+    class FakeSocket {
+      url: string;
+      sent: unknown[] = [];
+      onopen?: () => void;
+      constructor(url: string) {
+        this.url = url;
+        sockets.push(this);
+      }
+      send(message: string) {
+        this.sent.push(JSON.parse(message));
+      }
+    }
+    const storage = (items: Record<string, string>) => ({
+      getItem: (key: string) => items[key] ?? null,
+      setItem: (key: string, value: string) => void (items[key] = value),
+    });
+    new Function(
+      'location',
+      'WebSocket',
+      'localStorage',
+      'sessionStorage',
+      'window',
+      'crypto',
+      script,
+    )({ pathname }, FakeSocket, storage(local), storage({}), {}, { randomUUID: () => 'a-client' });
+    sockets[0]?.onopen?.();
+    return sockets.map((s) => ({ url: s.url, sent: s.sent }));
+  };
+  const socket = (sent: unknown[]) => [{ url: DEFAULT_WS_URL, sent }];
+  expect(run('/game/ABC123', { [`${ROLE_KEY_PREFIX}ABC123`]: 'black' })).toEqual(
+    socket([
+      {
+        type: 'rejoin_game',
+        gameId: 'ABC123',
+        color: 'black',
+        clientId: 'a-client',
+        takeover: true,
+      },
+    ]),
+  );
+  expect(run('/game/ABC123')).toEqual(socket([{ type: 'look_game', gameId: 'ABC123' }]));
+  // Opened to have it ready, nothing asked: the start page, the side choice,
+  // and an address that is no game's
+  expect(run('/')).toEqual(socket([]));
+  expect(run('/new')).toEqual(socket([]));
+  expect(run('/game/abc123')).toEqual(socket([]));
+  // Never on the pages that do without the server
+  expect(run('/computer/abc123')).toEqual([]);
+  expect(run('/learn')).toEqual([]);
 });

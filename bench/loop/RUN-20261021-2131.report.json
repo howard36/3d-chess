@@ -1,0 +1,214 @@
+{
+ "title": "Perf run 20261021-2131",
+ "eyebrow": "3D chess · perf-iteration · run 20261021-2131 · general run",
+ "heading": "Checks for the build and the piece data, and fixes off the measured paths",
+ "meta": "<p>This general run kept 13 changes, none made for speed. Six are new checks: the build runs every plugin its config defines, the piece data loads again after a failed load and every page that draws pieces loads it, the lobby's king builds without it, the built page's early socket script is run as the browser runs it, the early pictures' scripts go into the page as written, and the lobby's occlusion split is pinned to the king. Three fix bugs: a computer game left before its page arrived no longer opens with an arrival later, the preloads follow the whole chunk graph, and a narrowed A/B no longer speaks for rows it never measured. Four replace copies with one source: the field of view, the tutorial card's gutter, the occlusion's king-and-the-rest split and the computer's \"search did not load\" reply. The tutorial's failure states are parked for you (below). The one speed idea tried (PD2) made two boards' first pictures 18–29% slower and was reverted. On <code>2c29fb9</code>, measured against the base <code>91b2081</code> over 10 pairs, no primary row is called better or worse, and a re-check of the rows that leaned calls nothing either. The final head differs from <code>2c29fb9</code> only in <code>/learn</code>'s files, back to the base's, the A/B report's own code, and the loop's records: no primary row can move. The branch is <code>improve/20261021-2131</code>; main did not move during the run. Every figure comes from software rendering (SwiftShader) on a 4-vCPU VM, and each one names the commits it compares.</p>",
+ "needs": {
+  "intro": "<p>One call of taste. The other items are information that the speed rule and the target ask for.</p>",
+  "items": [
+   {
+    "title": "Take the tutorial's failure states? (2131:LF1, a call of taste)",
+    "body": "<p>Today, when the tutorial's board fails to load (its code, the piece data, or no WebGL), the stage stays empty and the card says nothing. When the tutorial's page itself fails, it says so but offers only Home.</p><p>The parked patch puts \"Couldn't load the board\" in the card's foot, where the move count stands, with a text Retry (a second failure reloads the page), or the game's own \"No 3D board: WebGL is off in this browser\". The card keeps its height. It also adds the game page's Retry to the tutorial's failed page. Four test cases fail on the base and pass with the patch.</p>",
+    "figure": {
+     "html": "<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:320px\"><div><img src=\"learn-failed/before-phone.png\" alt=\"Before: the tutorial's card with no board and no message\" style=\"width:100%\"><div>Before</div></div><div><img src=\"learn-failed/after-phone.png\" alt=\"After: the card's foot says Couldn't load the board, with Retry\" style=\"width:100%\"><div>After</div></div></div><p style=\"margin:4px 0 16px\">The board fails: /learn/rook at 390×844 with the board's code blocked, before and after the patch.</p><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:320px\"><div><img src=\"learn-failed/before-desktop.png\" alt=\"Before: the desktop card with no board and no message\" style=\"width:100%\"><div>Before</div></div><div><img src=\"learn-failed/after-desktop.png\" alt=\"After: the desktop card's foot says Couldn't load the board, with Retry\" style=\"width:100%\"><div>After</div></div></div><p style=\"margin:4px 0 16px\">The board fails: /learn/rook at 1280×800, before and after the patch.</p><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:320px\"><div><img src=\"learn-route/route-before-phone.png\" alt=\"Before: Couldn't load the tutorial, with Home only\" style=\"width:100%\"><div>Before</div></div><div><img src=\"learn-route/route-after-phone.png\" alt=\"After: the same words, with Retry at the foot\" style=\"width:100%\"><div>After</div></div></div><p style=\"margin:4px 0 16px\">The page fails: /learn at 390×844 with the tutorial's code blocked, before and after the patch.</p><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:320px\"><div><img src=\"learn-route/route-before-desktop.png\" alt=\"Before: the desktop page with Home only\" style=\"width:100%\"><div>Before</div></div><div><img src=\"learn-route/route-after-desktop.png\" alt=\"After: the desktop page with Retry\" style=\"width:100%\"><div>After</div></div></div><p style=\"margin:4px 0 16px\">The page fails: /learn at 1280×800, before and after the patch.</p>",
+     "caption": "The tutorial's failure states before (the base, 91b2081) and after the parked patch, at phone and desktop size."
+    },
+    "recommend": "Take both: <code>git apply bench/loop/patches/2131-LF1-learn-failures.patch</code>. They were kept out of this PR because where the words sit and how they look are your call."
+   },
+   {
+    "title": "Four primary rows lean worse in one A/B or the other; none is called",
+    "body": "<p>Information, not a question. The speed rule lists any primary row that is more than 3% worse at the median pair. The final A/B (<code>ab-20261021-2131-final.md</code>) listed three. A re-check of their two sections, setup and move latency, 10 pairs (<code>ab-20261021-2131-final-recheck.md</code>), on the same app, gave:</p><ul><li>The opponent's move appears: ×1.055 (6 of 10 pairs worse), then ×1.082 (7 of 10, pairs 0.95–1.42).</li><li>First board picture, joining a game: ×1.012 (6 of 10), then ×1.042 (8 of 10, pairs 0.94–1.11).</li><li>A shared game's page, first screen, desktop: ×1.074 (8 of 10), then ×0.957 (3 of 10).</li><li>The player's move appears: ×1.128 (6 of 10), then ×0.990 (5 of 10).</li></ul><p>The branch changes nothing that runs per move. On the board's first build it adds one <code>includes</code> on a one-item list per piece type. The move rows swing by about 10% between A/Bs of the same code: last run's opponent's move leaned ×1.04 twice, and this run's step 2 read it ×0.938 on that same app.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final re-check: 2c29fb9 vs 91b2081, setup + move-latency, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "The re-check: setup and move latency, 2c29fb9 against 91b2081, 10 pairs (ab-20261021-2131-final-recheck.md)."
+     }
+    ],
+    "recommend": "<p>Merge. Next, run an A/A of the move rows (ledger 1153:OM1, 2131:NF1) so a lean on them can be told from noise.</p>"
+   },
+   {
+    "title": "The picked-up piece's lean is noise",
+    "body": "<p>Information, not a question. \"A picked-up piece appears\" leaned ×1.068 and ×1.095 on the base against the last run's base. An A/A of identical code (select, 12 pairs, <code>ab-20261021-2131-select-aa.md</code>) read it ×1.048, with 8 of 12 pairs worse. In the final A/B it reads ×1.007.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "2131:PK1",
+       "only": "^Picking up a piece · "
+      },
+      "caption": "The A/A: select, 9d25de2 against itself, 12 pairs (ab-20261021-2131-select-aa.md)."
+     }
+    ]
+   }
+  ]
+ },
+ "scoreboard": {
+  "intro": "<p>The primary rows are the moments a player waits for, listed in <code>bench/primary.mjs</code>. Each bar is a row's change, head divided by base, and each dot is one pair. Left of 1× is faster. The dashed line is the target, 1.2× faster than the base.</p>",
+  "items": [
+   {
+    "title": "The final commit against the base: all 20 primary rows",
+    "body": "<p><code>2c29fb9</code> against <code>91b2081</code>, 10 pairs, 80 minutes (<code>ab-20261021-2131-final.md</code>). After it, <code>/learn</code>'s files went back to the base's (<code>f67173e</code>; no primary row loads <code>/learn</code>), the A/B report's own wording code changed (<code>a3403b2</code>) and the rest is loop records. Overall the head is ×0.992 as fast as the base, against ×1.004 for identical code. No primary row and none of the 123 diagnostics is called. Every load downloads the same bytes as on the base. Memory is flat: the JS heap after reopening a 2,000-ply game went from 14,607.4 to 14,532.3 KiB (−0.3%), and live geometries and textures did not change.</p><p>The 1.2× target is not met: no row is faster. This general run made no change for speed, and its one speed idea (PD2) was rejected.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "final: 2c29fb9 vs 91b2081, --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "2c29fb9 against 91b2081, 10 pairs, every primary row (ab-20261021-2131-final.md).",
+      "target": 1.2
+     }
+    ]
+   },
+   {
+    "title": "The base against the last run's base",
+    "body": "<p>Step 2: <code>91b2081</code> against <code>9ca180a</code>, 10 pairs, 81 minutes (<code>ab-20261021-2131-regress.md</code>). This is the same app that run 1153's final A/B measured. Two rows are called better again: a shared game's first screen on a phone, 876 → 697 ms (×0.801), and reopening a game against the computer on a phone, 1.40 s → 740 ms (×0.525). Nothing is called worse. The JS heap after reopening a 2,000-ply game went from 14,665.0 to 14,621.0 KiB (−0.3%).</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "regress: 91b2081 vs 9ca180a, --primary, 10 pairs",
+       "only": "PRIMARY"
+      },
+      "caption": "91b2081 against 9ca180a, 10 pairs (ab-20261021-2131-regress.md)."
+     }
+    ]
+   },
+   {
+    "title": "The long view: against the first recorded run",
+    "body": "<p>Not measured again in this run. The last measurement, from run 20261018-1719, compares <code>8a3e922</code> with the first recorded run <code>92ce041</code> over 3 pairs.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "vs first run: 8a3e922 vs 92ce041 (primary, 3 pairs)",
+       "only": "PRIMARY"
+      },
+      "caption": "8a3e922 against 92ce041, 3 pairs (run 20261018-1719)."
+     }
+    ]
+   }
+  ]
+ },
+ "changed": {
+  "intro": "<p>Each change is its own commit. Every check below was shown to fail on a broken copy of the code, or on the base <code>91b2081</code>, and to pass on the branch. Each commit message says how the code was broken.</p>",
+  "items": [
+   {
+    "title": "A computer game left early no longer opens with an arrival later (157569c)",
+    "body": "<p>The side choice marked a new computer game as arriving before its page's code had loaded. A player who left during that wait left the game marked, so a later visit played the arrival again. The mark is now set only when the page actually opens. A new test fails on the base.</p>"
+   },
+   {
+    "title": "Preloads follow the whole chunk graph (d7c5550)",
+    "body": "<p>The build's per-page preload list looked only one import deep. It now follows every chunk a page's chunks import, using one walk that the build's own guard shares. The plugin is renamed <code>preload-route-chunks</code>. A two-level test fails on the base. Today this adds two small files (2.3 KB and 147 B) to <code>/learn</code>'s low-priority list; the other pages' lists are unchanged by a local diff of the built pages. No primary row measures <code>/learn</code>.</p>"
+   },
+   {
+    "title": "A narrowed A/B no longer speaks for rows it never measured (c39b024, a3403b2)",
+    "body": "<p>The A/B report's closing sentence said \"No primary row is worse\" even when the run measured only some rows. It now says how many were not measured and claims nothing for them. The rule moved into <code>bench/verdict.mjs</code> (<code>speedRule</code>) with tests; with the base's logic put back, the narrowed-run case fails.</p>"
+   },
+   {
+    "title": "New checks on the build and the piece data",
+    "body": "<ul><li>7d361c9: every plugin <code>vite.config.ts</code> defines must be in its plugins list.</li><li>a2909a4: the piece data loads again after a failed load, and every page that draws pieces loads it.</li><li>22dfe6a: the lobby's king builds without the piece data, and the other pieces refuse to.</li><li>9d25de2: the built page's early socket script is run, for each address, not only read.</li><li>3638a7f: the early pictures' scripts go into the page as written, even with <code>$&amp;</code> in them. This is the check for d7c5550's change to a function replacer, which had none.</li><li>25ba199: the lobby's occlusion split is pinned to the king alone. With the queen added and the data baked again, only this test fails.</li><li>c39b024: a narrowed A/B report no longer says \"no primary row is worse\" about rows it never measured.</li></ul>"
+   },
+   {
+    "title": "One source instead of copies",
+    "body": "<ul><li>5b863c8: <code>CAMERA_FOV</code>, one field of view for every canvas and the lobby's last pose, with a check. Touched files 1,294 → 1,297 lines; complexity and duplication unchanged.</li><li>f2b0ccc: the tutorial card's gutter is the start page's, and its stylesheet's copy is checked. 115 → 116 lines; complexity sum 32 → 31.</li><li>51bb1ad: the occlusion's king-and-the-rest split is named once for the bake, the scene and the test. The bake rewrites the generated files byte for byte. 470 → 478 lines; complexity sum 99 → 97.</li><li>59ecc89: one place for the computer's \"search did not load\" reply. 249 → 244 lines; complexity sum 76 → 77 and duplication 12 → 13 lines, so only the line count improves.</li></ul><p>Complexity is ESLint's <code>complexity</code> over every function in the files each commit touches; duplication is jscpd at 2 lines and 20 tokens.</p>"
+   }
+  ]
+ },
+ "removed": {
+  "intro": "<p>No file or dependency was removed. Code without tests and generated files, base → head: three 23,112 → 23,120 lines, screens 6,239 → 6,241, hooks 723 → 718, <code>vite.config.ts</code> 460 → 462, bench 4,003 → 4,023; engine, game, ai, lib and server unchanged. Tests 27,930 → 28,111. Duplication (jscpd, 5 lines and 50 tokens): 8 clones, 64 lines on both. Complexity (ESLint, every function): sum 12,689 → 12,735, largest 92 on both. The preload plugin's three graph walks became one, though its two early-picture plugins now look alike (6 → 22 duplicated lines at 2 lines and 20 tokens); folding them added 18 lines and was not kept.</p>",
+  "items": []
+ },
+ "rejected": {
+  "intro": "<p>Ideas tried or probed and not kept:</p>",
+  "items": [
+   {
+    "title": "PD2: start the piece data later on the side choice, and from the head on game pages",
+    "body": "<p>Measured against <code>f6cd129</code> on the setup and computer sections, 8 pairs (<code>ab-20261021-2131-pd2.md</code>). Joining's first picture went from 858 ms to 1.01 s (×1.178) and the computer's first picture from 895 ms to 1.14 s (×1.290), both called worse in 8 of 8 pairs. The side choice's scene on a phone went from 2.23 s to 2.17 s (×0.978), not called. Reverted; its patch is <code>bench/loop/patches/2131-PD2.patch</code>. A variant stays in the ledger: start the data after the lobby's first frame.</p>",
+    "charts": [
+     {
+      "rows": {
+       "change": "1153:PD2",
+       "only": "PRIMARY"
+      },
+      "caption": "PD2 against f6cd129, setup and computer, 8 pairs (ab-20261021-2131-pd2.md)."
+     }
+    ]
+   },
+   {
+    "title": "One helper for the four inline scripts in the page's head",
+    "body": "<p>Tried: 18 more lines after formatting, with no change in behaviour. Not kept. Parked until a fifth inline script exists.</p>"
+   },
+   {
+    "title": "Early Hints and Link headers for the preloads (EH1)",
+    "body": "<p>Rejected on reading, not measured. Cloudflare Pages builds Link headers only from <code>&lt;link&gt;</code> tags without <code>crossorigin</code>, the preloads come from a script, and static pages leave no server time for a 103 to fill.</p>"
+   }
+  ]
+ },
+ "choices": {
+  "intro": "",
+  "items": [
+   {
+    "title": "Parked the tutorial's failure states for you",
+    "body": "<p>They fix a silent failure, but where the words sit, what they say and how Retry looks are calls of taste, so they wait for you (above) rather than hold up this PR.</p>"
+   },
+   {
+    "title": "Kept the preload change without its own A/B",
+    "body": "<p>It changes only <code>/learn</code>'s low-priority links, which no primary row measures. The final A/B covers the rest.</p>"
+   },
+   {
+    "title": "Parked the picked-piece lean (PK1)",
+    "body": "<p>\"A picked-up piece appears\" leaned ×1.068 and ×1.095 on the base. An A/A of identical code read it ×1.048 with 8 of 12 pairs worse (<code>ab-20261021-2131-select-aa.md</code>), so the leans are within the row's own spread.</p>"
+   },
+   {
+    "title": "Fixed two review findings instead of logging them",
+    "body": "<p>d7c5550's function replacer had no test that could fail; 3638a7f adds one. 51bb1ad had made the king-only test compare a constant with itself; 25ba199 pins it again.</p>"
+   },
+   {
+    "title": "Kept 59ecc89 on its line count alone",
+    "body": "<p>It removes 5 lines and gives the reply one place, but adds one function and one line of clone.</p>"
+   },
+   {
+    "title": "Dropped the exploratory pick re-check's report",
+    "body": "<p>No decision rests on it; PK1's parking rests on the A/A (<code>ab-20261021-2131-select-aa.md</code>).</p>"
+   }
+  ]
+ },
+ "notConfirmed": {
+  "intro": "",
+  "items": [
+   {
+    "title": "The built pages' preload lists",
+    "body": "<p>That the <code>/</code>, <code>/game</code>, <code>/new</code> and <code>/computer</code> lists are unchanged comes from a local diff of the two builds that is not in the repo (ledger 2131:BP1).</p>"
+   },
+   {
+    "title": "Production's HTTP/2 and 3",
+    "body": "<p>Every phone row runs over HTTP/1.1 from <code>vite preview</code> (ledger 1153:H2). PD2's result may differ there.</p>"
+   },
+   {
+    "title": "The tutorial's Retry in Firefox and Safari",
+    "body": "<p>The parked patch was checked only in Chromium, which keeps a failed module failed until a reload (ledger 2131:CR1).</p>"
+   }
+  ]
+ },
+ "next": {
+  "intro": "<p>The top of the ledger:</p>",
+  "items": [
+   {
+    "title": "1153:H2: run the phone rows over HTTP/2",
+    "body": "<p>Serve the bench over TLS and HTTP/2, as production does, before more preload work. PD2's result shows how far HTTP/1.1 can mislead.</p>"
+   },
+   {
+    "title": "PD2's variant, SL1, SH1, CH1",
+    "body": "<p>Start the piece data after the lobby's first frame; overlap the lobby's shader links with building its scene; draw the at-rest shimmer from a copy; retry V8 compile hints.</p>"
+   },
+   {
+    "title": "2131:LB1 and 2131:NF1",
+    "body": "<p>A primary row for the tutorial's first board frame, and a verdict that judges each row against its own A/A spread.</p>"
+   },
+   {
+    "title": "General: 2131:LQ1, FP1, SS1, 1153:DF1's e2e half, UM1's remainder",
+    "body": "<p>A status line when the game's page is slow after the pick (measure first), sturdier source-scan checks, an e2e of the piece data failing, and the scoreboard's count of unmeasured rows. One board-retry hook (BR1) waits on your answer to LF1.</p>"
+   }
+  ]
+ }
+}

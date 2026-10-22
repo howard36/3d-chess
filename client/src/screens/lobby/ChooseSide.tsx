@@ -121,10 +121,11 @@ const ChooseSide: React.FC<{ gameSocket: GameSocket; computer?: boolean }> = ({
   }, [created, settled, navigate]);
   React.useEffect(() => {
     if (!computerGameId || !gone) return;
-    markArriving(computerGameId);
     let live = true;
     void computerGame.ready().then(() => {
-      if (live) navigate(`/computer/${computerGameId}`, { replace: true });
+      if (!live) return;
+      markArriving(computerGameId);
+      navigate(`/computer/${computerGameId}`, { replace: true });
     });
     return () => {
       live = false;

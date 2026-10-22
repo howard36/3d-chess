@@ -3,7 +3,7 @@ import type { BufferGeometry } from 'three';
 import { PieceType } from '../../engine/pieces';
 import { PIECE_PARTS, partsGeometry, pieceSet } from '../pieces';
 import type { PiecePart, PieceParts, PieceSet } from '../pieces';
-import { decodeOcclusion } from './occlusionData';
+import { decodeOcclusion, WITH_DATA, WITH_SCENE } from './occlusionData';
 import { loadPieceData, pieceData } from '../pieces/pieceData';
 import { OCCLUSION_KING } from './occlusion.king';
 
@@ -242,15 +242,14 @@ export const occlusionOfPiece = (parts: PieceParts): Float32Array[] => {
 
 // The medium set's occlusion, precomputed, decoded on first use: the king's
 // (occlusion.king.ts), and the rest's, which must have loaded (pieceData.ts)
-let king: Float32Array[] | null = null;
+let scene: Partial<Record<PieceType, Float32Array[]>> | null = null;
 let rest: Partial<Record<PieceType, Float32Array[]>> | null = null;
 
 /** The stored occlusion for a piece, if made for parts of these sizes. */
 const storedOcclusion = (type: PieceType, parts: BufferGeometry[]): Float32Array[] | null => {
-  const ao =
-    type === PieceType.King
-      ? (king ??= decodeOcclusion(OCCLUSION_KING).King!)
-      : (rest ??= decodeOcclusion(pieceData().occlusion))[type]!;
+  const ao = WITH_SCENE.includes(type)
+    ? (scene ??= decodeOcclusion(OCCLUSION_KING))[type]!
+    : (rest ??= decodeOcclusion(pieceData().occlusion))[type]!;
   const fits =
     ao.length === parts.length &&
     ao.every((a, i) => a.length === parts[i].getAttribute('position').count);
@@ -335,9 +334,9 @@ export const preloadBakedSet = () => {
     };
     whenIdle(next);
   };
-  bakeAtIdle([PieceType.King]);
+  bakeAtIdle([...WITH_SCENE]);
   loadPieceData().then(
-    () => bakeAtIdle(Object.values(PieceType).filter((t) => t !== PieceType.King)),
+    () => bakeAtIdle([...WITH_DATA]),
     () => {}, // whatever draws the other pieces asks again, and says when it fails
   );
 };

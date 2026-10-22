@@ -67,6 +67,18 @@ describe('baked occlusion', () => {
   });
 });
 
+describe('before the set’s data has loaded (the lobby)', () => {
+  it('builds the king, baked as with the data, and refuses the other pieces', async () => {
+    vi.resetModules();
+    const fresh = await import('./occlusion');
+    const king = fresh.wholePiece(PieceType.King);
+    expect(king.getAttribute('uv').array).toEqual(
+      wholePiece(PieceType.King).getAttribute('uv').array,
+    );
+    expect(() => fresh.wholePiece(PieceType.Rook)).toThrow(/loadPieceData/);
+  });
+});
+
 describe('preloadBakedSet', () => {
   afterEach(() => {
     vi.useRealTimers();

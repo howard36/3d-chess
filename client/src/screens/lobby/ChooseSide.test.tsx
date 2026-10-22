@@ -14,12 +14,13 @@ import { fakeSocket } from '../testSupport';
 // The game's page is a chunk of its own, as is a game against the computer;
 // the side choice goes on only once it is here (ready), which a test can
 // hold back
-let chunkHere: Promise<void> = Promise.resolve();
+let gameHere: Promise<void> = Promise.resolve();
+let computerHere: Promise<void> = Promise.resolve();
 vi.mock('../gameScreenChunk', () => ({
-  gameScreen: { preload: () => {}, ready: () => chunkHere },
+  gameScreen: { preload: () => {}, ready: () => gameHere },
 }));
 vi.mock('../computerGameChunk', () => ({
-  computerGame: { preload: () => {}, ready: () => chunkHere },
+  computerGame: { preload: () => {}, ready: () => computerHere },
 }));
 
 // The lobby's stage (a WebGL canvas) is LobbyLayout's; here the page runs
@@ -69,7 +70,8 @@ const black = () => screen.getByRole('button', { name: 'Black' });
 beforeEach(() => {
   localStorage.clear();
   view = null;
-  chunkHere = Promise.resolve();
+  gameHere = Promise.resolve();
+  computerHere = Promise.resolve();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -216,7 +218,7 @@ describe('choosing a side', () => {
 
   it("waits for the game's page to arrive before going on to it", async () => {
     let arrive = () => {};
-    chunkHere = new Promise((resolve) => (arrive = resolve));
+    gameHere = new Promise((resolve) => (arrive = resolve));
     const send = vi.fn(() => true);
     const { rerender } = render(at(fakeSocket([], send)));
     await userEvent.click(black());
@@ -231,7 +233,7 @@ describe('choosing a side', () => {
 
   it("stays where the player went, should they leave before the game's page arrives", async () => {
     let arrive = () => {};
-    chunkHere = new Promise((resolve) => (arrive = resolve));
+    gameHere = new Promise((resolve) => (arrive = resolve));
     const send = vi.fn(() => true);
     const { rerender } = render(at(fakeSocket([], send)));
     await userEvent.click(black());
@@ -480,7 +482,7 @@ describe('against the computer', () => {
 
   it("waits for the game's page to arrive before going on to it", async () => {
     let arrive = () => {};
-    chunkHere = new Promise((resolve) => (arrive = resolve));
+    computerHere = new Promise((resolve) => (arrive = resolve));
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
@@ -498,6 +500,35 @@ describe('against the computer', () => {
       expect(screen.queryByText(/^game page/)).toBeNull();
       await act(async () => arrive());
       expect(await screen.findByText(/^game page [a-z0-9]+ by REPLACE$/)).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('leaves the game unmarked, should the player leave before its page arrives', async () => {
+    let arrive = () => {};
+    computerHere = new Promise((resolve) => (arrive = resolve));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('reduce'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
+    try {
+      const { unmount } = render(computerAt(fakeSocket()));
+      await userEvent.click(black());
+      settle();
+      await userEvent.click(level('Hard'));
+      await act(async () => {});
+      const key = Object.keys(localStorage).find((k) => k.startsWith('3dchess:computer:'))!;
+      const id = key.slice('3dchess:computer:'.length);
+      unmount();
+      await act(async () => arrive());
+      // A later visit from history opens on the game, not on an arrival
+      // over a side choice that is no longer there
+      expect(isArriving(id)).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }

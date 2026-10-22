@@ -1,4 +1,4 @@
-import { FRAME, layout, PIECE_SCALE } from '../scene/palette';
+import { CAMERA_FOV, FRAME, layout, PIECE_SCALE } from '../scene/palette';
 import { fitShift, fitView, HUD_TOP_PX, hudTop, orbitSweep, zoomRange } from '../cameraFit';
 import type { FitWindow } from '../cameraFit';
 import { introPlan } from '../intro/timeline';
@@ -22,9 +22,7 @@ export const KING_TOP = 0.87;
 /** The platform the kings stand on: level A's floor. */
 export const FLOOR_Y = FRAME.levelY[0];
 
-const VFOV = (36 * Math.PI) / 180;
-export const LOBBY_FOV = 36;
-const TAN_V = Math.tan(VFOV / 2);
+const TAN_V = Math.tan((CAMERA_FOV * Math.PI) / 360);
 
 /**
  * The seats stand on the middle squares of the glass's middle rank, one
@@ -438,7 +436,7 @@ export const gameOpening = (width: number, height: number, reduced = false) => {
   const view: FitWindow = {
     width,
     height,
-    fov: LOBBY_FOV,
+    fov: CAMERA_FOV,
     topInset: hudTop(height),
     balanceInset: HUD_TOP_PX,
     sweep: orbitSweep(layout.orbit),

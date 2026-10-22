@@ -1,6 +1,8 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
-import { FRAME, layout } from '../scene/palette';
+import { CAMERA_FOV, FRAME, layout } from '../scene/palette';
 import { PROFILES } from '../pieces';
 import { PieceType } from '../../engine/pieces';
 import {
@@ -15,7 +17,6 @@ import {
   kingEntrance,
   KING_SCALE,
   KING_TOP,
-  LOBBY_FOV,
   LOBBY_ENTRANCE,
   LOBBY_TIMING,
   LOBBY_MAX_STEP,
@@ -191,7 +192,7 @@ describe('the fill', () => {
 
 /** Where a world point lands in a pose's view (NDC, -1 to 1 across the frame). */
 const project = (pose: CameraPose, aspect: number, point: [number, number, number]) => {
-  const camera = new PerspectiveCamera(LOBBY_FOV, aspect, 0.1, 900);
+  const camera = new PerspectiveCamera(CAMERA_FOV, aspect, 0.1, 900);
   camera.position.set(...posePosition(pose));
   camera.lookAt(new Vector3(...pose.target));
   camera.updateMatrixWorld();
@@ -473,7 +474,7 @@ describe('handing over to the game', () => {
     // middle, and its lowest corner
     const reach = FRAME.half + 0.05;
     const seen = (pose: CameraPose, aspect: number) => {
-      const camera = new PerspectiveCamera(LOBBY_FOV, aspect, 0.1, 1000);
+      const camera = new PerspectiveCamera(CAMERA_FOV, aspect, 0.1, 1000);
       camera.position.set(...posePosition(pose));
       camera.lookAt(...pose.target);
       camera.updateMatrixWorld();
@@ -595,4 +596,23 @@ describe('lobbyStep', () => {
     expect(lobbyStep(0.2, false)).toBe(0.2);
     expect(lobbyStep(7, false)).toBe(LOBBY_MAX_STEP);
   });
+});
+
+// The lobby comes to rest on the game's first frame (gameOpening, worked out
+// with CAMERA_FOV): every canvas the player sees takes its lens from there
+it('gives every canvas but the dev pages’ the one field of view, CAMERA_FOV', () => {
+  const screens = resolve(process.cwd(), 'src/screens');
+  const files = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory()
+        ? files(join(dir, e.name))
+        : e.name.endsWith('.tsx')
+          ? [join(dir, e.name)]
+          : [],
+    );
+  const cameras = files(screens).flatMap((file) =>
+    [...readFileSync(file, 'utf8').matchAll(/camera=\{\{([^}]*)\}\}/g)].map((m) => m[1]),
+  );
+  expect(cameras.length).toBeGreaterThanOrEqual(4);
+  for (const camera of cameras) expect(camera).toMatch(/\bfov: CAMERA_FOV\b/);
 });

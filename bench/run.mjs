@@ -79,7 +79,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PRIMARY, PRIMARY_BROWSER_SECTIONS, PRIMARY_CLIENT_FILES, keyOf } from './primary.mjs';
-import { chanceOfCall, median, verdict } from './verdict.mjs';
+import { chanceOfCall, median, speedRule, verdict } from './verdict.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
@@ -1131,22 +1131,12 @@ function abMain() {
     }),
   );
 
-  // The skill's speed rule, worked out here so nobody counts pairs by hand: a
-  // primary row worse in every pair, or more than 3% worse at its median pair
-  // (not the Change column, which is the pairs' geometric mean), is the
-  // owner's to see, called or not
-  const flagged = measured.flatMap(({ p, r }) => {
-    const worse = r.v.ratios.map((x) => (r.better === 'higher' ? 1 / x : x));
-    const mid = median(worse);
-    const over = worse.filter((x) => x > 1).length;
-    if (over < worse.length && mid <= 1.03) return [];
-    return [`${p.moment}: median pair ×${mid.toFixed(3)}, ${over} of ${worse.length} pairs worse`];
-  });
+  // The skill's speed rule (bench/verdict.mjs), over the measured rows only
   md.push(
-    flagged.length
-      ? `**For "Needs from me"** (worse in every pair, or more than 3% worse at the median pair): ` +
-          `${flagged.join('; ')}.`
-      : 'No primary row is worse in every pair or more than 3% worse at its median pair.',
+    speedRule(
+      measured.map(({ p, r }) => ({ moment: p.moment, ratios: r.v.ratios, better: r.better })),
+      primary.length,
+    ),
   );
 
   const others = rows.filter((r) => !PRIMARY.some((p) => keyOf(p) === keyOf(r)));

@@ -14,11 +14,17 @@ export interface OcclusionData {
 }
 
 const TYPES = Object.values(PieceType);
+/**
+ * The pieces whose occlusion ships with the scene (occlusion.king.ts): the
+ * lobby draws only kings. The others' loads with the set's data (pieceData.ts).
+ */
+export const WITH_SCENE: readonly PieceType[] = [PieceType.King];
+export const WITH_DATA: readonly PieceType[] = TYPES.filter((t) => !WITH_SCENE.includes(t));
 
-/** The types' occlusion as one OcclusionData (every type's, unless `types` names some). */
+/** The types' occlusion as one OcclusionData. */
 export const encodeOcclusion = (
   occlusion: Partial<Record<PieceType, Float32Array[]>>,
-  types: PieceType[] = TYPES,
+  types: readonly PieceType[],
 ): OcclusionData => {
   const counts: OcclusionData['counts'] = {};
   const all = types.flatMap((type) => occlusion[type]!);

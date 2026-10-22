@@ -13,7 +13,7 @@ import type { IntroClock } from '../three/intro/clock';
 import { IntroDirector } from '../three/intro/IntroDirector';
 import { introDone } from '../three/intro/timeline';
 import { INTRO_SCENE_VAR } from '../three/intro/vars';
-import { layout } from '../three/scene/palette';
+import { CAMERA_FOV, layout } from '../three/scene/palette';
 import { Stage } from '../three/scene/stage';
 import { BackdropCache } from '../three/scene/backdropCache';
 import { WarmPrograms } from '../three/scene/warm';
@@ -119,7 +119,7 @@ const GameCanvas = ({
           userSelect: 'none',
           opacity: `var(${INTRO_SCENE_VAR}, 1)`,
         }}
-        camera={{ position: layout.viewDirection, fov: 36 }}
+        camera={{ position: layout.viewDirection, fov: CAMERA_FOV }}
         resize={MEASURE}
         // A pixel budget rather than r3f's fixed cap: the screen's own
         // ratio up to 2x, a large high-density window a little under it

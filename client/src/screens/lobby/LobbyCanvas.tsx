@@ -3,9 +3,9 @@ import { Canvas } from '@react-three/fiber';
 import { NeutralToneMapping } from 'three';
 import { LobbyScene } from '../../three/lobby/LobbyScene';
 import type { LobbyView } from '../../three/lobby/LobbyScene';
-import { LOBBY_FOV } from '../../three/lobby/lobbyMotion';
 import { PaceOnGpu } from '../../three/framePacer';
 import { setUpRenderer } from '../../three/rendererSetup';
+import { CAMERA_FOV } from '../../three/scene/palette';
 
 // The lobby's canvas: three.js and the lobby's scene, in the chunk the game's
 // board (GameCanvas) and the landing page's preview share. LobbyLayout loads it
@@ -21,7 +21,7 @@ export interface LobbyCanvasProps {
 const LobbyCanvas = ({ view, anchors, canvasHost }: LobbyCanvasProps) => (
   <Canvas
     data-testid="lobby-canvas"
-    camera={{ fov: LOBBY_FOV, position: [0, 0, 8], near: 0.1, far: 900 }}
+    camera={{ fov: CAMERA_FOV, position: [0, 0, 8], near: 0.1, far: 900 }}
     dpr={[1, 1.5]}
     gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
     frameloop="demand"

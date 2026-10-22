@@ -1,0 +1,176 @@
+diff --git a/client/src/screens/GameView.tsx b/client/src/screens/GameView.tsx
+index 4deaa1c..e5a3bb7 100644
+--- a/client/src/screens/GameView.tsx
++++ b/client/src/screens/GameView.tsx
+@@ -34,11 +34,14 @@ import { loadPieceData } from '../three/pieces/pieceData';
+ // The 3D board (three.js, the scene, the entrance's director) is a chunk of
+ // its own, the one the lobby's canvas loads too, asked for as soon as this
+ // view loads: the HUD and the move record show without waiting for it, and
+-// stay should it fail to load
++// stay should it fail to load. The set's data it draws with is asked for
++// with the board (or by the page's head, vite.config.ts PRELOADS), not here:
++// on the side choice, which loads this view early, it would share the link
++// with the lobby's scene
+ const gameCanvas = lazyChunk(() =>
+   Promise.all([import('./GameCanvas'), loadPieceData()]).then(([m]) => m),
+ );
+-gameCanvas.preload();
++void import('./GameCanvas').catch(() => {});
+ 
+ /** The board's moves while it shows an earlier position (it takes none, should one come). */
+ const ignoreMove = () => {};
+diff --git a/client/src/three/pieces/pieceData.test.ts b/client/src/three/pieces/pieceData.test.ts
+index 4b3264d..0e0883c 100644
+--- a/client/src/three/pieces/pieceData.test.ts
++++ b/client/src/three/pieces/pieceData.test.ts
+@@ -52,11 +52,11 @@ const sources = (dir: string): string[] =>
+   );
+ 
+ describe('whatever draws pieces', () => {
+-  it('loads the data beside its canvas, but for the lobby, which draws only kings', () => {
++  it('loads the data with its canvas (lazyChunk), but for the lobby, which draws only kings', () => {
+     const loaders = sources(SRC).flatMap((file) =>
+       [
+         ...readFileSync(file, 'utf8').matchAll(
+-          /(Promise\.all\(\[)?import\('\.\/(\w*Canvas|LandingPreview)'\)(, loadPieceData\(\)\])?/g,
++          /lazyChunk\(\(\) =>\s*(Promise\.all\(\[)?import\('\.\/(\w*Canvas|LandingPreview)'\)(, loadPieceData\(\)\])?/g,
+         ),
+       ].map(([, all, chunk, data]) => ({
+         file: relative(SRC, file),
+diff --git a/client/vite.config.test.ts b/client/vite.config.test.ts
+index 3bf8d87..7912945 100644
+--- a/client/vite.config.test.ts
++++ b/client/vite.config.test.ts
+@@ -1,7 +1,7 @@
+ import { randomBytes } from 'node:crypto';
+ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+ import { tmpdir } from 'node:os';
+-import { join, resolve } from 'node:path';
++import { join, posix, resolve } from 'node:path';
+ import type { UserConfig } from 'vite';
+ import { expect, test, vi } from 'vitest';
+ import { picturePlacement } from './src/three/landingLens';
+@@ -12,6 +12,7 @@ import config, {
+   keepSceneOutOfEntry,
+   landingVersion,
+   placeLandingPictureEarly,
++  PIECE_DATA_MODULE,
+   PRELOADS,
+   preloadLandingPictureOnStartPage,
+   preloadRouteChunks,
+@@ -394,7 +395,14 @@ test('the built page preloads what each page the app draws the scene on needs, f
+     else
+       expect([address, modules]).toEqual([
+         address,
+-        ['learn/LearnScreen.tsx', 'learn/LearnCanvas.tsx'],
++        ['learn/LearnScreen.tsx', 'learn/LearnCanvas.tsx', PIECE_DATA_MODULE],
++      ]);
++    // The set's data with every board, but not on the side choice, whose
++    // scene asks for it once it has arrived (occlusion.ts, preloadBakedSet)
++    if (modules)
++      expect([address, modules.includes(PIECE_DATA_MODULE)]).toEqual([
++        address,
++        element !== 'ChooseSide',
+       ]);
+     // A page from a chunk of its own has it preloaded
+     if (element === 'ComputerGameRoute') expect(modules).toContain('ComputerGameScreen.tsx');
+@@ -405,11 +413,12 @@ test('the built page preloads what each page the app draws the scene on needs, f
+ test('the preload script links, on each page, what its chunks need beyond the entry', () => {
+   const chunk = (fileName: string, ids: string[], imports: string[] = [], isEntry = false) => ({
+     fileName,
+-    moduleIds: ids.map((id) => `/app/src/screens/${id}`),
++    moduleIds: ids.map((id) => posix.join('/app/src/screens', id)),
+     imports,
+     isEntry,
+   });
+   const chunks = [
++    chunk('data.js', [PIECE_DATA_MODULE]),
+     chunk('index.js', ['../main.tsx'], ['shared.js'], true),
+     chunk('shared.js', ['../lib/focus.ts']),
+     chunk('game.js', ['GameScreen.tsx'], ['shared.js', 'history.js']),
+@@ -437,12 +446,19 @@ test('the preload script links, on each page, what its chunks need beyond the en
+   };
+   const lobby = ['/lobby.js (low)', '/three.js (low)', '/vendor.js (low)', '/board.js (low)'];
+   const game = ['/game.js', '/history.js', ...lobby];
+-  expect(linked('/game/ABC123')).toEqual(game);
++  // The set's data with a board, not on the side choice
++  expect(linked('/game/ABC123')).toEqual([...game, '/data.js (low)']);
+   expect(linked('/new')).toEqual(game);
+   const computer = ['/computer.js', '/game.js', '/history.js', ...lobby];
+   expect(linked('/computer')).toEqual(computer);
+-  expect(linked('/computer/abc123')).toEqual(computer);
+-  const learn = ['/learn.js', '/learnBoard.js (low)', '/three.js (low)', '/vendor.js (low)'];
++  expect(linked('/computer/abc123')).toEqual([...computer, '/data.js (low)']);
++  const learn = [
++    '/learn.js',
++    '/learnBoard.js (low)',
++    '/three.js (low)',
++    '/vendor.js (low)',
++    '/data.js (low)',
++  ];
+   expect(linked('/learn')).toEqual(learn);
+   expect(linked('/learn/rook')).toEqual(learn);
+   expect(linked('/')).toEqual([]);
+@@ -460,7 +476,7 @@ test("each page's preload script runs right ahead of the stylesheet, after the s
+   const chunk = (fileName: string, file: string, isEntry = false) => ({
+     type: 'chunk',
+     fileName,
+-    moduleIds: [`/app/src/screens/${file}`],
++    moduleIds: [posix.join('/app/src/screens', file)],
+     imports: [],
+     isEntry,
+   });
+@@ -473,6 +489,7 @@ test("each page's preload script runs right ahead of the stylesheet, after the s
+       chunk('board.js', 'GameCanvas.tsx'),
+       chunk('learn.js', 'learn/LearnScreen.tsx'),
+       chunk('learnBoard.js', 'learn/LearnCanvas.tsx'),
++      chunk('data.js', PIECE_DATA_MODULE),
+     ].map((c) => [c.fileName, c]),
+   );
+   const stylesheet = '<link rel="stylesheet" crossorigin href="/assets/index.css">';
+diff --git a/client/vite.config.ts b/client/vite.config.ts
+index 06e3d4b..c987c99 100644
+--- a/client/vite.config.ts
++++ b/client/vite.config.ts
+@@ -1,6 +1,6 @@
+ import { createHash } from 'node:crypto';
+ import { appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+-import { resolve } from 'node:path';
++import { posix, resolve } from 'node:path';
+ import { gzipSync } from 'node:zlib';
+ import { build, defineConfig, minify } from 'vite';
+ import type { Plugin } from 'vite';
+@@ -136,20 +136,27 @@ export const placeLandingPictureEarly = (): Plugin => ({
+  * lobby's canvas (LobbyCanvas.tsx), the game's board (GameCanvas.tsx), the
+  * tutorial's board (LearnCanvas.tsx) and the start page's preview share. The
+  * lobby's pages are the side choice (/new, /computer) and the games it goes on
+- * to. The build fails if a chunk is not found, rather than quietly shipping a
+- * page without the preload.
++ * to. A page that opens on a board links the set's data too; the side choice
++ * draws only kings, and its scene asks for the data once it has arrived
++ * (occlusion.ts, preloadBakedSet), off the scene's way. The build fails if a
++ * chunk is not found, rather than quietly shipping a page without the preload.
+  */
+ const LOBBY_CANVASES = ['lobby/LobbyCanvas.tsx', 'GameCanvas.tsx'];
++export const PIECE_DATA_MODULE = '../three/pieces/knight.medium.ts';
++const GAME = ['GameScreen.tsx'];
++const COMPUTER_GAME = ['ComputerGameScreen.tsx', 'GameScreen.tsx'];
+ export const PRELOADS: [path: RegExp, page: string[], canvases: string[]][] = [
+-  [/^\/(game\/|new$)/, ['GameScreen.tsx'], LOBBY_CANVASES],
+-  [/^\/computer(\/|$)/, ['ComputerGameScreen.tsx', 'GameScreen.tsx'], LOBBY_CANVASES],
+-  [/^\/learn(\/|$)/, ['learn/LearnScreen.tsx'], ['learn/LearnCanvas.tsx']],
++  [/^\/new$/, GAME, LOBBY_CANVASES],
++  [/^\/game\//, GAME, [...LOBBY_CANVASES, PIECE_DATA_MODULE]],
++  [/^\/computer$/, COMPUTER_GAME, LOBBY_CANVASES],
++  [/^\/computer\//, COMPUTER_GAME, [...LOBBY_CANVASES, PIECE_DATA_MODULE]],
++  [/^\/learn(\/|$)/, ['learn/LearnScreen.tsx'], ['learn/LearnCanvas.tsx', PIECE_DATA_MODULE]],
+ ];
+ /** The preload script for the built page's head, from its bundle's chunks. */
+ export const preloadScript = (chunks: Chunk[]) => {
+   const byName = new Map(chunks.map((c) => [c.fileName, c]));
+   const from = (file: string) => {
+-    const chunk = holding(chunks, `/src/screens/${file}`);
++    const chunk = holding(chunks, posix.join('/src/screens', file));
+     if (!chunk) throw new Error(`preload-route-chunks: no chunk holds ${file}`);
+     return chunk.fileName;
+   };

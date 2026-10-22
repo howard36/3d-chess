@@ -5,23 +5,23 @@ import { pieceSet } from '../pieces';
 import { occlusionOfPiece } from './occlusion';
 import { OCCLUSION_KING } from './occlusion.king';
 import { OCCLUSION_MEDIUM } from './occlusion.medium';
-import { decodeOcclusion, encodeOcclusion } from './occlusionData';
+import { decodeOcclusion, encodeOcclusion, WITH_DATA, WITH_SCENE } from './occlusionData';
 
 describe('the precomputed medium occlusion', () => {
   const set = pieceSet();
   const fresh = {} as Record<PieceType, Float32Array[]>;
   for (const type of Object.values(PieceType)) fresh[type] = occlusionOfPiece(set[type]);
 
-  const others = Object.values(PieceType).filter((t) => t !== PieceType.King);
-
   it('is what the bake works out now (else run `npm run bake:pieces`)', () => {
-    expect(OCCLUSION_KING).toEqual(encodeOcclusion(fresh, [PieceType.King]));
-    expect(OCCLUSION_MEDIUM).toEqual(encodeOcclusion(fresh, others));
+    expect(OCCLUSION_KING).toEqual(encodeOcclusion(fresh, WITH_SCENE));
+    expect(OCCLUSION_MEDIUM).toEqual(encodeOcclusion(fresh, WITH_DATA));
   });
 
   it('holds the king apart from the rest', () => {
-    expect(Object.keys(OCCLUSION_KING.counts)).toEqual([PieceType.King]);
-    expect(Object.keys(OCCLUSION_MEDIUM.counts)).toEqual(others);
+    // The lobby draws only kings: another piece here grows the scene's chunk
+    expect(WITH_SCENE).toEqual([PieceType.King]);
+    expect(Object.keys(OCCLUSION_KING.counts)).toEqual(WITH_SCENE);
+    expect(Object.keys(OCCLUSION_MEDIUM.counts)).toEqual(WITH_DATA);
   });
 
   it('decodes to the baked values byte for byte', () => {

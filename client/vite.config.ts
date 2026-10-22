@@ -9,6 +9,21 @@ import { DEFAULT_WS_URL, startEarlySocket } from './src/lib/earlySocket';
 import { ROLE_KEY_PREFIX } from './src/lib/playerRole';
 import { CLIENT_ID_KEY } from './src/lib/clientId';
 
+type Chunk = { fileName: string; imports: string[]; moduleIds: string[]; isEntry: boolean };
+/** The chunk that holds a module (not always its facade: a dynamic entry can share its chunk). */
+const holding = (chunks: Iterable<Chunk>, module: string) =>
+  [...chunks].find((c) => c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(module)));
+/** A chunk and the chunks it imports statically, in turn, nearest first, added to `seen`. */
+const reach = (chunks: Map<string, Chunk>, file: string, seen = new Set<string>()) => {
+  const queue = [file];
+  for (const next of queue) {
+    if (!chunks.has(next) || seen.has(next)) continue;
+    seen.add(next);
+    queue.push(...chunks.get(next)!.imports);
+  }
+  return seen;
+};
+
 /**
  * One of earlyPicture.ts's functions, bundled with the lens it places by into
  * a script that stands alone, to be written into the built page.
@@ -104,14 +119,15 @@ export const placeLandingPictureEarly = (): Plugin => ({
     const root = '<div id="root"></div>';
     if (!html.includes(root))
       throw new Error('place-landing-picture-early: no #root in index.html');
-    return html.replace(root, `${root}\n    <script>${code}</script>`);
+    // A function replacer: a `$&` or `$'` in the code is not a pattern
+    return html.replace(root, (tag) => `${tag}\n    <script>${code}</script>`);
   },
 });
 
 /**
  * What each page needs at once, by address (App.tsx's routes, but for the
  * start page, which loads the scene itself): its own chunks, which the built
- * page starts fetching (with the chunks they import) alongside the entry,
+ * page starts fetching (with every chunk they import, in turn) alongside the entry,
  * instead of after the entry has loaded and run. First the page itself (a
  * game's address waits for it before it first renders: pageReady), then, at
  * low priority so they never hold it up, its canvases: three.js and the
@@ -129,26 +145,23 @@ export const PRELOADS: [path: RegExp, page: string[], canvases: string[]][] = [
   [/^\/computer(\/|$)/, ['ComputerGameScreen.tsx', 'GameScreen.tsx'], LOBBY_CANVASES],
   [/^\/learn(\/|$)/, ['learn/LearnScreen.tsx'], ['learn/LearnCanvas.tsx']],
 ];
-type Chunk = { fileName: string; imports: string[]; moduleIds: string[]; isEntry: boolean };
 /** The preload script for the built page's head, from its bundle's chunks. */
 export const preloadScript = (chunks: Chunk[]) => {
-  // The chunk that holds a module (not always its facade: a dynamic
-  // entry can share its chunk)
+  const byName = new Map(chunks.map((c) => [c.fileName, c]));
   const from = (file: string) => {
-    const chunk = chunks.find((c) =>
-      c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(`/src/screens/${file}`)),
-    );
-    if (!chunk) throw new Error(`preload-scene-on-game-pages: no chunk holds ${file}`);
-    return chunk;
+    const chunk = holding(chunks, `/src/screens/${file}`);
+    if (!chunk) throw new Error(`preload-route-chunks: no chunk holds ${file}`);
+    return chunk.fileName;
   };
-  // Each, and what it imports, less the entry and the chunks it imports
-  // (loading anyway: the page links those itself)
+  // Each, and what it imports, less the entry and what it imports (loading
+  // anyway: the page links those itself)
   const entry = chunks.find((c) => c.isEntry);
-  const loading = new Set(entry ? [entry.fileName, ...entry.imports] : []);
-  const files = (modules: string[]) =>
-    [...new Set(modules.map(from).flatMap((c) => [c.fileName, ...c.imports]))].filter(
-      (f) => !loading.has(f),
-    );
+  const loading = entry ? reach(byName, entry.fileName) : new Set<string>();
+  const files = (modules: string[]) => {
+    const seen = new Set<string>();
+    for (const module of modules) reach(byName, from(module), seen);
+    return [...seen].filter((f) => !loading.has(f));
+  };
   const table = PRELOADS.map(([path, page, canvases]) => {
     const first = files(page);
     const later = files(canvases).filter((f) => !first.includes(f));
@@ -157,8 +170,8 @@ export const preloadScript = (chunks: Chunk[]) => {
   const preload = `(f,q)=>{const l=document.createElement('link');l.rel='modulepreload';l.crossOrigin='';if(q)l.fetchPriority='low';l.href='/'+f;document.head.appendChild(l)}`;
   return `{const a=location.pathname,p=${preload},m=[${table.join(',')}].find(([r])=>r.test(a));if(m){m[1].forEach(f=>p(f));m[2].forEach(f=>p(f,1))}}`;
 };
-export const preloadSceneOnGamePages = (): Plugin => ({
-  name: 'preload-scene-on-game-pages',
+export const preloadRouteChunks = (): Plugin => ({
+  name: 'preload-route-chunks',
   apply: 'build',
   transformIndexHtml: {
     order: 'post',
@@ -169,7 +182,7 @@ export const preloadSceneOnGamePages = (): Plugin => ({
       // script makes), and the start page's own scripts stay first
       const stylesheet = /<link rel="stylesheet"[^>]*>/i;
       if (!stylesheet.test(html))
-        throw new Error('preload-scene-on-game-pages: the built page has no stylesheet link');
+        throw new Error('preload-route-chunks: the built page has no stylesheet link');
       const script = `<script>${preloadScript(chunks)}</script>`;
       return html.replace(stylesheet, (tag) => `${script}\n    ${tag}`);
     },
@@ -182,7 +195,7 @@ export const preloadSceneOnGamePages = (): Plugin => ({
  * back. Build only: the dev server's StrictMode mounts the app's socket twice
  * (closing the first), which would rejoin the seat a second time.
  */
-const earlySocket = (): Plugin => {
+export const earlySocket = (): Plugin => {
   let url = DEFAULT_WS_URL;
   return {
     name: 'early-socket',
@@ -284,13 +297,13 @@ export const keepSceneOutOfEntry = (): Plugin => ({
     );
     const seen = new Set<string>();
     const walk = (file: string) => {
-      const chunk = chunks.get(file);
-      if (!chunk || seen.has(file)) return;
-      seen.add(file);
-      const scene = chunk.moduleIds.filter((id) => SCENE_MODULE.test(id.replaceAll('\\', '/')));
-      if (scene.length)
-        this.error(`keep-scene-out-of-entry: ${file} loads before the scene and holds ${scene[0]}`);
-      chunk.imports.forEach(walk);
+      for (const f of reach(chunks, file, seen)) {
+        const scene = chunks
+          .get(f)!
+          .moduleIds.find((id) => SCENE_MODULE.test(id.replaceAll('\\', '/')));
+        if (scene)
+          this.error(`keep-scene-out-of-entry: ${f} loads before the scene and holds ${scene}`);
+      }
     };
     for (const c of chunks.values()) if (c.isEntry) walk(c.fileName);
     if (!seen.size) this.error('keep-scene-out-of-entry: no entry chunk');
@@ -316,12 +329,8 @@ export const keepSceneOutOfEntry = (): Plugin => ({
         `keep-scene-out-of-entry: the start page's code and styles are ${bytes} bytes gzipped, ` +
           `over ENTRY_GZIP_BUDGET (${ENTRY_GZIP_BUDGET}): name the cost in the PR and raise it`,
       );
-    const holding = (module: string) =>
-      [...chunks.values()].find((c) =>
-        c.moduleIds.some((id) => id.replaceAll('\\', '/').endsWith(module)),
-      );
     for (const page of SHOWN_BEFORE_SCENE) {
-      const chunk = holding(page);
+      const chunk = holding(chunks.values(), page);
       if (!chunk) this.error(`keep-scene-out-of-entry: no chunk holds ${page}`);
       else if (entry.has(chunk.fileName))
         this.error(`keep-scene-out-of-entry: ${page} is in the entry, not a chunk of its own`);
@@ -330,21 +339,14 @@ export const keepSceneOutOfEntry = (): Plugin => ({
     // The lobby draws only kings: the rest of the set's precomputed parts
     // (three/pieces/pieceData.ts) stay out of its canvas's chunk and what that
     // imports statically, so the side choice never waits for them
-    const lobby = holding(LOBBY_CANVAS);
+    const lobby = holding(chunks.values(), LOBBY_CANVAS);
     if (!lobby) this.error(`keep-scene-out-of-entry: no chunk holds ${LOBBY_CANVAS}`);
-    const withLobby = new Set<string>();
-    const walkLobby = (file: string) => {
-      const chunk = chunks.get(file);
-      if (!chunk || withLobby.has(file)) return;
-      withLobby.add(file);
-      const data = chunk.moduleIds.find((id) =>
-        PIECE_DATA.some((m) => id.replaceAll('\\', '/').endsWith(m)),
-      );
-      if (data)
-        this.error(`keep-scene-out-of-entry: ${file} loads with the lobby and holds ${data}`);
-      chunk.imports.forEach(walkLobby);
-    };
-    walkLobby(lobby!.fileName);
+    for (const f of reach(chunks, lobby!.fileName)) {
+      const data = chunks
+        .get(f)!
+        .moduleIds.find((id) => PIECE_DATA.some((m) => id.replaceAll('\\', '/').endsWith(m)));
+      if (data) this.error(`keep-scene-out-of-entry: ${f} loads with the lobby and holds ${data}`);
+    }
   },
 });
 
@@ -445,7 +447,7 @@ export default defineConfig({
     earlySocket(),
     preloadLandingPictureOnStartPage(),
     placeLandingPictureEarly(),
-    preloadSceneOnGamePages(),
+    preloadRouteChunks(),
     keepSceneOutOfEntry(),
     invitePage(),
     socialImageOnPreviews(),

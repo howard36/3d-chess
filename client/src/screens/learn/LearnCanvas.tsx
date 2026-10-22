@@ -8,7 +8,7 @@ import { elevationOf, orbitSweep } from '../../three/cameraFit';
 import { usePixelBudget } from '../../three/pixelBudget';
 import { setUpRenderer } from '../../three/rendererSetup';
 import { BackdropCache } from '../../three/scene/backdropCache';
-import { layout } from '../../three/scene/palette';
+import { CAMERA_FOV, layout } from '../../three/scene/palette';
 import { Stage } from '../../three/scene/stage';
 import { WarmPrograms } from '../../three/scene/warm';
 import type { Move } from '../../engine';
@@ -92,7 +92,7 @@ const LearnCanvas = ({
         WebkitTouchCallout: 'none',
         userSelect: 'none',
       }}
-      camera={{ position: layout.viewDirection, fov: 36 }}
+      camera={{ position: layout.viewDirection, fov: CAMERA_FOV }}
       dpr={pixelRatio}
       gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
       frameloop="demand"
