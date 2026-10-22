@@ -1146,7 +1146,11 @@ function abMain() {
     flagged.length
       ? `**For "Needs from me"** (worse in every pair, or more than 3% worse at the median pair): ` +
           `${flagged.join('; ')}.`
-      : 'No primary row is worse in every pair or more than 3% worse at its median pair.',
+      : unmeasured.length
+        ? `No measured primary row is worse in every pair or more than 3% worse at its median ` +
+          `pair; ${unmeasured.length} of ${primary.length} were not measured, and nothing is ` +
+          `claimed for them.`
+        : 'No primary row is worse in every pair or more than 3% worse at its median pair.',
   );
 
   const others = rows.filter((r) => !PRIMARY.some((p) => keyOf(p) === keyOf(r)));
