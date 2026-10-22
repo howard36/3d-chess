@@ -49,7 +49,7 @@
   "items": [
    {
     "title": "The final commit against the base: all 20 primary rows",
-    "body": "<p><code>2c29fb9</code> against <code>91b2081</code>, 10 pairs, 80 minutes (<code>ab-20261021-2131-final.md</code>). The later commits change only the loop's records. Overall the head is ×0.992 as fast as the base, against ×1.004 for identical code. No primary row and none of the 123 diagnostics is called. Every load downloads the same bytes as on the base. Memory is flat: the JS heap after reopening a 2,000-ply game went from 14,607.4 to 14,532.3 KiB (−0.3%), and live geometries and textures did not change.</p><p>The 1.2× target is not met: no row is faster. This general run made no change for speed, and its one speed idea (PD2) was rejected.</p>",
+    "body": "<p><code>2c29fb9</code> against <code>91b2081</code>, 10 pairs, 80 minutes (<code>ab-20261021-2131-final.md</code>). After it, <code>/learn</code>'s files went back to the base's (<code>f67173e</code>; no primary row loads <code>/learn</code>), the A/B report's own wording code changed (<code>a3403b2</code>) and the rest is loop records. Overall the head is ×0.992 as fast as the base, against ×1.004 for identical code. No primary row and none of the 123 diagnostics is called. Every load downloads the same bytes as on the base. Memory is flat: the JS heap after reopening a 2,000-ply game went from 14,607.4 to 14,532.3 KiB (−0.3%), and live geometries and textures did not change.</p><p>The 1.2× target is not met: no row is faster. This general run made no change for speed, and its one speed idea (PD2) was rejected.</p>",
     "charts": [
      {
       "rows": {
