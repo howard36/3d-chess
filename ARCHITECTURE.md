@@ -1531,7 +1531,7 @@ up (on mount and in each new position, once a live move has landed). The lessons
 kings, which the engine needs to tell a legal move; `LessonBoard` (a `Board` of the
 engine's) lets a piece without its king make every move it has, and keeps the rules of
 check where one stands. The page is a chunk of its own (`LearnRoute.tsx`, which says so
-should it fail to load), so the start page carries none of it; the start page's link asks
+should it fail to load, with a Retry that reloads), so the start page carries none of it; the start page's link asks
 for it as the pointer or focus reaches it, and `/learn` preloads it. The canvas
 (`screens/learn/LearnCanvas.tsx`, in the chunk the game's board shares, preloaded on
 `/learn` like `/new`) frames the tower under Home
@@ -1671,8 +1671,10 @@ keeps its first failure for good) and, should that fail too, reloads the page: C
 keeps a module that failed to fetch failed for the rest of the page's life, and a
 replaced chunk is gone. A browser that gives a canvas no WebGL (turned off, a blocklisted GPU,
 no GPU) leaves it out the same way (`ChunkBoundary`'s `canvas`): the start page without its
-preview, the lobby without its scene, the tutorial without its board, and the game says
+preview, the lobby without its scene, and the game says
 "No 3D board: WebGL is off in this browser", with no Retry and its move box in sight to play by.
+The tutorial's card says the same in its foot, where the move count stands: the game's
+words for either failure, and the same Retry for a chunk that failed.
 In the build, r3f's `Canvas` is handed only the three.js classes the scene
 writes as elements (`src/three/r3fCatalogue.ts`) instead of the whole namespace, so the
 rest of three.js is left out; a new element's class must be added there
