@@ -1,0 +1,47 @@
+--- a/client/vite.config.ts	2026-10-22 09:17:21.734076065 +0000
++++ b/client/vite.config.ts	2026-10-22 09:17:21.753195932 +0000
+@@ -351,6 +351,29 @@
+ });
+ 
+ /**
++ * V8 compiles a script's functions lazily, on the main thread, the first time
++ * each is called; `//# allFunctionsCalledOnLoad` as a file's first line asks it
++ * to compile them all while the file streams in, off the main thread
++ * (v8.dev/blog/explicit-compile-hints). Every chunk here carries the hint.
++ * Vite writes its `__vite__mapDeps` line at the top of a chunk in its own
++ * generateBundle, and the hint counts only as the very first line, so this
++ * runs after it.
++ */
++export const COMPILE_HINT = '//# allFunctionsCalledOnLoad\n';
++export const compileEagerly = (): Plugin => ({
++  name: 'compile-eagerly',
++  apply: 'build',
++  enforce: 'post',
++  generateBundle: {
++    order: 'post',
++    handler(_options, bundle) {
++      for (const chunk of Object.values(bundle))
++        if (chunk.type === 'chunk') chunk.code = COMPILE_HINT + chunk.code;
++    },
++  },
++});
++
++/**
+  * A game's link is how a friend is invited, and a link preview (a chat app's,
+  * a social site's) reads the page's meta tags without running the app. So
+  * the build writes invite.html, index.html with the invitation's title and
+@@ -449,6 +472,7 @@
+     placeLandingPictureEarly(),
+     preloadRouteChunks(),
+     keepSceneOutOfEntry(),
++    compileEagerly(),
+     invitePage(),
+     socialImageOnPreviews(),
+     versionLandingPictures(),
+@@ -459,4 +483,6 @@
+     // same code): one copy, and one task queue for both roots
+     dedupe: ['scheduler'],
+   },
++  // The computer's worker is a build of its own
++  worker: { plugins: () => [compileEagerly()] },
+ });

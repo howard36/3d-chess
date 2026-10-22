@@ -1,10 +1,11 @@
 import type { RefObject } from 'react';
 import { Canvas } from '@react-three/fiber';
+import type { RootState } from '@react-three/fiber';
 import { NeutralToneMapping } from 'three';
 import { LobbyScene } from '../../three/lobby/LobbyScene';
 import type { LobbyView } from '../../three/lobby/LobbyScene';
 import { PaceOnGpu } from '../../three/framePacer';
-import { setUpRenderer } from '../../three/rendererSetup';
+import { linkBeforeFirstFrame, setUpRenderer } from '../../three/rendererSetup';
 import { CAMERA_FOV } from '../../three/scene/palette';
 
 // The lobby's canvas: three.js and the lobby's scene, in the chunk the game's
@@ -18,6 +19,17 @@ export interface LobbyCanvasProps {
   canvasHost: RefObject<HTMLElement | null>;
 }
 
+/**
+ * The side choice (on /new and /computer) links its first frame's programs
+ * ahead of that frame, as the board does (linkBeforeFirstFrame), the page
+ * free meanwhile. Not a shared game's invitation, whose Join click would find
+ * the GPU busy with them.
+ */
+const linkingAhead = (state: RootState) => {
+  setUpRenderer(state);
+  linkBeforeFirstFrame(state);
+};
+
 const LobbyCanvas = ({ view, anchors, canvasHost }: LobbyCanvasProps) => (
   <Canvas
     data-testid="lobby-canvas"
@@ -25,7 +37,7 @@ const LobbyCanvas = ({ view, anchors, canvasHost }: LobbyCanvasProps) => (
     dpr={[1, 1.5]}
     gl={{ antialias: true, toneMapping: NeutralToneMapping, toneMappingExposure: 1 }}
     frameloop="demand"
-    onCreated={setUpRenderer}
+    onCreated={view.beat === 'choose' ? linkingAhead : setUpRenderer}
     style={{ touchAction: 'manipulation' }}
   >
     <LobbyScene view={view} anchors={anchors} canvasHost={canvasHost} />
