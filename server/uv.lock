@@ -28,7 +28,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "3d-chess-backend", extras = ["deploy"], marker = "extra == 'test'" },
-    { name = "datamodel-code-generator", marker = "extra == 'test'", specifier = "==0.83.0" },
+    { name = "datamodel-code-generator", marker = "extra == 'test'", specifier = "==0.90.0" },
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "httpx2", marker = "extra == 'test'" },
     { name = "modal", marker = "extra == 'deploy'", specifier = ">=1.5,<2" },
@@ -218,7 +218,7 @@ wheels = [
 
 [[package]]
 name = "datamodel-code-generator"
-version = "0.83.0"
+version = "0.90.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
@@ -231,9 +231,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/ad/bd0c954c4c4671e586b340059139ead38570ba916a237086e245982ab14d/datamodel_code_generator-0.83.0.tar.gz", hash = "sha256:30d841e31b82095c4ef11f3dbfc99525f559a146250b9e685e2a2e4a196ca0a1", size = 3074761, upload-time = "2026-09-24T08:56:40.622Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d9/6b98e436cc7869262df7710f53bdb91fe641c3f06f159e45d94f9efe37f8/datamodel_code_generator-0.90.0.tar.gz", hash = "sha256:53869907ee63fd11801d29779c91a5542d67c11b578f071d3a9dd53111d13930", size = 8876038, upload-time = "2026-11-06T06:53:21.103Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3a/4e/4a0231a7d3d4043cd27a746a50be87bc7637463023d7db9991610cd5fe56/datamodel_code_generator-0.83.0-py3-none-any.whl", hash = "sha256:371d80be360b2a57bc48462169553af57fa30225c0264ad85ae5f0d59b9d143a", size = 751087, upload-time = "2026-09-24T08:56:38.791Z" },
+    { url = "https://files.pythonhosted.org/packages/04/c6/e529a9889286bd59bea0a27d635e9b96e1ac8d88fce95302ef71fa436ff3/datamodel_code_generator-0.90.0-py3-none-any.whl", hash = "sha256:a24faf1691a5b8f2ced4078fec6889567a924959c6500aa9e585455a9fe21710", size = 2293088, upload-time = "2026-11-06T06:53:18.982Z" },
 ]
 
 [[package]]
